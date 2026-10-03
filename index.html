@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f9e63">
+  <meta name="description" content="Budżet rodzinny – dashboard domowych finansów.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Budżet rodzinny">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <title>Budżet rodzinny</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { width:100%; height:100%; margin:0; padding:0; }
+    body {
+      min-height:100svh;
+      overflow:hidden;
+      background:#f4f6f7;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;
+      overscroll-behavior:none;
+    }
+    #app-shell {
+      position:relative;
+      width:100%;
+      height:100svh;
+      padding-top:env(safe-area-inset-top);
+      padding-right:env(safe-area-inset-right);
+      padding-bottom:env(safe-area-inset-bottom);
+      padding-left:env(safe-area-inset-left);
+    }
+    #app-frame {
+      display:block;
+      width:100%;
+      height:100%;
+      border:0;
+      background:#f4f6f7;
+    }
+    #loading {
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      padding:24px;
+      background:#f4f6f7;
+      color:#6f767b;
+      z-index:2;
+      transition:opacity .22s ease;
+    }
+    #loading.is-hidden { opacity:0; pointer-events:none; }
+    .loading-card {
+      width:min(320px,100%);
+      padding:24px;
+      text-align:center;
+      background:#fff;
+      border:1px solid #eceff0;
+      border-radius:22px;
+      box-shadow:0 10px 30px rgba(0,0,0,.06);
+    }
+    .loading-icon { font-size:30px; margin-bottom:9px; }
+    .loading-title { color:#222; font-weight:750; margin-bottom:5px; }
+    .loading-subtitle { font-size:13px; color:#90969a; line-height:1.45; }
+    #install-help {
+      position:absolute;
+      left:50%;
+      bottom:calc(12px + env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      width:min(420px, calc(100% - 24px));
+      padding:12px 14px;
+      display:none;
+      align-items:center;
+      gap:10px;
+      background:rgba(255,255,255,.96);
+      border:1px solid #e7eaec;
+      border-radius:17px;
+      box-shadow:0 10px 28px rgba(0,0,0,.10);
+      z-index:3;
+      font-size:13px;
+      color:#555;
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+    }
+    #install-help.is-visible { display:flex; }
+    #install-help strong { color:#222; }
+    #install-help button {
+      margin-left:auto;
+      border:0;
+      border-radius:999px;
+      padding:8px 12px;
+      font-weight:750;
+      background:#2f9e63;
+      color:#fff;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    #install-dismiss {
+      border:0 !important;
+      background:transparent !important;
+      color:#888 !important;
+      padding:6px !important;
+    }
+    @media (max-width:520px) {
+      #install-help { font-size:12px; }
+      .loading-card { padding:22px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app-shell">
+    <iframe
+      id="app-frame"
+      title="Budżet rodzinny"
+      src="https://script.google.com/macros/s/AKfycbygWEJoCkGj74dmL72U_xEUFSqFExWfmuyFtSU24l6BaYkzud5drim_WCyKlqXcoGZheQ/exec"
+      allow="fullscreen"
+      referrerpolicy="strict-origin-when-cross-origin">
+    </iframe>
+
+    <div id="loading" aria-live="polite">
+      <div class="loading-card">
+        <div class="loading-icon">💰</div>
+        <div class="loading-title">Budżet rodzinny</div>
+        <div class="loading-subtitle">Uruchamianie aplikacji…</div>
+      </div>
+    </div>
+
+    <div id="install-help" role="status">
+      <div><strong>Budżet rodzinny</strong><br><span id="install-text"></span></div>
+      <button id="install-action" type="button">Dodaj</button>
+      <button id="install-dismiss" type="button" aria-label="Zamknij">×</button>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const frame = document.getElementById('app-frame');
+      const loading = document.getElementById('loading');
+      const installHelp = document.getElementById('install-help');
+      const installText = document.getElementById('install-text');
+      const installAction = document.getElementById('install-action');
+      const installDismiss = document.getElementById('install-dismiss');
+      let deferredPrompt = null;
+
+      frame.addEventListener('load', () => {
+        loading.classList.add('is-hidden');
+      }, { once: true });
+
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredPrompt = event;
+        installText.textContent = 'Zainstaluj na ekranie głównym.';
+        installAction.textContent = 'Zainstaluj';
+        installHelp.classList.add('is-visible');
+      });
+
+      installAction.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        try { await deferredPrompt.userChoice; } catch (_) {}
+        deferredPrompt = null;
+        installHelp.classList.remove('is-visible');
+      });
+
+      installDismiss.addEventListener('click', () => {
+        installHelp.classList.remove('is-visible');
+      });
+
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+      if (isIOS && isSafari && !isStandalone && !localStorage.getItem('budzet-ios-install-help-dismissed')) {
+        installText.textContent = 'W Safari wybierz Udostępnij → Dodaj do ekranu początkowego.';
+        installAction.textContent = 'Jak?';
+        installAction.addEventListener('click', () => {
+          installHelp.classList.remove('is-visible');
+        }, { once: true });
+        installHelp.classList.add('is-visible');
+      }
+
+      // Keep the shell immersive when launched from the home screen.
+      if (isStandalone) document.documentElement.classList.add('is-standalone');
+    })();
+  </script>
+</body>
+</html>
