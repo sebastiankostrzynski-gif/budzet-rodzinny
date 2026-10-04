@@ -115,7 +115,6 @@
     <iframe
       id="app-frame"
       title="Budżet rodzinny"
-      src="https://script.google.com/macros/s/AKfycbygWEJoCkGj74dmL72U_xEUFSqFExWfmuyFtSU24l6BaYkzud5drim_WCyKlqXcoGZheQ/exec"
       allow="fullscreen"
       referrerpolicy="strict-origin-when-cross-origin">
     </iframe>
@@ -141,6 +140,25 @@
 
       const frame = document.getElementById('app-frame');
       const loading = document.getElementById('loading');
+
+      const APP_URL = "https://script.google.com/macros/s/AKfycbygWEJoCkGj74dmL72U_xEUFSqFExWfmuyFtSU24l6BaYkzud5drim_WCyKlqXcoGZheQ/exec";
+      let hiddenSince = null;
+      let firstLoad = true;
+
+      function freshAppUrl_() {
+        return APP_URL + "?pwa_refresh=" + Date.now();
+      }
+
+      function loadFreshDashboard_() {
+        frame.src = freshAppUrl_();
+      }
+
+      // Rejestrujemy SW i prosimy przeglądarkę o sprawdzenie jego najnowszej wersji.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+          .then(reg => reg.update())
+          .catch(() => {});
+      }
       const installHelp = document.getElementById('install-help');
       const installText = document.getElementById('install-text');
       const installAction = document.getElementById('install-action');
@@ -150,6 +168,34 @@
       frame.addEventListener('load', () => {
         loading.classList.add('is-hidden');
       }, { once: true });
+
+      // Pierwsze uruchomienie: zawsze świeże żądanie do Apps Script.
+      loadFreshDashboard_();
+      firstLoad = false;
+
+      // Po powrocie z tła (szczególnie iPhone/PWA) odświeżamy iframe,
+      // ale tylko gdy aplikacja była poza ekranem co najmniej 20 sekund.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          hiddenSince = Date.now();
+          return;
+        }
+
+        if (document.visibilityState === "visible" && hiddenSince) {
+          const hiddenFor = Date.now() - hiddenSince;
+          hiddenSince = null;
+
+          if (!firstLoad && hiddenFor >= 20000) {
+            loadFreshDashboard_();
+          }
+        }
+      });
+
+      window.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+          loadFreshDashboard_();
+        }
+      });
 
       window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
