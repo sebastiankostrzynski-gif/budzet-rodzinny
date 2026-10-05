@@ -189,6 +189,7 @@
       const APP_URL = "https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec";
 
       const PWA_DASHBOARD_CACHE_KEY = 'budzet-pwa-dashboard-cache-v1';
+      const PWA_MONTH_CACHE_KEY = 'budzet-pwa-month-cache-v1';
       const PWA_CATEGORY_CACHE_KEY = 'budzet-pwa-category-cache-v1';
       const PWA_REFRESH_STATE_KEY = 'budzet-pwa-refresh-state-v1';
       const PWA_SNAPSHOT_KEY = 'budzet-pwa-dashboard-snapshot-v1';
@@ -258,6 +259,7 @@
 
       function sendCacheRestore_() {
         const dashboardCache = readJson_(PWA_DASHBOARD_CACHE_KEY);
+        const monthCache = readJson_(PWA_MONTH_CACHE_KEY);
         const categoryCache = readJson_(PWA_CATEGORY_CACHE_KEY);
         const refreshState = readJson_(PWA_REFRESH_STATE_KEY);
 
@@ -268,6 +270,7 @@
               type: 'BUDZET_PWA_CACHE_RESTORE',
               payload: {
                 dashboardCache: dashboardCache,
+                monthCache: monthCache,
                 categoryCache: categoryCache,
                 refreshState: refreshState
               }
@@ -295,6 +298,12 @@
           return;
         }
 
+        if (message.type === 'BUDZET_PWA_MONTH_CACHE') {
+          // V6: trwały magazyn odwiedzonych / dogrzanych miesięcy.
+          safeSet_(PWA_MONTH_CACHE_KEY, JSON.stringify(payload));
+          return;
+        }
+
         if (message.type === 'BUDZET_PWA_CATEGORY_CACHE') {
           // Cache kategorii może być większy; zapisujemy go osobno.
           safeSet_(PWA_CATEGORY_CACHE_KEY, JSON.stringify(payload));
@@ -319,7 +328,7 @@
         }
       });
 
-      // Pokaż ostatni dashboard natychmiast, jeszcze przed pobraniem Apps Script.
+      // V6: pokaż ostatni dashboard natychmiast, jeszcze przed pobraniem Apps Script.
       const hasSnapshot = showInstantSnapshot_();
 
       // Nawigację iframe uruchamiamy dopiero po ustawieniu listenerów postMessage.
