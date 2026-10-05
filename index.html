@@ -49,7 +49,7 @@
       padding:24px;
       background:#f4f6f7;
       color:#6f767b;
-      z-index:2;
+      z-index:4;
       transition:opacity .22s ease;
     }
     #loading.is-hidden { opacity:0; pointer-events:none; }
@@ -65,6 +65,38 @@
     .loading-icon { font-size:30px; margin-bottom:9px; }
     .loading-title { color:#222; font-weight:750; margin-bottom:5px; }
     .loading-subtitle { font-size:13px; color:#90969a; line-height:1.45; }
+    #instant-snapshot {
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      border:0;
+      background:#f4f6f7;
+      z-index:2;
+      display:none;
+      pointer-events:none;
+    }
+    #instant-snapshot.is-visible { display:block; }
+    #snapshot-status {
+      position:absolute;
+      left:50%;
+      bottom:calc(12px + env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      z-index:3;
+      display:none;
+      padding:7px 11px;
+      border-radius:999px;
+      background:rgba(255,255,255,.94);
+      border:1px solid #e7eaec;
+      box-shadow:0 5px 16px rgba(0,0,0,.08);
+      color:#7b8185;
+      font-size:11px;
+      font-weight:650;
+      white-space:nowrap;
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+    }
+    #snapshot-status.is-visible { display:block; }
     #install-help {
       position:absolute;
       left:50%;
@@ -79,7 +111,7 @@
       border:1px solid #e7eaec;
       border-radius:17px;
       box-shadow:0 10px 28px rgba(0,0,0,.10);
-      z-index:3;
+      z-index:5;
       font-size:13px;
       color:#555;
       backdrop-filter:blur(12px);
@@ -115,10 +147,20 @@
     <iframe
       id="app-frame"
       title="Budżet rodzinny"
-      src="https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec"
       allow="fullscreen"
       referrerpolicy="strict-origin-when-cross-origin">
     </iframe>
+
+    <iframe
+      id="instant-snapshot"
+      title="Ostatni zapisany widok budżetu"
+      aria-hidden="true"
+      tabindex="-1">
+    </iframe>
+
+    <div id="snapshot-status" aria-live="polite">
+      Otwieram aktualne dane…
+    </div>
 
     <div id="loading" aria-live="polite">
       <div class="loading-card">
@@ -141,6 +183,147 @@
 
       const frame = document.getElementById('app-frame');
       const loading = document.getElementById('loading');
+      const snapshotFrame = document.getElementById('instant-snapshot');
+      const snapshotStatus = document.getElementById('snapshot-status');
+
+      const APP_URL = "https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec";
+
+      const PWA_DASHBOARD_CACHE_KEY = 'budzet-pwa-dashboard-cache-v1';
+      const PWA_CATEGORY_CACHE_KEY = 'budzet-pwa-category-cache-v1';
+      const PWA_REFRESH_STATE_KEY = 'budzet-pwa-refresh-state-v1';
+      const PWA_SNAPSHOT_KEY = 'budzet-pwa-dashboard-snapshot-v1';
+      const PWA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+      const SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+      let appReady = false;
+
+      function safeGet_(key) {
+        try { return localStorage.getItem(key); } catch (_) { return null; }
+      }
+
+      function safeSet_(key, value) {
+        try {
+          localStorage.setItem(key, value);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function readJson_(key) {
+        const raw = safeGet_(key);
+        if (!raw) return null;
+        try { return JSON.parse(raw); } catch (_) { return null; }
+      }
+
+      function buildSnapshotDocument_(snapshot) {
+        const css = String(snapshot.css || '');
+        const html = String(snapshot.html || '');
+        return '<!doctype html><html lang="pl"><head>' +
+          '<meta charset="utf-8">' +
+          '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
+          '<style>' + css + '</style>' +
+          '</head><body><div id="app">' + html + '</div></body></html>';
+      }
+
+      function showInstantSnapshot_() {
+        const snapshot = readJson_(PWA_SNAPSHOT_KEY);
+        if (
+          !snapshot ||
+          !snapshot.savedAt ||
+          Date.now() - Number(snapshot.savedAt) > SNAPSHOT_MAX_AGE_MS ||
+          !snapshot.html
+        ) {
+          return false;
+        }
+
+        try {
+          snapshotFrame.srcdoc = buildSnapshotDocument_(snapshot);
+          snapshotFrame.classList.add('is-visible');
+          snapshotStatus.classList.add('is-visible');
+          loading.classList.add('is-hidden');
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function hideStartupLayers_() {
+        if (appReady) return;
+        appReady = true;
+        loading.classList.add('is-hidden');
+        snapshotFrame.classList.remove('is-visible');
+        snapshotStatus.classList.remove('is-visible');
+      }
+
+      function sendCacheRestore_() {
+        const dashboardCache = readJson_(PWA_DASHBOARD_CACHE_KEY);
+        const categoryCache = readJson_(PWA_CATEGORY_CACHE_KEY);
+        const refreshState = readJson_(PWA_REFRESH_STATE_KEY);
+
+        try {
+          frame.contentWindow.postMessage(
+            {
+              source: 'budzet-pwa-v5',
+              type: 'BUDZET_PWA_CACHE_RESTORE',
+              payload: {
+                dashboardCache: dashboardCache,
+                categoryCache: categoryCache,
+                refreshState: refreshState
+              }
+            },
+            '*'
+          );
+        } catch (_) {}
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== frame.contentWindow) return;
+
+        const message = event.data || {};
+        if (message.source !== 'budzet-dashboard-v5') return;
+
+        const payload = message.payload || {};
+
+        if (message.type === 'BUDZET_PWA_CACHE_REQUEST') {
+          sendCacheRestore_();
+          return;
+        }
+
+        if (message.type === 'BUDZET_PWA_DASHBOARD_CACHE') {
+          safeSet_(PWA_DASHBOARD_CACHE_KEY, JSON.stringify(payload));
+          return;
+        }
+
+        if (message.type === 'BUDZET_PWA_CATEGORY_CACHE') {
+          // Cache kategorii może być większy; zapisujemy go osobno.
+          safeSet_(PWA_CATEGORY_CACHE_KEY, JSON.stringify(payload));
+          return;
+        }
+
+        if (message.type === 'BUDZET_PWA_REFRESH_STATE') {
+          safeSet_(PWA_REFRESH_STATE_KEY, JSON.stringify(payload));
+          return;
+        }
+
+        if (message.type === 'BUDZET_PWA_DASHBOARD_SNAPSHOT') {
+          safeSet_(PWA_SNAPSHOT_KEY, JSON.stringify(payload));
+          return;
+        }
+
+        if (message.type === 'BUDZET_PWA_READY') {
+          // Realna aplikacja jest już wyrenderowana z cache lub z sieci.
+          requestAnimationFrame(() => {
+            setTimeout(hideStartupLayers_, 40);
+          });
+        }
+      });
+
+      // Pokaż ostatni dashboard natychmiast, jeszcze przed pobraniem Apps Script.
+      const hasSnapshot = showInstantSnapshot_();
+
+      // Nawigację iframe uruchamiamy dopiero po ustawieniu listenerów postMessage.
+      frame.src = APP_URL;
 
       // Rejestrujemy SW i prosimy przeglądarkę o sprawdzenie jego najnowszej wersji.
       if ("serviceWorker" in navigator) {
@@ -155,7 +338,12 @@
       let deferredPrompt = null;
 
       frame.addEventListener('load', () => {
-        loading.classList.add('is-hidden');
+        // Sam event load oznacza tylko, że HTML Apps Script dotarł.
+        // Warstwy startowe chowamy dopiero po komunikacie BUDZET_PWA_READY.
+        // Fallback chroni przed utknięciem przy starszej wersji Dashboard.html.
+        setTimeout(() => {
+          if (!appReady) hideStartupLayers_();
+        }, 20000);
       }, { once: true });
 
       // WAŻNE DLA iPHONE/PWA:

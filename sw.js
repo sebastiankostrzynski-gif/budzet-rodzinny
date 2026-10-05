@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budzet-rodzinny-shell-v2';
+const CACHE_NAME = 'budzet-rodzinny-shell-v3-mobile-cache';
 const APP_SHELL = [
   './',
   './index.html',
