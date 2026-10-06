@@ -1,4 +1,5 @@
-const CACHE_NAME = 'budzet-rodzinny-shell-v4-local-first';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v5-true-local-first';
+const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
@@ -10,40 +11,59 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+
+    // index.html jest jedynym krytycznym plikiem. Ikony/manifest nie mogą
+    // zablokować instalacji nowej wersji, gdy chwilowo zwrócą błąd CDN/GitHub.
+    const criticalUrl = new URL('./index.html', self.registration.scope).href;
+    const criticalResponse = await fetch(
+      new Request(criticalUrl, { cache: 'no-store' })
+    );
+
+    if (!criticalResponse || !criticalResponse.ok) {
+      throw new Error('Nie udało się zapisać krytycznego index.html.');
+    }
+
+    await cache.put(criticalUrl, criticalResponse.clone());
+
+    const optionalPaths = APP_SHELL.filter(path => path !== './index.html');
+    await Promise.all(
+      optionalPaths.map(async path => {
+        try {
+          const absoluteUrl = new URL(path, self.registration.scope).href;
+          const response = await fetch(
+            new Request(absoluteUrl, { cache: 'no-store' })
+          );
+          if (response && response.ok) {
+            await cache.put(absoluteUrl, response.clone());
+          }
+        } catch (_) {
+          // Pliki opcjonalne nie mogą zablokować aktualizacji aplikacji.
+        }
+      })
+    );
+  })());
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => Promise.all(
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
       keys
-        .filter(key => key !== CACHE_NAME)
+        .filter(key =>
+          key !== SHELL_CACHE &&
+          key !== RUNTIME_CACHE
+        )
         .map(key => caches.delete(key))
-    ))
-  );
-  self.clients.claim();
+    );
+    await self.clients.claim();
+  })());
 });
 
-async function fetchAndUpdate_(request) {
-  try {
-    const response = await fetch(request, { cache: 'no-store' });
-
-    if (response && response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(request, response.clone());
-    }
-
-    return response;
-  } catch (_) {
-    return null;
-  }
-}
-
-async function getShellFromCache_(request) {
-  const cache = await caches.open(CACHE_NAME);
+async function matchShell_(request) {
+  const cache = await caches.open(SHELL_CACHE);
 
   return (
     await cache.match(request, { ignoreSearch: true }) ||
@@ -53,6 +73,17 @@ async function getShellFromCache_(request) {
   );
 }
 
+async function fetchAndCache_(request) {
+  const response = await fetch(request, { cache: 'no-store' });
+
+  if (response && response.ok) {
+    const cache = await caches.open(SHELL_CACHE);
+    await cache.put(request, response.clone());
+  }
+
+  return response;
+}
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -60,40 +91,67 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  const isShellHtml =
+  const isNavigation =
     request.mode === 'navigate' ||
     url.pathname.endsWith('/index.html');
 
-  // Sieć rusza równolegle wyłącznie po to, aby odświeżyć cache.
-  // event.waitUntil wywołujemy od razu w handlerze (ważne dla iOS/WebKit).
-  const networkUpdate = fetchAndUpdate_(request);
-  event.waitUntil(networkUpdate.then(() => undefined));
-
-  if (isShellHtml) {
+  if (isNavigation) {
+    // TRUE LOCAL-FIRST:
+    // podczas startu aplikacji NIE uruchamiamy sieci równolegle.
+    // Najpierw oddajemy lokalny shell. Internet jest używany wyłącznie,
+    // gdy na urządzeniu nie ma jeszcze żadnej kopii aplikacji.
     event.respondWith((async () => {
-      // LOCAL-FIRST: jeżeli powłoka jest w telefonie, zwracamy ją natychmiast.
-      // Wynik networkUpdate nie blokuje renderu i zostanie użyty dopiero wtedy,
-      // gdy nie mamy żadnej lokalnej kopii.
-      const cached = await getShellFromCache_(request);
+      const cached = await matchShell_(request);
       if (cached) return cached;
 
-      const network = await networkUpdate;
-      if (network) return network;
-
-      return new Response(
-        '<!doctype html><meta charset="utf-8"><title>Budżet rodzinny</title><p>Brak połączenia i brak lokalnej kopii aplikacji.</p>',
-        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-      );
+      try {
+        return await fetchAndCache_(request);
+      } catch (_) {
+        return new Response(
+          '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Budżet rodzinny</title><p>Brak połączenia i brak lokalnej kopii aplikacji.</p>',
+          { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
     })());
     return;
   }
 
+  // Pozostałe lokalne pliki statyczne: także cache-first.
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
+    const cache = await caches.open(SHELL_CACHE);
     const cached = await cache.match(request, { ignoreSearch: true });
     if (cached) return cached;
 
-    const network = await networkUpdate;
-    return network || Response.error();
+    try {
+      return await fetchAndCache_(request);
+    } catch (_) {
+      return Response.error();
+    }
+  })());
+});
+
+// Odświeżenie powłoki jest wykonywane dopiero PO uruchomieniu aplikacji,
+// na wyraźne żądanie index.html. Nigdy nie znajduje się w ścieżce startowej.
+self.addEventListener('message', event => {
+  const message = event.data || {};
+  if (message.type !== 'BUDZET_REFRESH_SHELL') return;
+
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+
+    await Promise.all(
+      APP_SHELL.map(async path => {
+        try {
+          const absoluteUrl = new URL(path, self.registration.scope).href;
+          const request = new Request(absoluteUrl, { cache: 'no-store' });
+          const response = await fetch(request);
+          if (response && response.ok) {
+            await cache.put(absoluteUrl, response.clone());
+          }
+        } catch (_) {
+          // Aktualizacja powłoki jest best-effort i nie wpływa na działanie aplikacji.
+        }
+      })
+    );
   })());
 });

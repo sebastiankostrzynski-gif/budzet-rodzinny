@@ -181,6 +181,7 @@
     (() => {
       'use strict';
 
+      const VERSION = '2026-10-06-TRUE-LOCAL-FIRST-V8';
       const frame = document.getElementById('app-frame');
       const loading = document.getElementById('loading');
       const snapshotFrame = document.getElementById('instant-snapshot');
@@ -188,15 +189,48 @@
 
       const APP_URL = "https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec";
 
+      // Szybka warstwa – localStorage. Zostawiamy stare klucze, aby V8
+      // od razu przejęła cache zapisany przez V5/V7.
       const PWA_DASHBOARD_CACHE_KEY = 'budzet-pwa-dashboard-cache-v1';
       const PWA_MONTH_CACHE_KEY = 'budzet-pwa-month-cache-v1';
       const PWA_CATEGORY_CACHE_KEY = 'budzet-pwa-category-cache-v1';
       const PWA_REFRESH_STATE_KEY = 'budzet-pwa-refresh-state-v1';
       const PWA_SNAPSHOT_KEY = 'budzet-pwa-dashboard-snapshot-v1';
-      const PWA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+      const PWA_DIAGNOSTICS_KEY = 'budzet-pwa-start-diagnostics-v1';
+
+      // Trwała warstwa – Cache Storage. Nie ma małego limitu localStorage
+      // i na iOS jest niezależną kopią krytycznych danych startowych.
+      const RUNTIME_CACHE_NAME = 'budzet-rodzinny-runtime-v8';
+      const RUNTIME_BACKUP_URL = new URL('./__budget_runtime_v8__.json', location.href).href;
+      const SNAPSHOT_BACKUP_URL = new URL('./__budget_snapshot_v8__.json', location.href).href;
+
       const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+      const RUNTIME_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+      const startPerf = performance.now();
+      const diagnostics = {
+        version: VERSION,
+        startedAt: Date.now(),
+        serviceWorkerControlled: Boolean(navigator.serviceWorker && navigator.serviceWorker.controller),
+        localSnapshot: false,
+        durableSnapshot: false,
+        liveFrameStartedMs: null,
+        frameLoadMs: null,
+        readyMs: null,
+        durableBackupLoadedMs: null
+      };
+      window.__budgetDiagnostics = diagnostics;
 
       let appReady = false;
+      let liveAppStarted = false;
+      let snapshotVisible = false;
+      let runtimePackage = null;
+      let runtimePersistTimer = null;
+      let shellRefreshScheduled = false;
+
+      function elapsed_() {
+        return Math.round(performance.now() - startPerf);
+      }
 
       function safeGet_(key) {
         try { return localStorage.getItem(key); } catch (_) { return null; }
@@ -217,6 +251,58 @@
         try { return JSON.parse(raw); } catch (_) { return null; }
       }
 
+      function safeJsonStringify_(value) {
+        try { return JSON.stringify(value); } catch (_) { return null; }
+      }
+
+      function persistDiagnostics_() {
+        const raw = safeJsonStringify_(diagnostics);
+        if (raw) safeSet_(PWA_DIAGNOSTICS_KEY, raw);
+      }
+
+      async function cacheReadJson_(url) {
+        if (!('caches' in window)) return null;
+        try {
+          const cache = await caches.open(RUNTIME_CACHE_NAME);
+          const response = await cache.match(url, { ignoreSearch: true });
+          if (!response) return null;
+          return await response.json();
+        } catch (_) {
+          return null;
+        }
+      }
+
+      async function cacheWriteJson_(url, value) {
+        if (!('caches' in window)) return false;
+        const raw = safeJsonStringify_(value);
+        if (!raw) return false;
+
+        try {
+          const cache = await caches.open(RUNTIME_CACHE_NAME);
+          await cache.put(
+            url,
+            new Response(raw, {
+              headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Cache-Control': 'no-store'
+              }
+            })
+          );
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function isSnapshotUsable_(snapshot) {
+        return Boolean(
+          snapshot &&
+          snapshot.savedAt &&
+          snapshot.html &&
+          Date.now() - Number(snapshot.savedAt) <= SNAPSHOT_MAX_AGE_MS
+        );
+      }
+
       function buildSnapshotDocument_(snapshot) {
         const css = String(snapshot.css || '');
         const html = String(snapshot.html || '');
@@ -227,57 +313,182 @@
           '</head><body><div id="app">' + html + '</div></body></html>';
       }
 
-      function showInstantSnapshot_() {
-        const snapshot = readJson_(PWA_SNAPSHOT_KEY);
-        if (
-          !snapshot ||
-          !snapshot.savedAt ||
-          Date.now() - Number(snapshot.savedAt) > SNAPSHOT_MAX_AGE_MS ||
-          !snapshot.html
-        ) {
-          return false;
-        }
+      function showSnapshot_(snapshot, source) {
+        if (!isSnapshotUsable_(snapshot) || appReady) return false;
 
         try {
           snapshotFrame.srcdoc = buildSnapshotDocument_(snapshot);
           snapshotFrame.classList.add('is-visible');
+          snapshotStatus.textContent = 'Dane z pamięci telefonu · aktualizuję w tle…';
           snapshotStatus.classList.add('is-visible');
           loading.classList.add('is-hidden');
+          snapshotVisible = true;
+
+          if (source === 'local') diagnostics.localSnapshot = true;
+          if (source === 'durable') diagnostics.durableSnapshot = true;
+          persistDiagnostics_();
           return true;
         } catch (_) {
           return false;
         }
       }
 
+      function showInstantLocalSnapshot_() {
+        const snapshot = readJson_(PWA_SNAPSHOT_KEY);
+        const shown = showSnapshot_(snapshot, 'local');
+
+        // Migracja V5/V7 -> V8: jeżeli stary localStorage ma dobry snapshot,
+        // od razu tworzymy drugą, trwalszą kopię w Cache Storage.
+        if (isSnapshotUsable_(snapshot)) {
+          cacheWriteJson_(SNAPSHOT_BACKUP_URL, snapshot);
+        }
+
+        return shown;
+      }
+
       function hideStartupLayers_() {
         if (appReady) return;
         appReady = true;
+        diagnostics.readyMs = elapsed_();
+        persistDiagnostics_();
+
         loading.classList.add('is-hidden');
         snapshotFrame.classList.remove('is-visible');
         snapshotStatus.classList.remove('is-visible');
+        snapshotVisible = false;
       }
 
-      function sendCacheRestore_() {
-        const dashboardCache = readJson_(PWA_DASHBOARD_CACHE_KEY);
-        const monthCache = readJson_(PWA_MONTH_CACHE_KEY);
-        const categoryCache = readJson_(PWA_CATEGORY_CACHE_KEY);
-        const refreshState = readJson_(PWA_REFRESH_STATE_KEY);
+      function localRuntimePackage_() {
+        return {
+          schema: 1,
+          savedAt: Date.now(),
+          dashboardCache: readJson_(PWA_DASHBOARD_CACHE_KEY),
+          monthCache: readJson_(PWA_MONTH_CACHE_KEY),
+          categoryCache: readJson_(PWA_CATEGORY_CACHE_KEY),
+          refreshState: readJson_(PWA_REFRESH_STATE_KEY)
+        };
+      }
 
+      function hasUsefulRuntimeData_(pkg) {
+        return Boolean(
+          pkg &&
+          (
+            pkg.dashboardCache ||
+            pkg.monthCache ||
+            pkg.categoryCache ||
+            pkg.refreshState
+          )
+        );
+      }
+
+      function newestByTimestamp_(a, b, field) {
+        if (!a) return b || null;
+        if (!b) return a || null;
+        const ta = Number(a[field] || 0);
+        const tb = Number(b[field] || 0);
+        return tb > ta ? b : a;
+      }
+
+      function mergeRuntimePackages_(localPkg, durablePkg) {
+        const local = localPkg || {};
+        const durable = durablePkg || {};
+
+        return {
+          schema: 1,
+          savedAt: Math.max(Number(local.savedAt || 0), Number(durable.savedAt || 0), Date.now()),
+          dashboardCache: newestByTimestamp_(local.dashboardCache, durable.dashboardCache, 'timestamp'),
+          monthCache: newestByTimestamp_(local.monthCache, durable.monthCache, 'savedAt'),
+          categoryCache: newestByTimestamp_(local.categoryCache, durable.categoryCache, 'savedAt'),
+          // refreshState nie ma własnego savedAt; preferujemy lokalny, jeśli istnieje.
+          refreshState: local.refreshState || durable.refreshState || null
+        };
+      }
+
+      async function loadDurableBackups_() {
+        const results = await Promise.all([
+          cacheReadJson_(SNAPSHOT_BACKUP_URL),
+          cacheReadJson_(RUNTIME_BACKUP_URL)
+        ]);
+
+        const durableSnapshot = results[0];
+        const durableRuntime = results[1];
+
+        diagnostics.durableBackupLoadedMs = elapsed_();
+
+        if (!snapshotVisible && isSnapshotUsable_(durableSnapshot)) {
+          showSnapshot_(durableSnapshot, 'durable');
+
+          // Odtwarzamy też szybką kopię localStorage na przyszłe starty.
+          const raw = safeJsonStringify_(durableSnapshot);
+          if (raw) safeSet_(PWA_SNAPSHOT_KEY, raw);
+        }
+
+        runtimePackage = mergeRuntimePackages_(
+          localRuntimePackage_(),
+          durableRuntime && Date.now() - Number(durableRuntime.savedAt || 0) <= RUNTIME_MAX_AGE_MS
+            ? durableRuntime
+            : null
+        );
+
+        // Migracja istniejącego cache V5/V7 do trwałej warstwy V8 odbywa się
+        // bez czekania na Apps Script. Dzięki temu pierwszy start po wdrożeniu
+        // sam zabezpiecza dane na kolejne zimne uruchomienia.
+        if (hasUsefulRuntimeData_(runtimePackage)) {
+          cacheWriteJson_(RUNTIME_BACKUP_URL, runtimePackage);
+        }
+
+        return {
+          snapshot: durableSnapshot,
+          runtime: runtimePackage
+        };
+      }
+
+      const durableLoadPromise = loadDurableBackups_().catch(() => ({ snapshot: null, runtime: null }));
+
+      function scheduleRuntimePersist_() {
+        if (runtimePersistTimer) clearTimeout(runtimePersistTimer);
+
+        runtimePersistTimer = setTimeout(() => {
+          runtimePersistTimer = null;
+          if (!runtimePackage) return;
+          runtimePackage.savedAt = Date.now();
+          cacheWriteJson_(RUNTIME_BACKUP_URL, runtimePackage);
+        }, 180);
+      }
+
+      function updateRuntimeComponent_(name, payload) {
+        if (!runtimePackage) runtimePackage = localRuntimePackage_();
+        runtimePackage[name] = payload || null;
+        runtimePackage.savedAt = Date.now();
+        scheduleRuntimePersist_();
+      }
+
+      function postRestorePayload_(payload) {
         try {
           frame.contentWindow.postMessage(
             {
               source: 'budzet-pwa-v5',
               type: 'BUDZET_PWA_CACHE_RESTORE',
-              payload: {
-                dashboardCache: dashboardCache,
-                monthCache: monthCache,
-                categoryCache: categoryCache,
-                refreshState: refreshState
-              }
+              payload: payload || {}
             },
             '*'
           );
         } catch (_) {}
+      }
+
+      function sendCacheRestore_() {
+        // 1) natychmiast wysyłamy szybką kopię localStorage.
+        const localPkg = localRuntimePackage_();
+        postRestorePayload_(localPkg);
+
+        // 2) po odczycie trwałej kopii wysyłamy jeszcze raz scalony pakiet.
+        // Dashboard V8 potrafi przyjąć ten drugi komunikat nawet po timeoutcie.
+        durableLoadPromise.then(() => {
+          const merged = mergeRuntimePackages_(localRuntimePackage_(), runtimePackage);
+          if (hasUsefulRuntimeData_(merged)) {
+            postRestorePayload_(merged);
+          }
+        }).catch(() => {});
       }
 
       window.addEventListener('message', (event) => {
@@ -294,93 +505,128 @@
         }
 
         if (message.type === 'BUDZET_PWA_DASHBOARD_CACHE') {
-          safeSet_(PWA_DASHBOARD_CACHE_KEY, JSON.stringify(payload));
+          const raw = safeJsonStringify_(payload);
+          if (raw) safeSet_(PWA_DASHBOARD_CACHE_KEY, raw);
+          updateRuntimeComponent_('dashboardCache', payload);
           return;
         }
 
         if (message.type === 'BUDZET_PWA_MONTH_CACHE') {
-          // V7: trwały magazyn odwiedzonych / dogrzanych miesięcy.
-          safeSet_(PWA_MONTH_CACHE_KEY, JSON.stringify(payload));
+          const raw = safeJsonStringify_(payload);
+          if (raw) safeSet_(PWA_MONTH_CACHE_KEY, raw);
+          updateRuntimeComponent_('monthCache', payload);
           return;
         }
 
         if (message.type === 'BUDZET_PWA_CATEGORY_CACHE') {
-          // Cache kategorii może być większy; zapisujemy go osobno.
-          safeSet_(PWA_CATEGORY_CACHE_KEY, JSON.stringify(payload));
+          const raw = safeJsonStringify_(payload);
+          if (raw) safeSet_(PWA_CATEGORY_CACHE_KEY, raw);
+          updateRuntimeComponent_('categoryCache', payload);
           return;
         }
 
         if (message.type === 'BUDZET_PWA_REFRESH_STATE') {
-          safeSet_(PWA_REFRESH_STATE_KEY, JSON.stringify(payload));
+          const raw = safeJsonStringify_(payload);
+          if (raw) safeSet_(PWA_REFRESH_STATE_KEY, raw);
+          updateRuntimeComponent_('refreshState', payload);
           return;
         }
 
         if (message.type === 'BUDZET_PWA_DASHBOARD_SNAPSHOT') {
-          safeSet_(PWA_SNAPSHOT_KEY, JSON.stringify(payload));
+          const raw = safeJsonStringify_(payload);
+          if (raw) safeSet_(PWA_SNAPSHOT_KEY, raw);
+
+          // Snapshot jest krytyczny dla zimnego startu, więc zapisujemy go
+          // od razu do Cache Storage – bez debounce i niezależnie od localStorage.
+          cacheWriteJson_(SNAPSHOT_BACKUP_URL, payload);
           return;
         }
 
         if (message.type === 'BUDZET_PWA_READY') {
-          // Realna aplikacja jest już wyrenderowana z cache lub z sieci.
           requestAnimationFrame(() => {
-            setTimeout(hideStartupLayers_, 40);
+            setTimeout(() => {
+              hideStartupLayers_();
+              scheduleShellRefresh_();
+            }, 30);
           });
         }
       });
 
-      // V7 LOCAL-FIRST: ostatni poprawny dashboard pokazujemy natychmiast z
-      // pamięci telefonu. Apps Script uruchamia się równolegle dopiero po tym,
-      // żeby wolne LTE nie blokowało pierwszego obrazu aplikacji.
-      const hasSnapshot = showInstantSnapshot_();
-
       function startLiveApp_() {
-        if (!frame.getAttribute('src')) {
-          frame.src = APP_URL;
-        }
+        if (liveAppStarted) return;
+        liveAppStarted = true;
+        diagnostics.liveFrameStartedMs = elapsed_();
+        persistDiagnostics_();
+        frame.src = APP_URL;
       }
 
-      if (hasSnapshot) {
-        requestAnimationFrame(() => {
-          setTimeout(startLiveApp_, 0);
-        });
+      // KROK 1: synchronizacyjnie pokazujemy snapshot z localStorage.
+      const hasLocalSnapshot = showInstantLocalSnapshot_();
+
+      // KROK 2: jeżeli localStorage nie ma snapshotu, dajemy Cache Storage
+      // krótkie 250 ms na odtworzenie trwałej kopii. To nadal wielokrotnie
+      // szybciej niż start Apps Script na LTE i eliminuje pusty loader.
+      if (hasLocalSnapshot) {
+        requestAnimationFrame(() => setTimeout(startLiveApp_, 60));
       } else {
-        startLiveApp_();
+        Promise.race([
+          durableLoadPromise,
+          new Promise(resolve => setTimeout(resolve, 250))
+        ]).finally(startLiveApp_);
       }
-
-      // Rejestrujemy SW i prosimy przeglądarkę o sprawdzenie jego najnowszej wersji.
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
-          .then(reg => reg.update())
-          .catch(() => {});
-      }
-      const installHelp = document.getElementById('install-help');
-      const installText = document.getElementById('install-text');
-      const installAction = document.getElementById('install-action');
-      const installDismiss = document.getElementById('install-dismiss');
-      let deferredPrompt = null;
 
       frame.addEventListener('load', () => {
-        // Jeśli mamy lokalny snapshot, NIE chowamy go tylko dlatego, że HTML
-        // Apps Script dotarł. Zostaje na ekranie aż realny Dashboard wyśle READY.
-        // Dzięki temu na LTE użytkownik nigdy nie wraca do pustego loadera.
-        if (hasSnapshot) return;
+        diagnostics.frameLoadMs = elapsed_();
+        persistDiagnostics_();
 
-        // Bez snapshotu po kilku sekundach pokazujemy już zawartość iframe,
-        // nawet jeśli backend nadal dogrywa dane. To fallback dla pierwszego
-        // uruchomienia na nowym telefonie.
+        // Samo załadowanie HTML Apps Script nie oznacza gotowego dashboardu.
+        // Jeżeli snapshot jest widoczny, pozostaje na ekranie aż do READY.
+        if (snapshotVisible) return;
+
+        // Pierwsze uruchomienie na zupełnie nowym urządzeniu może nie mieć cache.
+        // Wtedy po 4 s pokazujemy iframe zamiast zasłaniać go loaderem rodzica.
         setTimeout(() => {
-          if (!appReady) {
+          if (!appReady && !snapshotVisible) {
             loading.classList.add('is-hidden');
           }
         }, 4000);
       }, { once: true });
 
-      // WAŻNE DLA iPHONE/PWA:
-      // Nie przeładowujemy całego iframe przy każdym powrocie do aplikacji.
-      // Dashboard sam sprawdza źródło przy pageshow/visibilitychange
-      // i co 30 sekund przez getRefreshState().
-      // Dzięki temu powrót do aplikacji jest natychmiastowy, a dane
-      // nadal aktualizują się automatycznie po zmianie Google Sheets.
+      // Service Worker NIE może już wykonywać sieci w ścieżce startowej.
+      // Rejestrację/aktualizację odkładamy do chwili, gdy shell jest już na ekranie.
+      function scheduleShellRefresh_() {
+        if (!("serviceWorker" in navigator) || shellRefreshScheduled) return;
+        shellRefreshScheduled = true;
+
+        setTimeout(() => {
+          navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+            .then(reg => {
+              // Sprawdzenie nowego sw.js nie wpływa na bieżący start.
+              setTimeout(() => reg.update().catch(() => {}), 1200);
+
+              // Po ustabilizowaniu aplikacji odświeżamy pliki powłoki w tle.
+              setTimeout(() => {
+                const target = navigator.serviceWorker.controller || reg.active;
+                if (target) {
+                  try { target.postMessage({ type: 'BUDZET_REFRESH_SHELL' }); } catch (_) {}
+                }
+              }, 2500);
+            })
+            .catch(() => {});
+        }, 600);
+      }
+
+      // Jeśli z jakiegoś powodu READY nie przyjdzie (np. brak sieci), a snapshot
+      // jest widoczny, zostawiamy go. SW można mimo to zarejestrować po 5 s.
+      setTimeout(() => {
+        if (!appReady) scheduleShellRefresh_();
+      }, 5000);
+
+      const installHelp = document.getElementById('install-help');
+      const installText = document.getElementById('install-text');
+      const installAction = document.getElementById('install-action');
+      const installDismiss = document.getElementById('install-dismiss');
+      let deferredPrompt = null;
 
       window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
@@ -415,8 +661,15 @@
         installHelp.classList.add('is-visible');
       }
 
-      // Keep the shell immersive when launched from the home screen.
       if (isStandalone) document.documentElement.classList.add('is-standalone');
+
+      // Best-effort: na przeglądarkach, które to wspierają, prosimy o
+      // trwalsze przechowywanie danych PWA. Brak wsparcia/zgody niczego nie blokuje.
+      if (navigator.storage && typeof navigator.storage.persist === 'function') {
+        setTimeout(() => {
+          try { navigator.storage.persist().catch(() => {}); } catch (_) {}
+        }, 3000);
+      }
     })();
   </script>
 </body>
