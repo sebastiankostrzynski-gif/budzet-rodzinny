@@ -159,7 +159,7 @@
     </iframe>
 
     <div id="snapshot-status" aria-live="polite">
-      Otwieram aktualne dane…
+      Dane z pamięci · aktualizuję w tle…
     </div>
 
     <div id="loading" aria-live="polite">
@@ -194,7 +194,7 @@
       const PWA_REFRESH_STATE_KEY = 'budzet-pwa-refresh-state-v1';
       const PWA_SNAPSHOT_KEY = 'budzet-pwa-dashboard-snapshot-v1';
       const PWA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-      const SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+      const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
       let appReady = false;
 
@@ -299,7 +299,7 @@
         }
 
         if (message.type === 'BUDZET_PWA_MONTH_CACHE') {
-          // V6: trwały magazyn odwiedzonych / dogrzanych miesięcy.
+          // V7: trwały magazyn odwiedzonych / dogrzanych miesięcy.
           safeSet_(PWA_MONTH_CACHE_KEY, JSON.stringify(payload));
           return;
         }
@@ -328,11 +328,24 @@
         }
       });
 
-      // V6: pokaż ostatni dashboard natychmiast, jeszcze przed pobraniem Apps Script.
+      // V7 LOCAL-FIRST: ostatni poprawny dashboard pokazujemy natychmiast z
+      // pamięci telefonu. Apps Script uruchamia się równolegle dopiero po tym,
+      // żeby wolne LTE nie blokowało pierwszego obrazu aplikacji.
       const hasSnapshot = showInstantSnapshot_();
 
-      // Nawigację iframe uruchamiamy dopiero po ustawieniu listenerów postMessage.
-      frame.src = APP_URL;
+      function startLiveApp_() {
+        if (!frame.getAttribute('src')) {
+          frame.src = APP_URL;
+        }
+      }
+
+      if (hasSnapshot) {
+        requestAnimationFrame(() => {
+          setTimeout(startLiveApp_, 0);
+        });
+      } else {
+        startLiveApp_();
+      }
 
       // Rejestrujemy SW i prosimy przeglądarkę o sprawdzenie jego najnowszej wersji.
       if ("serviceWorker" in navigator) {
@@ -347,12 +360,19 @@
       let deferredPrompt = null;
 
       frame.addEventListener('load', () => {
-        // Sam event load oznacza tylko, że HTML Apps Script dotarł.
-        // Warstwy startowe chowamy dopiero po komunikacie BUDZET_PWA_READY.
-        // Fallback chroni przed utknięciem przy starszej wersji Dashboard.html.
+        // Jeśli mamy lokalny snapshot, NIE chowamy go tylko dlatego, że HTML
+        // Apps Script dotarł. Zostaje na ekranie aż realny Dashboard wyśle READY.
+        // Dzięki temu na LTE użytkownik nigdy nie wraca do pustego loadera.
+        if (hasSnapshot) return;
+
+        // Bez snapshotu po kilku sekundach pokazujemy już zawartość iframe,
+        // nawet jeśli backend nadal dogrywa dane. To fallback dla pierwszego
+        // uruchomienia na nowym telefonie.
         setTimeout(() => {
-          if (!appReady) hideStartupLayers_();
-        }, 20000);
+          if (!appReady) {
+            loading.classList.add('is-hidden');
+          }
+        }, 4000);
       }, { once: true });
 
       // WAŻNE DLA iPHONE/PWA:
