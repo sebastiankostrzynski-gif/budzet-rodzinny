@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v5-true-local-first';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v6-frame-bridge';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

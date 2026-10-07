@@ -181,7 +181,7 @@
     (() => {
       'use strict';
 
-      const VERSION = '2026-10-06-TRUE-LOCAL-FIRST-V8';
+      const VERSION = '2026-10-07-FRAME-BRIDGE-V9';
       const frame = document.getElementById('app-frame');
       const loading = document.getElementById('loading');
       const snapshotFrame = document.getElementById('instant-snapshot');
@@ -463,15 +463,35 @@
         scheduleRuntimePersist_();
       }
 
+      let dashboardClient = null;
+      let dashboardOrigin = null;
+
+      // Accept only Google's dashboard inside OUR app iframe, including its
+      // sandbox descendant. An unrelated tab/frame cannot request the cache.
+      function isDashboardSender_(event) {
+        if (!/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
+        let sender = event.source;
+        try {
+          for (let depth = 0; sender && depth < 8; depth++) {
+            if (sender === frame.contentWindow) return true;
+            const parent = sender.parent;
+            if (!parent || parent === sender) break;
+            sender = parent;
+          }
+        } catch (_) {}
+        return false;
+      }
+
       function postRestorePayload_(payload) {
         try {
-          frame.contentWindow.postMessage(
+          if (!dashboardClient || !dashboardOrigin) return;
+          dashboardClient.postMessage(
             {
               source: 'budzet-pwa-v5',
               type: 'BUDZET_PWA_CACHE_RESTORE',
               payload: payload || {}
             },
-            '*'
+            dashboardOrigin
           );
         } catch (_) {}
       }
@@ -492,10 +512,14 @@
       }
 
       window.addEventListener('message', (event) => {
-        if (event.source !== frame.contentWindow) return;
+        if (!isDashboardSender_(event)) return;
 
         const message = event.data || {};
         if (message.source !== 'budzet-dashboard-v5') return;
+        dashboardClient = event.source;
+        dashboardOrigin = event.origin;
+        diagnostics.bridgeConnected = true;
+        persistDiagnostics_();
 
         const payload = message.payload || {};
 
