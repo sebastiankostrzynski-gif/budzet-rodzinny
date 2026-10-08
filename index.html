@@ -1530,7 +1530,7 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 .app-utilities{display:flex;justify-content:flex-end;align-items:center;gap:10px;max-width:732px;margin:8px auto;padding:0 14px;color:#53616d;font-size:12px}.app-utilities button{min-height:44px;background:white;color:#354652;border:1px solid #d9e0e5;border-radius:12px;padding:8px 12px;font:600 14px system-ui;cursor:pointer}
 .sav-sticky [hidden]{display:none!important}.sav-sticky .detail-sticky-center{grid-column:2}.sav-sticky .detail-sticky-month{font-size:13px}.sav-sticky{min-height:62px}.disposition-card>summary{min-height:44px;cursor:pointer;font-size:17px;font-weight:650;padding:12px 0}.disposition-card .disposition-grid{margin-top:16px}
 .main-card,.sav-hero{border-radius:22px}.main-card-value,.sav-hero>strong{font-variant-numeric:tabular-nums}.dashboard-page-header .page-title{font-size:22px}.data-freshness{font-size:13px}.main-card-description{font-size:13px}.summary-label{color:#59636d;font-size:13px}.category-bottom{font-size:13px}.dashboard-month-sticky{z-index:60}
-body.amounts-hidden #app svg{visibility:hidden}body.amounts-hidden .progress-bar{visibility:hidden}
+body.amounts-hidden #app svg:not(.privacy-eye svg){visibility:hidden}body.amounts-hidden .progress-bar{visibility:hidden}
 @media(max-width:760px){body{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}.budget-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;width:100%;max-width:none;box-sizing:border-box;margin:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;background:#f4f6f8!important;border-top:1px solid #dce2e7;box-shadow:0 -4px 20px #203c6510;gap:6px}.budget-tabs button{min-height:52px;font-size:13px}.budget-tabs button[data-tab="budget"].selected{background:#287c54;color:white}.app-utilities{margin-top:4px}.sav-wrap{padding-top:4px}.dashboard-page-header{padding-top:4px}.sav-sticky{margin-bottom:10px}.sav-month{margin-top:4px}}
 
 
@@ -1560,14 +1560,34 @@ body.amounts-hidden #app svg{visibility:hidden}body.amounts-hidden .progress-bar
 .sav-status,.debt-wrap .sav-status{color:#52617a;font-size:13px;margin:0 0 14px;min-height:44px}
 .sav-status button{height:44px;min-height:44px}.unified-header{margin-bottom:4px}
 .sav-panel{padding:18px}
+
+/* V19: one period selector and shared compact controls. */
+.unified-period{justify-content:center}.unified-period .month-nav-label{flex:0 1 280px;position:relative}
+.unified-period select{appearance:none;-webkit-appearance:none;padding-right:36px!important;cursor:pointer}
+.unified-period .month-nav-label:after{content:'⌄';position:absolute;right:14px;top:10px;pointer-events:none;color:var(--module-color)}
+.privacy-eye{width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#53616d;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.privacy-eye svg{display:block!important;visibility:visible!important}.eye-slash{display:none}.amounts-hidden .eye-slash{display:block}
+.budget-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.budget-tabs svg{flex-shrink:0}
+@media(max-width:760px){.budget-tabs button{min-height:52px;padding:6px 3px;font-size:12px}}
+.category-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;font-size:14px}.category-controls select{min-height:44px;max-width:72%;font:inherit;color:#34463b;background:white;border:1px solid #dce2e7;border-radius:10px;padding:8px}
+.category-pins{margin-bottom:14px;font-size:13px;color:#52617a}.category-pins summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.category-pins>div{display:flex;flex-wrap:wrap;gap:6px}.category-pins button{min-height:44px;border:1px solid #dce2e7;background:white;border-radius:10px;color:#34463b;padding:8px}.category-pins button[aria-pressed=true]{background:#e7f3ed;border-color:#287c54}
+.no-limit .progress-background{display:none}.subcategory-progress[hidden]{display:none}.detail-title,.detail-subtitle,.detail-icon{display:none}.detail-title-row{margin-bottom:12px}
+.history-bar-value{display:none}.history-month{font-size:11px!important;color:#53616d}.history-subtitle,.history-total,.subcategory-budget,.main-card-description{font-size:13px}.history-bar-wrap:focus-visible{outline:2px solid #287c54;outline-offset:2px}
+.sav-card{padding:14px;gap:6px}.sav-card .sav-name{min-height:0}.sav-card-top .sav-icon{font-size:18px;padding:6px}.sav-hero>strong,.main-card-value{font-size:clamp(30px,8vw,38px)}
+.category-card,.sav-panel,.debt-card,.history-card{border-radius:18px}.main-card.negative{background:#f7eeee;color:#622e2e}
+
+
+.main-card-negative{background:#f7eeee;color:#743a3a;box-shadow:none}.main-card-negative .main-card-label,.main-card-negative .main-card-description,.main-card-negative .main-card-value,.main-card-negative .main-card-status{color:#743a3a}
+.detail-no-limit .detail-progress{display:none}
+body.amounts-hidden .history-chart{visibility:hidden}
+
 </style>
 
 </head>
 
 
 <body>
-<div class="app-utilities"><button id="privacy-toggle" type="button" aria-pressed="false" onclick="toggleAmounts_()">Ukryj kwoty</button></div>
-<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()">Budżet</button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()">Oszczędności</button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()">Zobowiązania</button></nav>
+<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16v13H4zM7 7V4h10v3M4 11h16M8 15h3"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h17M7 15l5-5 4 2 5-7"/></svg><span>Oszczędności</span></button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><span>Zobowiązania</span></button></nav>
 
   <div id="app">
 
@@ -1751,7 +1771,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-LAYOUT-V18';
+    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V19';
 
     
     
@@ -3691,6 +3711,21 @@ function formatHistoryValue(value) {
     // EKRAN GŁÓWNY
     // ========================================================
 
+
+let categorySort_='spending',categoryPins_=[],budgetReturnY_=0;
+try{categorySort_=localStorage.getItem('budget-category-sort')||'spending';categoryPins_=JSON.parse(localStorage.getItem('budget-category-pins')||'[]');if(!Array.isArray(categoryPins_))categoryPins_=[];}catch(_){}
+function categoryCompare_(a,b){
+ const pinned=Number(categoryPins_.includes(b.name))-Number(categoryPins_.includes(a.name));if(pinned)return pinned;
+ const n=x=>Number(x)||0;
+ if(categorySort_==='alphabet')return a.name.localeCompare(b.name,'pl');
+ if(categorySort_==='over')return Math.max(0,n(b.execution)-n(b.budget))-Math.max(0,n(a.execution)-n(a.budget));
+ if(categorySort_==='percent')return (n(b.budget)>0?n(b.execution)/n(b.budget):-1)-(n(a.budget)>0?n(a.execution)/n(a.budget):-1);
+ return n(b.execution)-n(a.execution);
+}
+function setCategorySort_(value){categorySort_=value;try{localStorage.setItem('budget-category-sort',value);}catch(_){}const y=window.scrollY;renderDashboard(dashboardData);window.scrollTo(0,y);}
+function pinCategory_(name){categoryPins_=categoryPins_.includes(name)?categoryPins_.filter(x=>x!==name):[...categoryPins_,name];try{localStorage.setItem('budget-category-pins',JSON.stringify(categoryPins_));}catch(_){}const y=window.scrollY;renderDashboard(dashboardData);window.scrollTo(0,y);}
+function categoryControls_(){return `<div class="category-controls"><label for="category-sort">Kolejność</label><select id="category-sort" onchange="setCategorySort_(this.value)">${[['spending','Największe wydatki'],['over','Największe przekroczenia'],['percent','% budżetu'],['alphabet','Alfabetycznie']].map(([v,l])=>`<option value="${v}" ${categorySort_===v?'selected':''}>${l}</option>`).join('')}</select></div><details class="category-pins"><summary>Przypięte kategorie${categoryPins_.length?' · '+categoryPins_.length:''}</summary><div>${dashboardData.categories.map(c=>`<button type="button" data-category="${escapeHtml(c.name)}" onclick="pinCategory_(this.dataset.category)" aria-pressed="${categoryPins_.includes(c.name)}">${escapeHtml(c.name)}</button>`).join('')}</div></details>`;}
+
     function renderDashboard(data) {
       if (activeView_ !== 'dashboard') return;
 
@@ -3704,6 +3739,9 @@ function formatHistoryValue(value) {
         document.getElementById('app');
 
 
+      const dashboardWasVisible=!!app.querySelector('#budget-period');
+      const savedDashboardY=window.scrollY,savedDashboardFocus=app.contains(document.activeElement)?document.activeElement.id:'';
+      const pinsWasOpen=!!app.querySelector('details.category-pins[open]');
       const dispositionWasOpen = !!app.querySelector('details.disposition-card[open]');
       const dochody =
         Number(data.dochody) || 0;
@@ -3797,17 +3835,7 @@ function formatHistoryValue(value) {
             : 'zero';
 
 
-      const sortedCategories =
-        [...data.categories]
-          .sort(
-            function(a, b) {
-              return (
-                Number(b.execution) -
-                Number(a.execution)
-              );
-            }
-          );
-
+      const sortedCategories = [...data.categories].sort(categoryCompare_);
 
       let categoriesHtml = '';
 
@@ -3847,7 +3875,7 @@ function formatHistoryValue(value) {
           // Zielony = w budżecie
           // Czerwony = przekroczenie
           const progressColor =
-            execution > budget
+            budget <= 0 ? '#9aa7b1' : execution > budget
               ? '#e74c3c'
               : '#39aa6b';
 
@@ -3907,7 +3935,7 @@ function formatHistoryValue(value) {
 
                   <div class="category-amount">
                     ${formatPLN(execution)}
-                    z ${formatPLN(budget)}
+                    ${budget>0?'z '+formatPLN(budget):''}
                   </div>
 
                 </div>
@@ -3926,7 +3954,7 @@ function formatHistoryValue(value) {
               </div>
 
 
-              <div class="category-progress">
+              <div class="category-progress ${budget<=0?'no-limit':''}">
 
                 <div class="progress-background">
 
@@ -3946,7 +3974,7 @@ function formatHistoryValue(value) {
 
                   <span>
                     ${
-                      execution > budget
+                      budget<=0 ? 'Bez ustalonego budżetu' : execution > budget
                         ? 'Przekroczono o ' +
                           formatPLN(
                             Math.abs(remaining)
@@ -3960,11 +3988,7 @@ function formatHistoryValue(value) {
 
 
                   <span class="category-bottom-percent">
-                    ${Math.round(
-                      budget > 0
-                        ? (execution / budget) * 100
-                        : 0
-                    )}%
+                    ${budget>0?Math.round(execution/budget*100)+'%':''}
                   </span>
 
                 </div>
@@ -4068,6 +4092,7 @@ function formatHistoryValue(value) {
         </div>
 
 
+        ${categoryControls_()}
         ${categoriesHtml}
         <!-- ROZLICZENIE MIESIĄCA -->
 
@@ -4142,6 +4167,8 @@ function formatHistoryValue(value) {
       // PWA zapisuje gotowy widok dashboardu poza iframe. Przy kolejnym
       // zimnym starcie może go pokazać natychmiast, zanim Apps Script się pobierze.
       const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
+      const pinsNode=app.querySelector('details.category-pins');if(pinsNode)pinsNode.open=pinsWasOpen;
+      if(dashboardWasVisible){if(savedDashboardFocus){const el=document.getElementById(savedDashboardFocus);if(el)el.focus({preventScroll:true});}window.scrollTo(0,savedDashboardY);}
       sendPwaDashboardSnapshot_(data);
       notifyPwaReady_('dashboard');
     }
@@ -4175,8 +4202,9 @@ function formatHistoryValue(value) {
     }
 
     function forceScrollToTop_() {
-
+      const expectedView=activeView_,expectedCategory=activeCategory_;
       const scrollTop = function() {
+        if(activeView_!==expectedView||activeCategory_!==expectedCategory)return;
         try {
           window.scrollTo(0, 0);
         } catch (e) {}
@@ -4203,6 +4231,7 @@ function formatHistoryValue(value) {
     }
 
     function openCategory(categoryName) {
+      if(activeView_==='dashboard')budgetReturnY_=window.scrollY;
       activeView_ = 'category';
       activeCategory_ = categoryName;
 
@@ -4390,7 +4419,7 @@ function formatHistoryValue(value) {
 
 
       const budgetExceeded = budget > 0 && execution > budget;
-      const statusLabel = budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
+      const statusLabel = budget<=0?'Bez ustalonego budżetu':budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
       const statusBackground = budgetExceeded ? '#fdeeee' : '#edf8f1';
       const statusForeground = budgetExceeded ? '#d84a3d' : '#2f9560';
 
@@ -4598,7 +4627,7 @@ tripsHtml = `
         font-weight:700;
       "
     >
-      Wyjazdy — narastająco w 2026
+      Wyjazdy — narastająco w ${Number(data.history && data.history.year)||selectedYear}
     </div>
 
     ${sub.trips.map(
@@ -4730,7 +4759,7 @@ tripsHtml = `
                 </div>
 
                 <div
-                  class="subcategory-progress"
+                  class="subcategory-progress" ${!hasSubBudget?'hidden':''}
                 >
 
                   <div
@@ -4759,7 +4788,7 @@ tripsHtml = `
 
                     ${
                       !hasSubBudget
-                        ? 'Brak osobnego budżetu'
+                        ? ''
                         : subExecution >
                           subBudget
                           ? 'Przekroczono o ' +
@@ -4835,15 +4864,12 @@ tripsHtml = `
             </div>
           </div>
 
-          <div
-            class="detail-sticky-spacer"
-            aria-hidden="true"
-          ></div>
+          ${privacyButton_()}
         </div>
 
         <!-- NAGŁÓWEK -->
 
-        <div class="detail-header">
+        <div class="detail-header ${budget<=0?'detail-no-limit':''}">
 
           <div class="detail-title-row">
 
@@ -4941,7 +4967,7 @@ tripsHtml = `
             <span>
 
               ${
-                execution > budget
+                budget<=0?'Bez ustalonego budżetu':execution > budget
 
                   ? 'Przekroczono o ' +
                     formatPLN(
@@ -4961,14 +4987,7 @@ tripsHtml = `
 
             <span>
 
-              ${Math.round(
-                budget > 0
-                  ? (
-                      execution /
-                      budget
-                    ) * 100
-                  : 0
-              )}%
+              ${budget>0?Math.round(execution/budget*100)+'%':''}
 
             </span>
 
@@ -5109,11 +5128,13 @@ function toggleHolidayTrips() {
         barsHtml += `
 
           <div
+            role="button" tabindex="0" aria-label="${escapeHtml(item.month)}: ${formatPLN(value)}"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
             class="history-bar-wrap${isCurrent ? ' history-current' : ''}"
             data-month="${escapeHtml(item.month)}"
             data-value="${value}"
             title="${escapeHtml(item.month)}: ${formatPLN(value)}"
-            onclick="showHistoryValue(this.dataset.month, this.dataset.value)"
+            onclick="showHistoryValue(this.dataset.month, this.dataset.value);this.parentElement.querySelectorAll('.history-bar-wrap').forEach(el=>el.classList.toggle('history-current',el===this))"
           >
 
             <div class="history-bar-value">
@@ -5140,7 +5161,7 @@ function toggleHolidayTrips() {
       const currentLabel =
         currentMonth
           ? currentMonth.shortMonth
-          : '2026';
+          : String(history.year || selectedYear);
 
       return `
 
@@ -5157,7 +5178,7 @@ function toggleHolidayTrips() {
           </div>
 
           <div class="history-subtitle">
-            ${escapeHtml(data.category)} — 2026
+            ${escapeHtml(data.category)} — ${Number(history.year)||selectedYear}
           </div>
 
           <div class="history-chart">
@@ -5166,13 +5187,13 @@ function toggleHolidayTrips() {
 
           <div
             id="history-selected"
-            class="history-selected"
+            class="history-selected" aria-live="polite"
           >
             Dotknij słupka, aby zobaczyć kwotę
           </div>
 
           <div class="history-total">
-            <span>Łącznie od stycznia 2026</span>
+            <span>Łącznie od stycznia ${Number(history.year)||selectedYear}</span>
             <strong>${formatPLN(total)}</strong>
           </div>
 
@@ -5205,6 +5226,7 @@ function toggleHolidayTrips() {
     
 
     function showMainDashboard() {
+      const returning=activeView_==='category';
       setBudgetTab_('budget');
       activeView_ = 'dashboard';
       activeCategory_ = null;
@@ -5216,6 +5238,7 @@ function toggleHolidayTrips() {
           dashboardData
         );
 
+        if(returning)window.scrollTo(0,budgetReturnY_);
         return;
       }
 
@@ -5428,8 +5451,9 @@ function openSavings_(){
 }
 function savingsMove_(delta){const at=savingsData_.periods.findIndex(p=>p.key===savingsPeriod_);const p=savingsData_.periods[at+delta];if(p){savingsPeriod_=p.key;renderSavings_();}}
 function savingsSelect_(key){if(savingsData_.periods.some(p=>p.key===key)){savingsPeriod_=key;renderSavings_();}}
-function savingsDetail_(group){if(!savingsMeta_[group])return;savingsGroup_=group;renderSavings_();window.scrollTo(0,0);}
-function savingsBack_(){savingsGroup_=null;renderSavings_();window.scrollTo(0,0);}
+let savingsReturnY_=0,debtReturnY_=0;
+function savingsDetail_(group){if(!savingsMeta_[group])return;if(!savingsGroup_)savingsReturnY_=window.scrollY;savingsGroup_=group;renderSavings_();window.scrollTo(0,0);}
+function savingsBack_(){savingsGroup_=null;renderSavings_();window.scrollTo(0,savingsReturnY_);}
 const savingsCurrency_=new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',useGrouping:true,minimumFractionDigits:0,maximumFractionDigits:0});
 function savingsPLN_(n){const rounded=Math.round(Number(n));return savingsCurrency_.format(rounded===0?0:rounded);}
 function savingsDelta_(n){return n==null?'Brak wcześniejszego okresu':(Math.round(n)>0?'+':'')+savingsPLN_(n);}
@@ -5450,10 +5474,21 @@ function historyPlot_(rows,values,selected,color){
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
  const selectedIndex=Math.max(0,rows.findIndex(p=>p.key===selected));
  const label=i=>savingsLabel_(rows[i].key)+' · '+savingsPLN_(values[i]);
+ const axis=[];
+ if(annual){rows.forEach((p,i)=>axis.push({x:x(i),label:months[p.month-1]}));}
+ else {
+  const dateX=t=>left+(t-first)/Math.max(last-first,1)*(right-left);
+  const candidates=[{x:left,label:String(rows[0].year)}];
+  for(let year=rows[0].year+1;year<=rows.at(-1).year;year++)candidates.push({x:dateX(Date.UTC(year,0,1)),label:String(year)});
+  const final=candidates.at(-1);
+  for(const tick of candidates){if(tick!==final&&final.x-tick.x<34)continue;if(!axis.length||tick.x-axis.at(-1).x>=34)axis.push(tick);}
+  if(!axis.includes(final)){if(axis.length&&final.x-axis.at(-1).x<34)axis.pop();axis.push(final);}
+ }
+
  return `<div class="balance-history"><div class="balance-plot"><svg viewBox="0 0 ${w} 205" aria-label="Historia wartości. Wybierz punkt, aby odczytać kwotę.">
  ${[min,(min+max)/2,max].map(v=>`<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#e0e5ec"/><text x="60" y="${y(v)+5}" text-anchor="end" fill="#52617a" font-size="12">${compact(v)}</text>`).join('')}
  <polyline points="${values.map((v,i)=>x(i)+','+y(v)).join(' ')}" fill="none" stroke="${color}" stroke-width="3"/>
- ${rows.map((p,i)=>`<g role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="15" fill="transparent"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>${annual||i===0||p.year!==rows[i-1].year?`<text x="${x(i)}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${annual?months[p.month-1]:p.year}</text>`:''}`).join('')}</svg></div><p class="balance-readout" aria-live="polite" hidden><span></span><strong></strong></p></div>`;
+ ${rows.map((p,i)=>`<g role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="15" fill="transparent"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>`).join('')}${axis.map(t=>`<text class="balance-axis-label" x="${t.x}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${t.label}</text>`).join('')}</svg></div><p class="balance-readout" aria-live="polite" hidden><span></span><strong></strong></p></div>`;
 }
 
 function savingsChart_(period){
@@ -5488,7 +5523,7 @@ function renderSavings_(){
  else if(!savingsGroup_) {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
  app.innerHTML=`<div class="sav-wrap">${unifiedHeader_('sav',savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności',savingsData_.periods,p.key,savingsGroup_?'savingsBack_()':null)}
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
- <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':savingsDelta_(delta)}</span><span class="sav-comparison">${comparison}</span></section>
+ <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':'Zmiana wartości: '+savingsDelta_(delta)}${prev && savingsValue_(prev)>0 && delta!==0?' ('+new Intl.NumberFormat('pl-PL',{maximumFractionDigits:1,signDisplay:'exceptZero'}).format(delta/savingsValue_(prev)*100)+'%)':''}</span><span class="sav-comparison">${comparison}</span></section>
 
  ${content}${savingsChart_(p)}
  ${(savingsData_.warnings||[]).length?`<details class="sav-panel" data-sav-disclosure="warnings"><summary id="sav-warnings">Niektóre dane wymagają sprawdzenia (${savingsData_.warnings.length})</summary>${savingsData_.warnings.map(x=>`<p>${escapeHtml(x)}</p>`).join('')}</details>`:''}</div>`;
@@ -5517,8 +5552,8 @@ function debtRefresh_(){
 function debtStatus_(){const el=document.getElementById('debt-status'),btn=document.getElementById('debt-refresh');if(el)el.textContent=debtBusy_?'Odświeżanie…':debtError_?'Nie udało się odświeżyć · pokazujemy zapisane dane':'Odświeżono · '+new Date(debtData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});if(btn){btn.textContent=debtError_?'Spróbuj ponownie':'↻';btn.disabled=debtBusy_;btn.setAttribute('aria-busy',String(debtBusy_));}}
 function debtSelect_(key){if(debtData_.periods.some(p=>p.key===key)){debtPeriod_=key;renderDebts_();}}
 function debtMove_(d){const n=debtData_.periods.findIndex(p=>p.key===debtPeriod_)+d;if(debtData_.periods[n])debtSelect_(debtData_.periods[n].key);}
-function debtDetail_(id){debtId_=id;renderDebts_();window.scrollTo(0,0);}
-function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,0);}
+function debtDetail_(id){if(!debtId_)debtReturnY_=window.scrollY;debtId_=id;renderDebts_();window.scrollTo(0,0);}
+function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,debtReturnY_);}
 function debtAmount_(p,metric){const item=debtId_?p.items.find(i=>i.id===debtId_):p;return item?item[metric]:null;}
 function debtCard_(i,period){return `<button class="debt-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="debt-card-title">${escapeHtml(i.name)} <span aria-hidden="true">›</span></span>${i.subtitle?`<span class="sav-muted">${escapeHtml(i.subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;}
 function debtChart_(){
@@ -5539,7 +5574,7 @@ function renderDebts_(){
  const change=p.inProgress?'Miesiąc w trakcie · kwoty według ostatnich wpisów':delta===null?'Początek dostępnej historii':Math.abs(delta)<.005?'Bez zmiany względem poprzedniego zapisu':`${delta<0?'Mniej':'Więcej'} o ${savingsPLN_(Math.abs(delta))} od ${savingsLabel_(prev.key)}`;
  app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
- ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span></section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
+ ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span>${p.inProgress&&delta!==null?`<span>Zmiana salda: ${savingsDelta_(delta)}</span>`:''}</section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
  ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?active.sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join(''):'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
  ${debtChart_()}
@@ -5576,12 +5611,15 @@ document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&docu
 let amountsHidden_=false;
 try{amountsHidden_=localStorage.getItem('budget-hide-amounts')==='1';}catch(_){}
 const amountOriginal_=new Map();
+const amountAttributes_=new Map();
 function applyAmountPrivacy_(){
  const app=document.getElementById('app'),button=document.getElementById('privacy-toggle');
  document.body.classList.toggle('amounts-hidden',amountsHidden_);
- button.textContent=amountsHidden_?'Pokaż kwoty':'Ukryj kwoty';button.setAttribute('aria-pressed',String(amountsHidden_));
+ if(button){button.setAttribute('aria-label',amountsHidden_?'Pokaż kwoty':'Ukryj kwoty');button.setAttribute('title',amountsHidden_?'Pokaż kwoty':'Ukryj kwoty');button.setAttribute('aria-pressed',String(amountsHidden_));}
  for(const [node,original] of amountOriginal_){if(!node.isConnected){amountOriginal_.delete(node);continue;}if(!amountsHidden_){node.nodeValue=original;amountOriginal_.delete(node);}}
+ for(const [el,attrs] of amountAttributes_){if(!el.isConnected){amountAttributes_.delete(el);continue;}if(!amountsHidden_){for(const [name,value] of Object.entries(attrs))el.setAttribute(name,value);amountAttributes_.delete(el);}}
  if(!amountsHidden_)return;
+ for(const el of app.querySelectorAll('[title],[aria-label]')){for(const name of ['title','aria-label']){const value=el.getAttribute(name);if(value&&/\d.*(?:zł|%)/.test(value)){const saved=amountAttributes_.get(el)||{};saved[name]=value;amountAttributes_.set(el,saved);el.setAttribute(name,value.replace(/[+−-]?\d[\d \u00a0\u202f.,]*\s*(?:zł|%)/g,'••••'));}}}
  const walk=document.createTreeWalker(app,NodeFilter.SHOW_TEXT);let node;
  const money=/[+−-]?\d[\d \u00a0\u202f.,]*\s*(?:zł|%|tys\.|k\b)/g;
  while(node=walk.nextNode()){
@@ -5596,9 +5634,10 @@ function toggleAmounts_(){amountsHidden_=!amountsHidden_;try{localStorage.setIte
 
 function budgetPeriods_(){const end=getCurrentYearMonth(),rows=[];for(let n=monthToIndex(MIN_YEAR,MIN_MONTH);n<=monthToIndex(end.year,end.month);n++){const year=Math.floor(n/12),month=n%12+1;rows.push({year,month,key:year+'-'+String(month).padStart(2,'0')});}return rows;}
 function budgetSelectPeriod_(key){const parts=key.split('-').map(Number);changeMonth(monthToIndex(parts[0],parts[1])-monthToIndex(selectedYear,selectedMonth));}
+function privacyButton_(){return `<button id="privacy-toggle" class="privacy-eye" type="button" onclick="toggleAmounts_()" aria-label="Ukryj kwoty" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg></button>`;}
 function unifiedHeader_(type,title,periods,key,back){
- const at=periods.findIndex(p=>p.key===key),move=type==='budget'?'changeMonth':type==='sav'?'savingsMove_':'debtMove_',select=type==='budget'?'budgetSelectPeriod_':type==='sav'?'savingsSelect_':'debtSelect_';
- return `<header class="unified-header ${type==='budget'?'dashboard-month-sticky':'sav-sticky'}"><div class="unified-title-row">${back?`<button id="${type}-back" class="unified-back" onclick="${back}" aria-label="${type==='sav'?'Wróć do wszystkich oszczędności':'Wróć do zobowiązań'}">‹</button>`:'<span class="unified-spacer" aria-hidden="true"></span>'}<h1>${escapeHtml(title)}</h1><span class="unified-spacer" aria-hidden="true"></span></div><div class="unified-period"><button id="${type}-prev" onclick="${move}(-1)" aria-label="Poprzedni miesiąc lub zapis" ${at<=0?'disabled':''}>‹</button><div class="month-nav-label"><label class="sr-only" for="${type}-period">Wybierz okres</label><select id="${type}-period" onchange="${select}(this.value)">${periods.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===key?'selected':''}>${getMonthLabel(p.year,p.month)}</option>`).join('')}</select></div><button id="${type}-next" onclick="${move}(1)" aria-label="Następny miesiąc lub zapis" ${at===periods.length-1?'disabled':''}>›</button></div></header>`;
+ const select=type==='budget'?'budgetSelectPeriod_':type==='sav'?'savingsSelect_':'debtSelect_';
+ return `<header class="unified-header ${type==='budget'?'dashboard-month-sticky':'sav-sticky'}"><div class="unified-title-row">${back?`<button id="${type}-back" class="unified-back" onclick="${back}" aria-label="Wróć do podsumowania">‹</button>`:'<span class="unified-spacer" aria-hidden="true"></span>'}<h1>${escapeHtml(title)}</h1>${privacyButton_()}</div><div class="unified-period"><div class="month-nav-label"><label class="sr-only" for="${type}-period">Wybierz okres</label><select id="${type}-period" onchange="${select}(this.value)">${periods.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===key?'selected':''}>${getMonthLabel(p.year,p.month)}</option>`).join('')}</select></div></div></header>`;
 }
 
 </script>
