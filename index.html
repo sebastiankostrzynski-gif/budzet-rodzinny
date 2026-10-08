@@ -1527,19 +1527,28 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 @media(max-width:370px){.budget-tabs button{font-size:12px}.debt-breakdown b{font-size:18px}.debt-card{padding:16px}}@media(hover:hover){.debt-card:hover{border-color:#a88cbf;box-shadow:0 4px 14px #51356510}}
 
 
-.app-utilities{display:flex;justify-content:space-between;align-items:center;gap:10px;max-width:732px;margin:8px auto;padding:0 14px;color:#53616d;font-size:12px}.app-utilities button{min-height:44px;background:white;color:#354652;border:1px solid #d9e0e5;border-radius:12px;padding:8px 12px;font:600 14px system-ui;cursor:pointer}
+.app-utilities{display:flex;justify-content:flex-end;align-items:center;gap:10px;max-width:732px;margin:8px auto;padding:0 14px;color:#53616d;font-size:12px}.app-utilities button{min-height:44px;background:white;color:#354652;border:1px solid #d9e0e5;border-radius:12px;padding:8px 12px;font:600 14px system-ui;cursor:pointer}
 .sav-sticky [hidden]{display:none!important}.sav-sticky .detail-sticky-center{grid-column:2}.sav-sticky .detail-sticky-month{font-size:13px}.sav-sticky{min-height:62px}.disposition-card>summary{min-height:44px;cursor:pointer;font-size:17px;font-weight:650;padding:12px 0}.disposition-card .disposition-grid{margin-top:16px}
 .main-card,.sav-hero{border-radius:22px}.main-card-value,.sav-hero>strong{font-variant-numeric:tabular-nums}.dashboard-page-header .page-title{font-size:22px}.data-freshness{font-size:13px}.main-card-description{font-size:13px}.summary-label{color:#59636d;font-size:13px}.category-bottom{font-size:13px}.dashboard-month-sticky{z-index:60}
 body.amounts-hidden #app svg{visibility:hidden}body.amounts-hidden .progress-bar{visibility:hidden}
 @media(max-width:760px){body{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}.budget-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;width:100%;max-width:none;box-sizing:border-box;margin:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;background:#f4f6f8!important;border-top:1px solid #dce2e7;box-shadow:0 -4px 20px #203c6510;gap:6px}.budget-tabs button{min-height:52px;font-size:13px}.budget-tabs button[data-tab="budget"].selected{background:#287c54;color:white}.app-utilities{margin-top:4px}.sav-wrap{padding-top:4px}.dashboard-page-header{padding-top:4px}.sav-sticky{margin-bottom:10px}.sav-month{margin-top:4px}}
 
+
+/* One header component, one geometry, all three modules. */
+.unified-header{--module-color:#287c54;position:sticky;top:0;z-index:60;margin:0 0 18px;padding:8px 12px 12px;padding-top:max(8px,env(safe-area-inset-top));background:rgba(247,249,250,.98);border-bottom:1px solid #dce2e7;border-radius:0 0 18px 18px;box-shadow:0 4px 14px #203c650a;box-sizing:border-box;width:100%}
+.savings-theme .unified-header{--module-color:#244e88}.debts-theme .unified-header{--module-color:#614080}
+.unified-title-row{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;min-height:44px;gap:8px}.unified-header h1,.sav-wrap .unified-header h1{margin:0;font:700 20px/1.3 system-ui;text-align:center;color:#243340;overflow-wrap:anywhere}.unified-spacer{width:44px;height:44px}.unified-back,.unified-period>button{width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #d7dfe7;border-radius:12px;font-size:26px;color:var(--module-color);cursor:pointer}.unified-period{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px}.unified-period .month-nav-label{padding:0;margin:0;min-width:0;flex:0 1 250px;background:transparent;box-shadow:none;border:0;min-height:44px}.unified-period select{width:100%;min-height:44px;box-sizing:border-box;border:1px solid #d7dfe7;border-radius:12px;background:#fff;color:var(--module-color);padding:8px 12px;font:600 16px system-ui;text-align:center}.unified-period button:disabled{opacity:.35;cursor:default}.data-freshness{margin:-6px 0 14px}.sav-wrap{padding-top:0}
+@media(max-width:400px){.unified-header{padding-left:8px;padding-right:8px}.unified-header h1,.sav-wrap .unified-header h1{font-size:18px}.unified-period{gap:8px}.unified-period select{padding-left:4px;padding-right:4px}}
+
+
+.unified-header{display:block}.sav-wrap{padding:0 0 36px;max-width:none}.unified-title-row,.unified-period{width:100%}
 </style>
 
 </head>
 
 
 <body>
-<div class="app-utilities"><span class="app-version">Budżet rodzinny · V15</span><button id="privacy-toggle" type="button" aria-pressed="false" onclick="toggleAmounts_()">Ukryj kwoty</button></div>
+<div class="app-utilities"><button id="privacy-toggle" type="button" aria-pressed="false" onclick="toggleAmounts_()">Ukryj kwoty</button></div>
 <nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()">Budżet</button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()">Oszczędności</button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()">Zobowiązania</button></nav>
 
   <div id="app">
@@ -1724,7 +1733,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V15';
+    const FRONTEND_BUILD_VERSION = '2026-10-08-UNIFIED-V16-CLEAN';
 
     
     
@@ -3154,16 +3163,10 @@ const budgetDisk = (() => {
         return;
       }
 
-      let year = selectedYear;
-      let month = selectedMonth + delta;
-
-      if (month < 1) {
-        month = 12;
-        year--;
-      } else if (month > 12) {
-        month = 1;
-        year++;
-      }
+      const targetIndex=monthToIndex(selectedYear,selectedMonth)+delta;
+      const limit=getCurrentYearMonth();
+      if(targetIndex<monthToIndex(MIN_YEAR,MIN_MONTH)||targetIndex>monthToIndex(limit.year,limit.month))return;
+      let year=Math.floor(targetIndex/12),month=targetIndex%12+1;
 
       const cached = getCachedMonth(year, month);
 
@@ -3956,76 +3959,8 @@ function formatHistoryValue(value) {
 
       app.innerHTML = `
 
-        <div class="page-header dashboard-page-header">
-
-          <h1 class="page-title">
-            Budżet rodzinny
-          </h1>
-
-        </div>
-
-        <div class="dashboard-month-sticky">
-
-          <div class="month-nav">
-            ${
-              canGoPreviousMonth()
-                ? `
-                  <button
-                    class="month-nav-button"
-                    type="button"
-                    onclick="changeMonth(-1)"
-                    aria-label="Poprzedni miesiąc"
-                    title="Poprzedni miesiąc"
-                  >
-                    ‹
-                  </button>
-                `
-                : `
-                  <div
-                    class="month-nav-spacer"
-                    aria-hidden="true"
-                  ></div>
-                `
-            }
-
-            <div
-              class="month-nav-label"
-              aria-live="polite"
-            >
-              ${escapeHtml(
-                selectedYear && selectedMonth
-                  ? getMonthLabel(selectedYear, selectedMonth)
-                  : data.month
-              )}
-            </div>
-
-            <button
-              class="month-nav-button"
-              type="button"
-              onclick="changeMonth(1)"
-              ${canGoNextMonth() ? '' : 'disabled'}
-              aria-label="Następny miesiąc"
-              title="Następny miesiąc"
-            >
-              ›
-            </button>
-          </div>
-
-          <div
-            class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}"
-            aria-live="polite"
-          >
-            <span
-              class="data-freshness-dot"
-              aria-hidden="true"
-            ></span>
-            <span>
-              ${escapeHtml(getFreshnessLabel_())}
-            </span>
-          </div>
-
-        </div>
-
+        ${unifiedHeader_('budget','Budżet',budgetPeriods_(),selectedYear+'-'+String(selectedMonth).padStart(2,'0'),null)}
+        <div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div>
 
         <!-- WOLNE ŚRODKI -->
 
@@ -5509,7 +5444,7 @@ function renderSavings_(){
  let content='';
  if(savingsGroup_){content=`<section class="sav-panel"><h2>Co składa się na tę kwotę</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${savingsPLN_(item.value)}</strong></div>`;}).join('')}</section>`;}
  else {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
- app.innerHTML=`<div class="sav-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button ${savingsGroup_?'':'hidden'} id="sav-back" class="detail-sticky-back" onclick="${savingsGroup_?'savingsBack_()':'showMainDashboard()'}" aria-label="${savingsGroup_?'Wróć do wszystkich oszczędności':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności'}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="sav-prev" aria-label="Poprzedni okres" onclick="savingsMove_(-1)" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="sav-period">Wybierz okres oszczędności</label><select id="sav-period" onchange="savingsSelect_(this.value)">${savingsData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="sav-next" aria-label="Następny okres" onclick="savingsMove_(1)" ${at===savingsData_.periods.length-1?'disabled':''}>›</button></div>
+ app.innerHTML=`<div class="sav-wrap">${unifiedHeader_('sav',savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności',savingsData_.periods,p.key,savingsGroup_?'savingsBack_()':null)}
  <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':savingsDelta_(delta)}</span><span class="sav-comparison">${comparison}</span></section>
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
  ${content}${savingsChart_(p)}
@@ -5559,7 +5494,7 @@ function renderDebts_(){
  const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
  const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
  const change=p.inProgress?'Miesiąc w trakcie · kwoty według ostatnich wpisów':delta===null?'Początek dostępnej historii':Math.abs(delta)<.005?'Bez zmiany względem poprzedniego zapisu':`${delta<0?'Mniej':'Więcej'} o ${savingsPLN_(Math.abs(delta))} od ${savingsLabel_(prev.key)}`;
- app.innerHTML=`<div class="sav-wrap debt-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button ${debtId_?'':'hidden'} id="debt-back" class="detail-sticky-back" onclick="${debtId_?'debtBack_()':'showMainDashboard()'}" aria-label="${debtId_?'Wróć do zobowiązań':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${escapeHtml(title)}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="debt-prev" onclick="debtMove_(-1)" aria-label="Poprzedni okres" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="debt-period">Okres zobowiązań</label><select id="debt-period" onchange="debtSelect_(this.value)">${debtData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="debt-next" onclick="debtMove_(1)" aria-label="Następny okres" ${at===debtData_.periods.length-1?'disabled':''}>›</button></div>
+ app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
  ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span></section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
  ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?active.sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join(''):'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
@@ -5613,6 +5548,14 @@ function applyAmountPrivacy_(){
 }
 function toggleAmounts_(){amountsHidden_=!amountsHidden_;try{localStorage.setItem('budget-hide-amounts',amountsHidden_?'1':'0');}catch(_){}applyAmountPrivacy_();}
 (function(){const app=document.getElementById('app');new MutationObserver(applyAmountPrivacy_).observe(app,{childList:true,subtree:true,characterData:true});applyAmountPrivacy_();})();
+
+
+function budgetPeriods_(){const end=getCurrentYearMonth(),rows=[];for(let n=monthToIndex(MIN_YEAR,MIN_MONTH);n<=monthToIndex(end.year,end.month);n++){const year=Math.floor(n/12),month=n%12+1;rows.push({year,month,key:year+'-'+String(month).padStart(2,'0')});}return rows;}
+function budgetSelectPeriod_(key){const parts=key.split('-').map(Number);changeMonth(monthToIndex(parts[0],parts[1])-monthToIndex(selectedYear,selectedMonth));}
+function unifiedHeader_(type,title,periods,key,back){
+ const at=periods.findIndex(p=>p.key===key),move=type==='budget'?'changeMonth':type==='sav'?'savingsMove_':'debtMove_',select=type==='budget'?'budgetSelectPeriod_':type==='sav'?'savingsSelect_':'debtSelect_';
+ return `<header class="unified-header ${type==='budget'?'dashboard-month-sticky':'sav-sticky'}"><div class="unified-title-row">${back?`<button id="${type}-back" class="unified-back" onclick="${back}" aria-label="${type==='sav'?'Wróć do wszystkich oszczędności':'Wróć do zobowiązań'}">‹</button>`:'<span class="unified-spacer" aria-hidden="true"></span>'}<h1>${escapeHtml(title)}</h1><span class="unified-spacer" aria-hidden="true"></span></div><div class="unified-period"><button id="${type}-prev" onclick="${move}(-1)" aria-label="Poprzedni miesiąc lub zapis" ${at<=0?'disabled':''}>‹</button><div class="month-nav-label"><label class="sr-only" for="${type}-period">Wybierz okres</label><select id="${type}-period" onchange="${select}(this.value)">${periods.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===key?'selected':''}>${getMonthLabel(p.year,p.month)}</option>`).join('')}</select></div><button id="${type}-next" onclick="${move}(1)" aria-label="Następny miesiąc lub zapis" ${at===periods.length-1?'disabled':''}>›</button></div></header>`;
+}
 
 </script>
 
