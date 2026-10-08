@@ -1516,13 +1516,23 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 .sav-hero>strong,.sav-item strong,.sav-card strong,.sav-table td:last-child{font-variant-numeric:tabular-nums}
 @media(hover:hover){.sav-card:hover{border-color:#9db4d6;box-shadow:0 4px 14px #203c6510}}
 
+
+.budget-tabs{max-width:760px}.budget-tabs button{font-size:14px;padding:8px 5px;min-width:0}
+.budget-tabs button[data-tab="debts"].selected{background:#614080;color:white}
+.debts-theme .budget-tabs{background:#eee8f3}
+.debt-wrap{color:#30243e}.debt-hero{background:#513565}.debt-hero>span{color:#f0e8f8;font-size:14px;line-height:1.5}.debt-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:14px;border-top:1px solid #ffffff35;padding-top:16px}.debt-breakdown span{display:flex;flex-direction:column;gap:7px;font-size:14px}.debt-breakdown b{font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.debt-note{font-size:13px}.debt-active{margin-top:24px}.debt-active h2{display:flex;align-items:center;gap:10px}.debt-count{background:#eee8f3;color:#513565;padding:5px 10px;border-radius:20px;font-size:14px}
+.debt-card{display:flex;flex-direction:column;text-align:left;gap:10px;width:100%;border:1px solid #dfd7e7;border-radius:18px;background:#fff;color:#30243e;padding:20px;margin:12px 0;font:inherit;cursor:pointer}.debt-card-title{display:flex;justify-content:space-between;gap:12px;font-weight:650;font-size:16px}.debt-card>strong{font-size:27px;font-variant-numeric:tabular-nums}.debt-card .debt-breakdown{border-color:#eee8f3}.debt-card .debt-breakdown b{font-size:17px}.debt-card .debt-breakdown span{color:#62566f}
+.debt-wrap .sav-sticky{background:rgba(249,246,251,.98);border-color:#dfd7e7}.debt-wrap .sav-sticky .detail-sticky-title{color:#513565}.debt-wrap .sav-muted,.debt-wrap .sav-status,.debt-wrap .detail-sticky-month{color:#62566f}.debt-wrap .sav-month button,.debt-wrap .sav-month select,.debt-wrap .sav-status button,.debt-wrap .detail-sticky-back{color:#614080;border-color:#dfd7e7}.debt-wrap .sav-range button[aria-pressed=true]{background:#614080;color:#fff}.debt-wrap .sav-range button{color:#614080;background:#f0ebf5}.debt-wrap .sav-panel{border-color:#dfd7e7}.debt-wrap button:focus-visible,.debt-wrap select:focus-visible,.debt-wrap summary:focus-visible,.budget-tabs button[data-tab="debts"]:focus-visible{outline-color:#7352a2}
+@media(max-width:370px){.budget-tabs button{font-size:12px}.debt-breakdown b{font-size:18px}.debt-card{padding:16px}}@media(hover:hover){.debt-card:hover{border-color:#a88cbf;box-shadow:0 4px 14px #51356510}}
+
 </style>
 
 </head>
 
 
 <body>
-<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()">Budżet</button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()">Oszczędności</button></nav>
+<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()">Budżet</button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()">Oszczędności</button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()">Zobowiązania</button></nav>
 
   <div id="app">
 
@@ -1545,7 +1555,7 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 // Local UI; Google is a background read-only data transport.
 const BUDGET_SERVER_URL = 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
 const budgetTransport = (() => {
-  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData']);
+  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData']);
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
@@ -1706,7 +1716,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V13';
+    const FRONTEND_BUILD_VERSION = '2026-10-08-DEBTS-V14';
 
     
     
@@ -3332,7 +3342,7 @@ function formatHistoryValue(value) {
       const app =
         document.getElementById('app');
 
-      if (isInitialLoad && activeView_ !== 'savings') {
+      if (isInitialLoad && !['savings','debts'].includes(activeView_)) {
 
         app.innerHTML = `
 
@@ -5316,7 +5326,7 @@ function toggleHolidayTrips() {
     
 
     function showError(message) {
-      if (activeView_ === 'savings') return;
+      if (['savings','debts'].includes(activeView_)) return;
 
       const app =
         document.getElementById('app');
@@ -5508,7 +5518,7 @@ function savingsRefresh_(){
   if(activeView_==='savings')renderSavings_();
  }).withFailureHandler(function(error){savingsBusy_=false;savingsError_=String(error&&error.message||'Nie udało się odświeżyć');if(activeView_==='savings')renderSavings_();}).getSavingsData();
 }
-function setBudgetTab_(tab){document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
+function setBudgetTab_(tab){document.body.classList.toggle('debts-theme',tab==='debts');document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
 function openSavings_(){
  cleanupDetailSticky_();activeView_='savings';activeCategory_=null;setBudgetTab_('savings');
  savingsRestore_();renderSavings_();savingsRefresh_();window.scrollTo(0,0);
@@ -5567,11 +5577,60 @@ addEventListener('online',()=>{if(activeView_==='savings')savingsRefresh_();});
 document.addEventListener('visibilitychange',()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_();});
 
 
+let debtData_=null,debtPeriod_=null,debtId_=null,debtBusy_=false,debtError_=false,debtLoaded_=false,debtMetric_='total';
+const debtKey_='budzet-debts-v1';
+function debtValid_(x){return x&&x.schema===1&&Number.isFinite(x.fetchedAt)&&Array.isArray(x.periods)&&x.periods.length>0&&x.periods.every(p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(p.key)&&[p.total,p.principal,p.interest].every(n=>Number.isFinite(n)&&n>=0)&&Array.isArray(p.items)&&p.items.every(i=>typeof i.id==='string'&&typeof i.name==='string'&&[i.total,i.principal,i.interest].every(n=>Number.isFinite(n)&&n>=0)));}
+function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;debtData_=x;if(!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
+function debtURL_(){return new URL('./__debts_v1__.json',location.href).href;}
+async function debtRestore_(){if(debtLoaded_)return;debtLoaded_=true;try{debtAdopt_(JSON.parse(localStorage.getItem(debtKey_)));}catch(_){}if(activeView_==='debts')renderDebts_();try{const c=await caches.open('budzet-rodzinny-runtime-v8'),r=await c.match(debtURL_());if(r&&debtAdopt_(await r.json())&&activeView_==='debts')renderDebts_();}catch(_){}}
+function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');debtRestore_();renderDebts_();debtRefresh_();window.scrollTo(0,0);}
+function debtRefresh_(){
+ if(debtBusy_)return;if(!navigator.onLine){debtError_=true;if(activeView_==='debts')renderDebts_();return;}
+ debtBusy_=true;debtError_=false;if(activeView_==='debts')debtStatus_();
+ google.script.run.withSuccessHandler(data=>{debtBusy_=false;debtError_=!debtAdopt_(data);if(!debtError_){try{localStorage.setItem(debtKey_,JSON.stringify(data));}catch(_){}try{caches.open('budzet-rodzinny-runtime-v8').then(c=>c.put(debtURL_(),new Response(JSON.stringify(data)))).catch(()=>{});}catch(_){}}if(activeView_==='debts')renderDebts_();}).withFailureHandler(()=>{debtBusy_=false;debtError_=true;if(activeView_==='debts')renderDebts_();}).getDebtsData();
+}
+function debtStatus_(){const el=document.getElementById('debt-status'),btn=document.getElementById('debt-refresh');if(el)el.textContent=debtBusy_?'Odświeżanie…':debtError_?'Nie udało się odświeżyć · pokazujemy zapisane dane':'Pobrano: '+new Date(debtData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});if(btn){btn.disabled=debtBusy_;btn.setAttribute('aria-busy',String(debtBusy_));}}
+function debtSelect_(key){if(debtData_.periods.some(p=>p.key===key)){debtPeriod_=key;renderDebts_();}}
+function debtMove_(d){const n=debtData_.periods.findIndex(p=>p.key===debtPeriod_)+d;if(debtData_.periods[n])debtSelect_(debtData_.periods[n].key);}
+function debtDetail_(id){debtId_=id;renderDebts_();window.scrollTo(0,0);}
+function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,0);}
+function debtAmount_(p,metric){const item=debtId_?p.items.find(i=>i.id===debtId_):p;return item?item[metric]:null;}
+function debtCard_(i,period){return `<button class="debt-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="debt-card-title">${escapeHtml(i.name)} <span aria-hidden="true">›</span></span>${i.subtitle?`<span class="sav-muted">${escapeHtml(i.subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;}
+function debtChart_(){
+ const rows=debtData_.periods.filter(p=>debtAmount_(p,debtMetric_)!==null),values=rows.map(p=>debtAmount_(p,debtMetric_)),max=Math.max(...values,1);
+ const time=p=>Date.UTC(p.year,p.month-1,1),first=time(rows[0]),last=time(rows.at(-1)),x=i=>90+(time(rows[i])-first)/Math.max(last-first,1)*490,y=v=>155-v/max*120;
+ const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
+ return `<section class="sav-panel"><div class="sav-heading"><h2>Historia zobowiązań</h2><div class="sav-range"><button id="debt-total" aria-pressed="${debtMetric_==='total'}" onclick="debtMetric_='total';renderDebts_()">Łącznie</button><button id="debt-capital" aria-pressed="${debtMetric_==='principal'}" onclick="debtMetric_='principal';renderDebts_()">Kapitał</button></div></div><svg viewBox="0 0 620 205" role="img" aria-label="Historia zobowiązań. Dokładne kwoty w tabeli poniżej.">${[0,max/2,max].map(v=>`<line x1="90" x2="580" y1="${y(v)}" y2="${y(v)}" stroke="#e5e0ee"/><text x="82" y="${y(v)+4}" text-anchor="end" fill="#62566f" font-size="14">${compact(v)}</text>`).join('')}<polyline points="${values.map((v,i)=>x(i)+','+y(v)).join(' ')}" fill="none" stroke="#7352a2" stroke-width="3"/>${values.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="${rows[i].key===debtPeriod_?6:3}" fill="#7352a2"/>`).join('')}<text x="90" y="185" fill="#62566f" font-size="14">${rows[0].key}</text><text x="580" y="185" text-anchor="end" fill="#62566f" font-size="14">${rows.at(-1).key}</text></svg><details data-debt-open="history"><summary id="debt-history">Pokaż wszystkie kwoty</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">${debtMetric_==='total'?'Łącznie':'Kapitał'}</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(debtAmount_(p,debtMetric_))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+}
+function renderDebts_(){
+ if(activeView_!=='debts')return;
+ const app=document.getElementById('app'),same=app.dataset.debtView===(debtId_||'all'),open=same?Array.from(app.querySelectorAll('details[open][data-debt-open]'),el=>el.dataset.debtOpen):[],focus=same&&app.contains(document.activeElement)?document.activeElement.id:'',scroll=window.scrollY;
+ app.dataset.debtView=debtId_||'all';
+ if(!debtData_){app.innerHTML=`<div class="sav-wrap debt-wrap"><h1>Zobowiązania</h1><section class="sav-panel"><h2>${debtError_?'Nie udało się pobrać zobowiązań':'Przygotowujemy Twoje zobowiązania'}</h2><p>${debtError_?'Sprawdź połączenie. Jeśli problem trwa, sprawdź wdrożenie i kompletność danych w arkuszu.':'Przy kolejnych otwarciach pokażemy zapisane kwoty od razu.'}</p>${debtError_?'<button class="back-button" onclick="debtRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;return;}
+ const at=debtData_.periods.findIndex(p=>p.key===debtPeriod_),p=debtData_.periods[at],prev=debtData_.periods[at-1],item=debtId_?p.items.find(i=>i.id===debtId_):p;
+ const title=debtId_?(item?item.name:'Zobowiązanie'):'Zobowiązania';
+ const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
+ const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
+ const change=p.inProgress?'Miesiąc w trakcie · kwoty według ostatnich wpisów':delta===null?'Początek dostępnej historii':Math.abs(delta)<.005?'Bez zmiany względem poprzedniego zapisu':`${delta<0?'Mniej':'Więcej'} o ${savingsPLN_(Math.abs(delta))} od ${savingsLabel_(prev.key)}`;
+ app.innerHTML=`<div class="sav-wrap debt-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button id="debt-back" class="detail-sticky-back" onclick="${debtId_?'debtBack_()':'showMainDashboard()'}" aria-label="${debtId_?'Wróć do zobowiązań':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${escapeHtml(title)}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="debt-prev" onclick="debtMove_(-1)" aria-label="Poprzedni okres" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="debt-period">Okres zobowiązań</label><select id="debt-period" onchange="debtSelect_(this.value)">${debtData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="debt-next" onclick="debtMove_(1)" aria-label="Następny okres" ${at===debtData_.periods.length-1?'disabled':''}>›</button></div>
+ ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span></section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
+ <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
+ ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?active.sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join(''):'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
+ ${debtChart_()}
+ ${!debtId_&&closed.length?`<details class="sav-panel" data-debt-open="closed"><summary id="debt-closed">Spłacone zobowiązania (${closed.length})</summary>${closed.map(i=>debtCard_(i,p.key)).join('')}</details>`:''}</div>`;
+ for(const el of app.querySelectorAll('[data-debt-open]'))el.open=open.includes(el.dataset.debtOpen);
+ if(focus){const el=document.getElementById(focus);if(el&&!el.disabled)el.focus({preventScroll:true});}
+ if(same&&window.scrollY!==scroll)window.scrollTo(0,scroll);debtStatus_();
+}
+setInterval(()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_();},60000);
+addEventListener('online',()=>{if(activeView_==='debts')debtRefresh_();});
+document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_();});
+
 (function(){
  const app=document.getElementById('app');let previous=null;
  const reduce=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
  const observer=new MutationObserver(()=>{
-  const key=typeof activeView_==='undefined'?'startup':activeView_==='savings'?['savings',savingsGroup_,savingsPeriod_].join(':'):[activeView_,activeCategory_,selectedYear,selectedMonth].join(':');
+  const key=typeof activeView_==='undefined'?'startup':activeView_==='savings'?['savings',savingsGroup_,savingsPeriod_].join(':'):activeView_==='debts'?['debts',debtId_,debtPeriod_].join(':'):[activeView_,activeCategory_,selectedYear,selectedMonth].join(':');
   if(previous===key)return;
   const initial=previous===null;previous=key;
   if(initial||(reduce&&reduce.matches)||!app.animate)return;
