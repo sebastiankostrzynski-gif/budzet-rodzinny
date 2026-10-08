@@ -1,700 +1,5425 @@
-<!doctype html>
-<html lang="pl">
+<!DOCTYPE html>
+<html>
 <head>
+
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#2f9e63">
-  <meta name="description" content="Budżet rodzinny – dashboard domowych finansów.">
-  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <meta name="theme-color" content="#39a96b">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Budżet rodzinny">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
   <title>Budżet rodzinny</title>
+
+
   <style>
-    :root { color-scheme: light; }
-    * { box-sizing: border-box; }
-    html, body { width:100%; height:100%; margin:0; padding:0; }
+
+    * {
+      box-sizing: border-box;
+    }
+
+
     body {
-      min-height:100svh;
-      overflow:hidden;
-      background:#f4f6f7;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;
-      overscroll-behavior:none;
+      margin: 0;
+      padding: 0;
+      background: #f4f6f7;
+      color: #222;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Arial,
+        sans-serif;
     }
-    #app-shell {
-      position:relative;
-      width:100%;
-      height:100svh;
-      padding-top:env(safe-area-inset-top);
-      padding-right:env(safe-area-inset-right);
-      padding-bottom:env(safe-area-inset-bottom);
-      padding-left:env(safe-area-inset-left);
+
+
+    #app {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
     }
-    #app-frame {
-      display:block;
-      width:100%;
-      height:100%;
-      border:0;
-      background:#f4f6f7;
+
+
+     
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 18px;
     }
-    #loading {
-      position:absolute;
-      inset:0;
-      display:grid;
-      place-items:center;
-      padding:24px;
-      background:#f4f6f7;
-      color:#6f767b;
-      z-index:4;
-      transition:opacity .22s ease;
+
+    .dashboard-page-header {
+      margin-bottom: 2px;
     }
-    #loading.is-hidden { opacity:0; pointer-events:none; }
-    .loading-card {
-      width:min(320px,100%);
-      padding:24px;
-      text-align:center;
-      background:#fff;
-      border:1px solid #eceff0;
-      border-radius:22px;
-      box-shadow:0 10px 30px rgba(0,0,0,.06);
+
+    .dashboard-month-sticky {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      margin: 0 -6px 12px;
+      padding: 6px 6px 8px;
+
+      background: rgba(244, 246, 247, 0.94);
+      border-bottom: 1px solid rgba(220, 224, 226, 0.72);
+
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
     }
-    .loading-icon { font-size:30px; margin-bottom:9px; }
-    .loading-title { color:#222; font-weight:750; margin-bottom:5px; }
-    .loading-subtitle { font-size:13px; color:#90969a; line-height:1.45; }
-    #instant-snapshot {
-      position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
-      border:0;
-      background:#f4f6f7;
-      z-index:2;
-      display:none;
-      pointer-events:none;
+
+    .dashboard-month-sticky .month-nav {
+      margin-top: 0;
     }
-    #instant-snapshot.is-visible { display:block; }
-    #snapshot-status {
-      position:absolute;
-      left:50%;
-      bottom:calc(12px + env(safe-area-inset-bottom));
-      transform:translateX(-50%);
-      z-index:3;
-      display:none;
-      padding:7px 11px;
-      border-radius:999px;
-      background:rgba(255,255,255,.94);
-      border:1px solid #e7eaec;
-      box-shadow:0 5px 16px rgba(0,0,0,.08);
-      color:#7b8185;
-      font-size:11px;
-      font-weight:650;
-      white-space:nowrap;
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
+
+    .data-freshness {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+
+      min-height: 15px;
+      margin-top: 3px;
+
+      color: #8a8f94;
+      font-size: 10px;
+      font-weight: 650;
+      line-height: 1.15;
+      white-space: nowrap;
     }
-    #snapshot-status.is-visible { display:block; }
-    #install-help {
-      position:absolute;
-      left:50%;
-      bottom:calc(12px + env(safe-area-inset-bottom));
-      transform:translateX(-50%);
-      width:min(420px, calc(100% - 24px));
-      padding:12px 14px;
-      display:none;
-      align-items:center;
-      gap:10px;
-      background:rgba(255,255,255,.96);
-      border:1px solid #e7eaec;
-      border-radius:17px;
-      box-shadow:0 10px 28px rgba(0,0,0,.10);
-      z-index:5;
-      font-size:13px;
-      color:#555;
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
+
+    .data-freshness-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #39aa6b;
+      flex: 0 0 auto;
     }
-    #install-help.is-visible { display:flex; }
-    #install-help strong { color:#222; }
-    #install-help button {
-      margin-left:auto;
-      border:0;
-      border-radius:999px;
-      padding:8px 12px;
-      font-weight:750;
-      background:#2f9e63;
-      color:#fff;
-      cursor:pointer;
-      white-space:nowrap;
+
+    .data-freshness.is-checking .data-freshness-dot {
+      background: #aeb4b9;
     }
-    #install-dismiss {
-      border:0 !important;
-      background:transparent !important;
-      color:#888 !important;
-      padding:6px !important;
+
+    .data-freshness.is-updating .data-freshness-dot {
+      background: #d89b2b;
+      animation: freshnessPulse 0.9s ease-in-out infinite alternate;
     }
-    @media (max-width:520px) {
-      #install-help { font-size:12px; }
-      .loading-card { padding:22px 18px; }
+
+    .data-freshness.is-error .data-freshness-dot {
+      background: #d26a5c;
     }
+
+    @keyframes freshnessPulse {
+      from { opacity: 0.45; }
+      to { opacity: 1; }
+    }
+
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 750;
+      margin: 0;
+      color: #171717;
+      letter-spacing: -0.4px;
+    }
+
+
+    .page-subtitle {
+      margin-top: 5px;
+      color: #888;
+      font-size: 15px;
+    }
+
+
+    .month-nav {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .month-nav-button {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border: 1px solid #eceeef;
+      border-radius: 50%;
+      background: #fff;
+      color: #555;
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.055);
+      transition:
+        opacity 0.12s ease,
+        transform 0.12s ease,
+        box-shadow 0.12s ease,
+        background 0.12s ease;
+    }
+
+    .month-nav-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 11px rgba(0,0,0,0.08);
+      background: #fcfcfc;
+    }
+
+    .month-nav-button:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    .month-nav-button:disabled {
+      opacity: 0.22;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .month-nav-spacer {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+    }
+
+    .month-nav-label {
+      min-width: 148px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: #fff;
+      color: #777;
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1.2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.035);
+    }
+
+
+    .month-nav-label.is-loading {
+      color: #999;
+    }
+
+    .month-loading-dots {
+      display: inline-block;
+      min-width: 14px;
+      margin-left: 2px;
+      text-align: left;
+    }
+
+    .month-loading-dots::after {
+      content: "";
+      animation: monthLoadingDots 1.1s steps(3, end) infinite;
+    }
+
+    @keyframes monthLoadingDots {
+      0% { content: ""; }
+      33% { content: "."; }
+      66% { content: ".."; }
+      100% { content: "..."; }
+    }
+
+    #app.month-refreshing {
+      opacity: 0.72;
+      transition: opacity 0.16s ease;
+      pointer-events: none;
+    }
+ 
+
+    .main-card {
+      background:
+        linear-gradient(
+          135deg,
+          #35a96c 0%,
+          #2f9e63 100%
+        );
+
+      color: white;
+      border-radius: 24px;
+      padding: 22px 22px 21px;
+      margin-bottom: 14px;
+
+      box-shadow:
+        0 8px 24px rgba(47, 158, 99, 0.18);
+    }
+
+
+    .main-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 7px;
+    }
+
+
+    .main-card-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.18);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+
+
+    .main-card-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.92);
+      margin-right: 6px;
+      flex: 0 0 auto;
+    }
+
+
+    .main-card-negative {
+      background:
+        linear-gradient(
+          135deg,
+          #e74c3c 0%,
+          #c0392b 100%
+        );
+
+      box-shadow:
+        0 8px 24px rgba(192, 57, 43, 0.18);
+    }
+
+
+    .main-card-neutral {
+      background:
+        linear-gradient(
+          135deg,
+          #7b8288 0%,
+          #666d73 100%
+        );
+
+      box-shadow:
+        0 8px 24px rgba(90, 97, 103, 0.14);
+    }
+
+
+    .main-card-label {
+      font-size: 13px;
+      opacity: 0.92;
+      margin-bottom: 0;
+      font-weight: 600;
+    }
+
+
+    .main-card-value {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -1.2px;
+      line-height: 1.08;
+    }
+
+
+    .main-card-neutral .main-card-value.positive {
+      color: #8fe0b2;
+    }
+
+
+    .main-card-neutral .main-card-value.negative {
+      color: #ffb3aa;
+    }
+
+
+    .main-card-neutral .main-card-value.zero {
+      color: white;
+    }
+
+
+    .main-card-description {
+      margin-top: 8px;
+      font-size: 11px;
+      opacity: 0.82;
+    }
+
+
+     
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+
+    .summary-card {
+      position: relative;
+      background: white;
+      border-radius: 18px;
+      padding: 15px 16px 16px;
+      overflow: hidden;
+
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+    }
+
+
+    .summary-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 4px;
+      height: 100%;
+      background: #e5e7e8;
+    }
+
+
+    .summary-card.income::before {
+      background: #39aa6b;
+    }
+
+
+    .summary-card.expense::before {
+      background: #e79b7a;
+    }
+
+
+    .summary-label {
+      color: #999;
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+
+
+    .summary-value {
+      font-size: 21px;
+      font-weight: 780;
+      color: #222;
+      letter-spacing: -0.2px;
+    }
+
+
+     
+
+    .surplus-card {
+      background: white;
+      border-radius: 20px;
+      padding: 18px 19px;
+      margin-bottom: 14px;
+
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+    }
+
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 760;
+      margin-bottom: 10px;
+      color: #222;
+    }
+
+
+    .surplus-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      padding: 8px 0;
+    }
+
+
+    .surplus-label {
+      color: #777;
+      font-size: 13px;
+    }
+
+
+    .surplus-value {
+      font-size: 15px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+
+    .balance-card .surplus-row.is-total {
+      margin-top: 3px;
+      padding-top: 11px;
+      border-top: 1px solid #eeeeee;
+    }
+
+
+    .balance-card .surplus-row.is-total .surplus-label {
+      font-weight: 700;
+      color: #555;
+    }
+
+
+    .balance-card .surplus-row.is-total .surplus-value {
+      font-size: 17px;
+    }
+
+
+    .disposition-card {
+      padding-bottom: 16px;
+    }
+
+
+    .disposition-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+    }
+
+
+    .disposition-item {
+      min-width: 0;
+      padding: 11px 10px;
+      border-radius: 14px;
+      background: #f8f9f9;
+      border: 1px solid #eef0f0;
+    }
+
+
+    .disposition-item-label {
+      min-height: 30px;
+      color: #888;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+
+    .disposition-item-value {
+      margin-top: 4px;
+      font-size: 14px;
+      font-weight: 750;
+      color: #222;
+      white-space: nowrap;
+    }
+
+
+    .disposition-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-top: 10px;
+      padding-top: 11px;
+      border-top: 1px solid #eeeeee;
+    }
+
+
+    .disposition-total-label {
+      color: #555;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+
+    .disposition-total-value {
+      color: #222;
+      font-size: 17px;
+      font-weight: 780;
+      white-space: nowrap;
+    }
+
+
+     
+
+    .categories-title {
+      font-size: 18px;
+      font-weight: 750;
+      margin: 4px 0 12px 2px;
+    }
+
+
+    .category-card {
+      background: white;
+      border-radius: 18px;
+      padding: 15px 16px 14px;
+      margin-bottom: 10px;
+
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+
+      cursor: pointer;
+
+      transition:
+        transform 0.12s ease,
+        box-shadow 0.12s ease;
+    }
+
+
+    .category-card:hover {
+      transform: translateY(-1px);
+
+      box-shadow:
+        0 5px 15px rgba(0,0,0,0.07);
+    }
+
+
+    .category-card:active {
+      transform: scale(0.99);
+    }
+
+
+    .category-card.non-expandable {
+      cursor: default;
+    }
+
+
+    .category-card.non-expandable:hover {
+      transform: none;
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+    }
+
+
+    .category-card.non-expandable:active {
+      transform: none;
+    }
+
+
+    .category-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+
+    .category-icon {
+      width: 42px;
+      height: 42px;
+      min-width: 42px;
+
+      border-radius: 13px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 21px;
+    }
+
+
+    .category-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+
+    .category-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+
+    .category-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 720;
+      color: #333;
+      line-height: 1.25;
+    }
+
+
+    .category-status {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 750;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+
+    .category-status.within {
+      background: #edf8f1;
+      color: #2f9e63;
+    }
+
+
+    .category-status.over {
+      background: #fff0ef;
+      color: #e74c3c;
+    }
+
+
+    .category-amount {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #777;
+    }
+
+
+    .category-arrow {
+      width: 20px;
+      min-width: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+
+      color: #9ea5aa;
+      font-size: 23px;
+      font-weight: 500;
+      line-height: 1;
+      margin-left: 3px;
+    }
+
+
+    .category-progress {
+      margin-top: 12px;
+    }
+
+
+    .progress-background {
+      width: 100%;
+      height: 7px;
+
+      background: #eeeeee;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 10px;
+    }
+
+
+    .category-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+
+      margin-top: 7px;
+
+      font-size: 11px;
+      color: #999;
+    }
+
+
+    .category-bottom-percent {
+      font-weight: 700;
+      color: #888;
+      white-space: nowrap;
+    }
+
+
+     
+
+     
+    .detail-sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+
+      width: 100%;
+      min-height: 58px;
+      margin: -4px 0 12px;
+      padding: 6px 4px 7px;
+
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 44px;
+      align-items: center;
+      gap: 6px;
+
+      background: rgba(244, 246, 247, 0.96);
+      border-bottom: 1px solid rgba(220, 224, 226, 0.78);
+      border-radius: 0 0 15px 15px;
+      box-shadow: 0 5px 16px rgba(0,0,0,0.055);
+
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+    }
+
+    .detail-sticky-bar.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .detail-sticky-back,
+    .detail-sticky-spacer {
+      width: 44px;
+      height: 44px;
+    }
+
+    .detail-sticky-back {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      border: 1px solid #e6e8e9;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.94);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.045);
+
+      color: #555;
+      font-size: 26px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .detail-sticky-back:active {
+      transform: scale(0.95);
+    }
+
+    .detail-sticky-center {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .detail-sticky-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      color: #222;
+      font-size: 14px;
+      font-weight: 780;
+      line-height: 1.15;
+    }
+
+    .detail-sticky-month {
+      margin-top: 3px;
+      color: #8a8f94;
+      font-size: 10px;
+      font-weight: 650;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid #e7e7e7;
+      background: rgba(255,255,255,0.92);
+
+      padding: 7px 11px;
+      margin: 0 0 12px 1px;
+      border-radius: 999px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+
+      color: #555;
+      font-size: 13px;
+      font-weight: 700;
+
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .back-button:hover {
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    }
+
+    .back-button:active {
+      transform: scale(0.98);
+    }
+
+
+    .detail-header {
+      background: white;
+      border-radius: 22px;
+      padding: 20px;
+      margin-bottom: 16px;
+
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+    }
+
+
+    .detail-title-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 17px;
+    }
+
+
+    .detail-icon {
+      width: 50px;
+      height: 50px;
+      min-width: 50px;
+
+      border-radius: 15px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 25px;
+    }
+
+
+    .detail-title {
+      font-size: 21px;
+      font-weight: 780;
+      color: #222;
+      line-height: 1.2;
+    }
+
+
+    .detail-subtitle {
+      margin-top: 5px;
+      color: #999;
+      font-size: 12px;
+    }
+
+
+    .detail-status {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 8px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 750;
+      line-height: 1;
+    }
+
+
+    .detail-money-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 18px;
+      margin-bottom: 11px;
+    }
+
+
+    .detail-money-block {
+      min-width: 0;
+    }
+
+
+    .detail-money-block-right {
+      text-align: right;
+    }
+
+
+    .detail-money-label {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 3px;
+    }
+
+
+    .detail-money-value {
+      font-size: 27px;
+      font-weight: 820;
+      color: #222;
+      letter-spacing: -0.5px;
+    }
+
+
+    .detail-budget-value {
+      font-size: 16px;
+      font-weight: 750;
+      color: #444;
+      text-align: right;
+    }
+
+
+    .detail-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #999;
+    }
+
+
+    .detail-meta-strong {
+      color: #555;
+      font-weight: 700;
+    }
+
+
+    .detail-progress {
+      height: 9px;
+      background: #eeeeee;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+
+    .detail-progress-bar {
+      height: 100%;
+      border-radius: 10px;
+    }
+
+
+    .daily-limit-card {
+      margin: 0 0 16px 0;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: #f8f9fa;
+      border: 1px solid #e8e8e8;
+    }
+
+
+    .daily-limit-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+
+    .daily-limit-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #555;
+      margin-bottom: 5px;
+    }
+
+
+    .daily-limit-value {
+      font-size: 26px;
+      line-height: 1.05;
+      font-weight: 900;
+    }
+
+
+    .daily-limit-note {
+      margin-top: 5px;
+      font-size: 11px;
+      color: #999;
+    }
+
+
+    .daily-limit-side {
+      text-align: right;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #888;
+      white-space: nowrap;
+    }
+
+
+    .daily-limit-status {
+      display: inline-flex;
+      margin-top: 4px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid #e7e7e7;
+      font-size: 9px;
+      font-weight: 750;
+      color: #777;
+    }
+
+
+    .daily-limit-meta {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e5e5;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11px;
+      color: #888;
+    }
+
+
+    .subcategories-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 17px;
+      font-weight: 760;
+      margin: 0 0 11px 2px;
+    }
+
+
+    .subcategories-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #f2f4f5;
+      border: 1px solid #e7e9ea;
+      color: #777;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+
+    .subcategory-card {
+      background: white;
+      border-radius: 17px;
+      padding: 17px 18px;
+      margin-bottom: 11px;
+
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.035);
+    }
+
+
+    .subcategory-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+
+
+    .subcategory-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #333;
+      line-height: 1.35;
+    }
+
+
+    .subcategory-values {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+
+    .subcategory-execution {
+      font-size: 16px;
+      font-weight: 780;
+      color: #222;
+    }
+
+
+    .subcategory-budget {
+      font-size: 11px;
+      color: #999;
+      margin-top: 2px;
+    }
+
+
+    .subcategory-progress {
+      height: 8px;
+      background: #eeeeee;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+
+    .subcategory-progress-bar {
+      height: 100%;
+      border-radius: 10px;
+    }
+
+
+
+
+     
+
+    .history-card {
+      background: white;
+      border-radius: 19px;
+      padding: 18px;
+      margin-top: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.035);
+      overflow: hidden;
+    }
+
+    .history-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .history-title {
+      font-size: 18px;
+      font-weight: 780;
+      color: #222;
+      margin-bottom: 4px;
+    }
+
+    .history-current-badge {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #f3f5f6;
+      color: #777;
+      border: 1px solid #e8eaeb;
+      font-size: 9px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .history-subtitle {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 16px;
+    }
+
+    .history-chart {
+      height: 190px;
+      display: flex;
+      align-items: flex-end;
+      gap: 7px;
+      padding: 0 2px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-bottom: 1px solid #eeeeee;
+      scrollbar-width: none;
+    }
+
+    .history-chart::-webkit-scrollbar {
+      display: none;
+    }
+
+    .history-bar-wrap {
+      flex: 1 0 38px;
+      min-width: 38px;
+      max-width: 54px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      cursor: pointer;
+      padding: 0 2px;
+      border-radius: 10px;
+      transition: background .12s ease;
+    }
+
+    .history-bar-wrap:hover {
+      background: #fafafa;
+    }
+
+    .history-bar-wrap.history-current {
+      background: #f7f8f8;
+    }
+
+    .history-bar-value {
+      min-height: 15px;
+      margin-bottom: 4px;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 800;
+      color: #777;
+      white-space: nowrap;
+    }
+
+    .history-bar {
+      width: 100%;
+      max-width: 30px;
+      min-height: 2px;
+      border-radius: 7px 7px 2px 2px;
+      transition: height .15s ease, opacity .12s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+
+    .history-bar-wrap:hover .history-bar {
+      opacity: 0.84;
+    }
+
+    .history-bar-wrap.history-current .history-bar {
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+
+    .history-month {
+      font-size: 9px;
+      color: #999;
+      margin-top: 7px;
+      text-align: center;
+      white-space: nowrap;
+      font-weight: 650;
+    }
+
+    .history-month-current {
+      color: #333;
+      font-weight: 800;
+    }
+
+    .history-selected {
+      margin-top: 12px;
+      min-height: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+    }
+
+    .history-selected strong {
+      color: #222;
+      font-size: 14px;
+    }
+
+    .history-total {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      padding-top: 12px;
+      border-top: 1px solid #eeeeee;
+      font-size: 12px;
+      color: #777;
+    }
+
+    .history-total strong {
+      color: #222;
+      font-size: 14px;
+    }
+
+
+     
+
+    .loading-box {
+      text-align: center;
+      padding: 50px 20px;
+      color: #777;
+    }
+
+
+    .loading-icon {
+      font-size: 30px;
+      margin-bottom: 10px;
+    }
+
+
+     
+
+    .error-box {
+      background: #fff1f1;
+      border: 1px solid #ffcaca;
+      border-radius: 16px;
+      padding: 18px;
+      color: #d63636;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+
+    .error-title {
+      font-weight: 750;
+      margin-bottom: 7px;
+    }
+
+
+     
+
+    @media (max-width: 500px) {
+
+      .detail-money-value {
+        font-size: 24px;
+      }
+
+      .daily-limit-head {
+        gap: 10px;
+      }
+
+      .daily-limit-value {
+        font-size: 23px;
+      }
+
+      .daily-limit-side {
+        font-size: 10px;
+      }
+
+      .detail-title {
+        font-size: 19px;
+      }
+
+      #app {
+        padding:
+          16px
+          12px
+          30px;
+      }
+
+
+      .page-title {
+        font-size: 24px;
+      }
+
+
+      .main-card {
+        padding: 20px 19px 19px;
+      }
+
+
+      .main-card-value {
+        font-size: 33px;
+      }
+
+
+      .main-card-status {
+        font-size: 9px;
+        padding: 4px 8px;
+      }
+
+
+      .summary-card {
+        padding: 15px;
+      }
+
+
+      .summary-value {
+        font-size: 18px;
+      }
+
+      .disposition-grid {
+        grid-template-columns: 1fr;
+        gap: 7px;
+      }
+
+      .disposition-item-label {
+        min-height: 0;
+      }
+
+
+      .category-card {
+        padding: 15px;
+      }
+
+
+      .category-icon {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+      }
+
+
+      .detail-header {
+        padding: 18px;
+      }
+
+
+      .detail-money-value {
+        font-size: 23px;
+      }
+
+      .history-card {
+        padding: 16px;
+      }
+
+       
+      .history-chart {
+        min-height: 195px;
+        gap: 3px;
+        padding-left: 0;
+        padding-right: 0;
+        overflow-x: hidden;
+      }
+
+      .history-bar-wrap {
+        flex: 1 1 0;
+        flex-basis: 0;
+        min-width: 0;
+        max-width: none;
+        padding-left: 1px;
+        padding-right: 1px;
+      }
+
+      .history-bar {
+        max-width: 22px;
+      }
+
+      .history-bar-value {
+        font-size: 9px;
+        letter-spacing: -0.35px;
+      }
+
+      .history-month {
+        font-size: 8px;
+        letter-spacing: -0.2px;
+      }
+
+      .month-nav {
+        gap: 8px;
+      }
+
+      .month-nav-button {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+      }
+
+      .month-nav-label {
+        min-width: 136px;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
+      .dashboard-month-sticky {
+        margin-left: -4px;
+        margin-right: -4px;
+        padding-top: 5px;
+        padding-bottom: 7px;
+      }
+
+      .data-freshness {
+        font-size: 10px;
+      }
+
+    }
+
+
   </style>
+
 </head>
+
+
 <body>
-  <main id="app-shell">
-    <iframe
-      id="app-frame"
-      title="Budżet rodzinny"
-      allow="fullscreen"
-      referrerpolicy="strict-origin-when-cross-origin">
-    </iframe>
 
-    <iframe
-      id="instant-snapshot"
-      title="Ostatni zapisany widok budżetu"
-      aria-hidden="true"
-      tabindex="-1">
-    </iframe>
+  <div id="app">
 
-    <div id="snapshot-status" aria-live="polite">
-      Dane z pamięci · aktualizuję w tle…
-    </div>
+    <div class="loading-box">
 
-    <div id="loading" aria-live="polite">
-      <div class="loading-card">
-        <div class="loading-icon">💰</div>
-        <div class="loading-title">Budżet rodzinny</div>
-        <div class="loading-subtitle">Uruchamianie aplikacji…</div>
+      <div class="loading-icon">
+        ⏳
       </div>
+
+      <div>
+        Ładowanie...
+      </div>
+
     </div>
 
-    <div id="install-help" role="status">
-      <div><strong>Budżet rodzinny</strong><br><span id="install-text"></span></div>
-      <button id="install-action" type="button">Dodaj</button>
-      <button id="install-dismiss" type="button" aria-label="Zamknij">×</button>
-    </div>
-  </main>
+  </div>
+
 
   <script>
-    (() => {
-      'use strict';
-
-      const VERSION = '2026-10-07-FRAME-BRIDGE-V9';
-      const frame = document.getElementById('app-frame');
-      const loading = document.getElementById('loading');
-      const snapshotFrame = document.getElementById('instant-snapshot');
-      const snapshotStatus = document.getElementById('snapshot-status');
-
-      const APP_URL = "https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec";
-
-      // Szybka warstwa – localStorage. Zostawiamy stare klucze, aby V8
-      // od razu przejęła cache zapisany przez V5/V7.
-      const PWA_DASHBOARD_CACHE_KEY = 'budzet-pwa-dashboard-cache-v1';
-      const PWA_MONTH_CACHE_KEY = 'budzet-pwa-month-cache-v1';
-      const PWA_CATEGORY_CACHE_KEY = 'budzet-pwa-category-cache-v1';
-      const PWA_REFRESH_STATE_KEY = 'budzet-pwa-refresh-state-v1';
-      const PWA_SNAPSHOT_KEY = 'budzet-pwa-dashboard-snapshot-v1';
-      const PWA_DIAGNOSTICS_KEY = 'budzet-pwa-start-diagnostics-v1';
-
-      // Trwała warstwa – Cache Storage. Nie ma małego limitu localStorage
-      // i na iOS jest niezależną kopią krytycznych danych startowych.
-      const RUNTIME_CACHE_NAME = 'budzet-rodzinny-runtime-v8';
-      const RUNTIME_BACKUP_URL = new URL('./__budget_runtime_v8__.json', location.href).href;
-      const SNAPSHOT_BACKUP_URL = new URL('./__budget_snapshot_v8__.json', location.href).href;
-
-      const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-      const RUNTIME_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-      const startPerf = performance.now();
-      const diagnostics = {
-        version: VERSION,
-        startedAt: Date.now(),
-        serviceWorkerControlled: Boolean(navigator.serviceWorker && navigator.serviceWorker.controller),
-        localSnapshot: false,
-        durableSnapshot: false,
-        liveFrameStartedMs: null,
-        frameLoadMs: null,
-        readyMs: null,
-        durableBackupLoadedMs: null
-      };
-      window.__budgetDiagnostics = diagnostics;
-
-      let appReady = false;
-      let liveAppStarted = false;
-      let snapshotVisible = false;
-      let runtimePackage = null;
-      let runtimePersistTimer = null;
-      let shellRefreshScheduled = false;
-
-      function elapsed_() {
-        return Math.round(performance.now() - startPerf);
+// Local UI; Google is a background read-only data transport.
+const BUDGET_SERVER_URL = 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
+const budgetTransport = (() => {
+  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState']);
+  const pending = new Map();
+  const channel = crypto.randomUUID();
+  let frame, client, origin, connected = false, sequence = 0;
+  function trusted(e) {
+    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
+    try {
+      let w = e.source;
+      for (let n=0; w && n<8; n++) {
+        if (w === frame.contentWindow) return true;
+        if (w === w.parent) break;
+        w = w.parent;
       }
-
-      function safeGet_(key) {
-        try { return localStorage.getItem(key); } catch (_) { return null; }
+    } catch (_) {}
+    return false;
+  }
+  function send(item) {
+    if (!connected || item.sent) return;
+    item.sent = true;
+    client.postMessage({protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
+  }
+  function start() {
+    if (frame || !navigator.onLine) return;
+    frame = document.createElement('iframe');
+    frame.title = 'Synchronizacja danych budżetu';
+    frame.setAttribute('aria-hidden','true');
+    frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;left:-10000px;top:0';
+    frame.src = BUDGET_SERVER_URL;
+    document.body.appendChild(frame);
+  }
+  function finish(id, ok, value) {
+    const item = pending.get(id);
+    if (!item) return;
+    pending.delete(id);
+    clearTimeout(item.timer);
+    (ok ? item.success : item.failure)(ok ? value : new Error(String(value || 'Nie udało się odświeżyć danych.')));
+  }
+  addEventListener('message', e => {
+    const m = e.data;
+    if (!m || m.protocol !== 'budget-rpc-v10' || !trusted(e)) return;
+    if (m.type === 'ready') {
+      if (connected && e.source === client) return;
+      client = e.source; origin = e.origin;
+      client.postMessage({protocol:'budget-rpc-v10',type:'connect',channel},origin);
+    } else if (e.source === client && e.origin === origin && m.channel === channel) {
+      if (m.type === 'connected') {
+        connected = true;
+        pending.forEach(send);
+      } else if (m.type === 'result') {
+        finish(m.id,m.ok,m.ok ? m.data : m.error);
       }
+    }
+  });
+  function call(method,args,success,failure) {
+    if (!allowed.has(method)) { failure(new Error('Niedozwolona operacja.')); return; }
+    if (!navigator.onLine) { failure(new Error('Brak internetu. Pokazuję zapisane dane.')); return; }
+    const id = ++sequence;
+    const item = {id,method,args,success,failure,sent:false};
+    item.timer = setTimeout(() => {
+      finish(id,false,'Nie udało się połączyć z Google. Zapisane dane pozostają dostępne.');
+      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
+    },60000);
+    pending.set(id,item);
+    start(); send(item);
+  }
+  function runner(success = () => {}, failure = () => {}) {
+    const r = {
+      withSuccessHandler: fn => runner(fn,failure),
+      withFailureHandler: fn => runner(success,fn)
+    };
+    allowed.forEach(method => { r[method] = (...args) => call(method,args,success,failure); });
+    return r;
+  }
+  addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
+  return {runner,start};
+})();
+const google = {script:{run:budgetTransport.runner()}};
 
-      function safeSet_(key, value) {
-        try {
-          localStorage.setItem(key, value);
-          return true;
-        } catch (_) {
-          return false;
+// Keep the old origin's V9 data and a second persistent copy.
+const budgetDisk = (() => {
+  const keys = {
+    dashboardCache:'budzet-last-dashboard-v1',monthCache:'budzet-month-dashboard-cache-v1',
+    categoryCache:'budzet-category-details-v1',refreshState:'budzet-last-refresh-state-v1'
+  };
+  const legacy = {dashboardCache:'budzet-pwa-dashboard-cache-v1',monthCache:'budzet-pwa-month-cache-v1',
+    categoryCache:'budzet-pwa-category-cache-v1',refreshState:'budzet-pwa-refresh-state-v1'};
+  const url = new URL('./__budget_runtime_v10__.json',location.href).href;
+  let writing = false, dirty = false, timer;
+  function parse(raw) { try { return JSON.parse(raw); } catch (_) { return null; } }
+  function migrate(pkg) {
+    if (!pkg) return;
+    Object.entries(keys).forEach(([field,key]) => {
+      const current = parse(readLocalStorage_(key)), incoming = pkg[field];
+      if (!incoming) return;
+      const stamp = field === 'dashboardCache' ? 'timestamp' : 'savedAt';
+      if (!current || Number(incoming[stamp] || 0) > Number(current[stamp] || 0)) {
+        writeLocalStorage_(key,JSON.stringify(incoming));
+      }
+    });
+  }
+  function migrateLocal() {
+    const pkg = {};
+    Object.entries(legacy).forEach(([field,key]) => { pkg[field] = parse(readLocalStorage_(key)); });
+    migrate(pkg);
+  }
+  async function restore() {
+    try {
+      const cache = await caches.open('budzet-rodzinny-runtime-v8');
+      const current = await cache.match(url);
+      if (current) migrate(await current.json());
+      const old = await cache.match(new URL('./__budget_runtime_v8__.json',location.href).href);
+      if (old) migrate(await old.json());
+    } catch (_) {}
+  }
+  async function flush() {
+    dirty = true;
+    if (writing) return;
+    writing = true;
+    try {
+      const cache = await caches.open('budzet-rodzinny-runtime-v8');
+      while (dirty) {
+        dirty = false;
+        const pkg = {schema:1,savedAt:Date.now()};
+        Object.entries(keys).forEach(([field,key]) => { pkg[field] = parse(readLocalStorage_(key)); });
+        await cache.put(url,new Response(JSON.stringify(pkg),{headers:{'Content-Type':'application/json'}}));
+      }
+    } catch (_) {} finally { writing = false; }
+  }
+  function schedule() { clearTimeout(timer); timer = setTimeout(flush,100); }
+  addEventListener('pagehide',flush);
+  return {migrateLocal,restore,schedule,flush};
+})();
+
+
+
+
+    
+    
+    
+
+    let dashboardData = null;
+    let activeView_ = 'dashboard';
+    let activeCategory_ = null;
+    let isMonthLoading = false;
+
+    
+    
+    let selectedYear = null;
+    let selectedMonth = null;
+
+    
+    
+    let maxYear = null;
+    let maxMonth = null;
+
+    
+    
+    const monthCache = {};
+    const monthInflight = {};
+
+    const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
+    const FRONTEND_BUILD_VERSION = '2026-10-07-LOCAL-UI-V10';
+
+    
+    
+    
+    
+    
+    
+    const LAST_DASHBOARD_CACHE_KEY = 'budzet-last-dashboard-v1';
+    const LAST_REFRESH_STATE_KEY = 'budzet-last-refresh-state-v1';
+    const LAST_DASHBOARD_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+    
+    
+    
+    
+    
+    const MONTHS_DASHBOARD_STORAGE_KEY = 'budzet-month-dashboard-cache-v1';
+    const MONTHS_DASHBOARD_PERSIST_MAX_AGE_MS = 3 * 365 * 24 * 60 * 60 * 1000;
+    const MONTHS_DASHBOARD_CACHE_MAX_ENTRIES = 48;
+    let monthDashboardBackupTimer_ = null;
+
+    function prunePersistentMonthCache_() {
+      const keys = Object.keys(monthCache);
+      const now = Date.now();
+
+      keys.forEach(function(key) {
+        const entry = monthCache[key];
+        const timestamp = Number(entry && entry.timestamp || 0);
+        const data = entry && entry.data;
+
+        if (
+          !data ||
+          !data.year ||
+          !data.monthNumber ||
+          !Array.isArray(data.categories) ||
+          !timestamp ||
+          now - timestamp > MONTHS_DASHBOARD_PERSIST_MAX_AGE_MS
+        ) {
+          delete monthCache[key];
         }
-      }
+      });
 
-      function readJson_(key) {
-        const raw = safeGet_(key);
-        if (!raw) return null;
-        try { return JSON.parse(raw); } catch (_) { return null; }
-      }
+      const sorted = Object.keys(monthCache).sort(function(a, b) {
+        return Number(monthCache[b] && monthCache[b].timestamp || 0) -
+          Number(monthCache[a] && monthCache[a].timestamp || 0);
+      });
 
-      function safeJsonStringify_(value) {
-        try { return JSON.stringify(value); } catch (_) { return null; }
-      }
+      sorted.slice(MONTHS_DASHBOARD_CACHE_MAX_ENTRIES).forEach(function(key) {
+        delete monthCache[key];
+      });
+    }
 
-      function persistDiagnostics_() {
-        const raw = safeJsonStringify_(diagnostics);
-        if (raw) safeSet_(PWA_DIAGNOSTICS_KEY, raw);
-      }
+    function persistMonthDashboardCache_() {
+      try {
+        prunePersistentMonthCache_();
 
-      async function cacheReadJson_(url) {
-        if (!('caches' in window)) return null;
-        try {
-          const cache = await caches.open(RUNTIME_CACHE_NAME);
-          const response = await cache.match(url, { ignoreSearch: true });
-          if (!response) return null;
-          return await response.json();
-        } catch (_) {
-          return null;
-        }
-      }
-
-      async function cacheWriteJson_(url, value) {
-        if (!('caches' in window)) return false;
-        const raw = safeJsonStringify_(value);
-        if (!raw) return false;
-
-        try {
-          const cache = await caches.open(RUNTIME_CACHE_NAME);
-          await cache.put(
-            url,
-            new Response(raw, {
-              headers: {
-                'Content-Type': 'application/json; charset=utf-8',
-                'Cache-Control': 'no-store'
-              }
-            })
-          );
-          return true;
-        } catch (_) {
-          return false;
-        }
-      }
-
-      function isSnapshotUsable_(snapshot) {
-        return Boolean(
-          snapshot &&
-          snapshot.savedAt &&
-          snapshot.html &&
-          Date.now() - Number(snapshot.savedAt) <= SNAPSHOT_MAX_AGE_MS
-        );
-      }
-
-      function buildSnapshotDocument_(snapshot) {
-        const css = String(snapshot.css || '');
-        const html = String(snapshot.html || '');
-        return '<!doctype html><html lang="pl"><head>' +
-          '<meta charset="utf-8">' +
-          '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
-          '<style>' + css + '</style>' +
-          '</head><body><div id="app">' + html + '</div></body></html>';
-      }
-
-      function showSnapshot_(snapshot, source) {
-        if (!isSnapshotUsable_(snapshot) || appReady) return false;
-
-        try {
-          snapshotFrame.srcdoc = buildSnapshotDocument_(snapshot);
-          snapshotFrame.classList.add('is-visible');
-          snapshotStatus.textContent = 'Dane z pamięci telefonu · aktualizuję w tle…';
-          snapshotStatus.classList.add('is-visible');
-          loading.classList.add('is-hidden');
-          snapshotVisible = true;
-
-          if (source === 'local') diagnostics.localSnapshot = true;
-          if (source === 'durable') diagnostics.durableSnapshot = true;
-          persistDiagnostics_();
-          return true;
-        } catch (_) {
-          return false;
-        }
-      }
-
-      function showInstantLocalSnapshot_() {
-        const snapshot = readJson_(PWA_SNAPSHOT_KEY);
-        const shown = showSnapshot_(snapshot, 'local');
-
-        // Migracja V5/V7 -> V8: jeżeli stary localStorage ma dobry snapshot,
-        // od razu tworzymy drugą, trwalszą kopię w Cache Storage.
-        if (isSnapshotUsable_(snapshot)) {
-          cacheWriteJson_(SNAPSHOT_BACKUP_URL, snapshot);
-        }
-
-        return shown;
-      }
-
-      function hideStartupLayers_() {
-        if (appReady) return;
-        appReady = true;
-        diagnostics.readyMs = elapsed_();
-        persistDiagnostics_();
-
-        loading.classList.add('is-hidden');
-        snapshotFrame.classList.remove('is-visible');
-        snapshotStatus.classList.remove('is-visible');
-        snapshotVisible = false;
-      }
-
-      function localRuntimePackage_() {
-        return {
+        const payload = {
           schema: 1,
           savedAt: Date.now(),
-          dashboardCache: readJson_(PWA_DASHBOARD_CACHE_KEY),
-          monthCache: readJson_(PWA_MONTH_CACHE_KEY),
-          categoryCache: readJson_(PWA_CATEGORY_CACHE_KEY),
-          refreshState: readJson_(PWA_REFRESH_STATE_KEY)
+          cache: monthCache
         };
-      }
 
-      function hasUsefulRuntimeData_(pkg) {
-        return Boolean(
-          pkg &&
-          (
-            pkg.dashboardCache ||
-            pkg.monthCache ||
-            pkg.categoryCache ||
-            pkg.refreshState
-          )
-        );
-      }
-
-      function newestByTimestamp_(a, b, field) {
-        if (!a) return b || null;
-        if (!b) return a || null;
-        const ta = Number(a[field] || 0);
-        const tb = Number(b[field] || 0);
-        return tb > ta ? b : a;
-      }
-
-      function mergeRuntimePackages_(localPkg, durablePkg) {
-        const local = localPkg || {};
-        const durable = durablePkg || {};
-
-        return {
-          schema: 1,
-          savedAt: Math.max(Number(local.savedAt || 0), Number(durable.savedAt || 0), Date.now()),
-          dashboardCache: newestByTimestamp_(local.dashboardCache, durable.dashboardCache, 'timestamp'),
-          monthCache: newestByTimestamp_(local.monthCache, durable.monthCache, 'savedAt'),
-          categoryCache: newestByTimestamp_(local.categoryCache, durable.categoryCache, 'savedAt'),
-          // refreshState nie ma własnego savedAt; preferujemy lokalny, jeśli istnieje.
-          refreshState: local.refreshState || durable.refreshState || null
-        };
-      }
-
-      async function loadDurableBackups_() {
-        const results = await Promise.all([
-          cacheReadJson_(SNAPSHOT_BACKUP_URL),
-          cacheReadJson_(RUNTIME_BACKUP_URL)
-        ]);
-
-        const durableSnapshot = results[0];
-        const durableRuntime = results[1];
-
-        diagnostics.durableBackupLoadedMs = elapsed_();
-
-        if (!snapshotVisible && isSnapshotUsable_(durableSnapshot)) {
-          showSnapshot_(durableSnapshot, 'durable');
-
-          // Odtwarzamy też szybką kopię localStorage na przyszłe starty.
-          const raw = safeJsonStringify_(durableSnapshot);
-          if (raw) safeSet_(PWA_SNAPSHOT_KEY, raw);
-        }
-
-        runtimePackage = mergeRuntimePackages_(
-          localRuntimePackage_(),
-          durableRuntime && Date.now() - Number(durableRuntime.savedAt || 0) <= RUNTIME_MAX_AGE_MS
-            ? durableRuntime
-            : null
+        writeLocalStorage_(
+          MONTHS_DASHBOARD_STORAGE_KEY,
+          JSON.stringify(payload)
         );
 
-        // Migracja istniejącego cache V5/V7 do trwałej warstwy V8 odbywa się
-        // bez czekania na Apps Script. Dzięki temu pierwszy start po wdrożeniu
-        // sam zabezpiecza dane na kolejne zimne uruchomienia.
-        if (hasUsefulRuntimeData_(runtimePackage)) {
-          cacheWriteJson_(RUNTIME_BACKUP_URL, runtimePackage);
-        }
+        
+        postToPwa_(
+          'BUDZET_PWA_MONTH_CACHE',
+          payload
+        );
+      } catch (e) {
+        
+      }
+    }
 
-        return {
-          snapshot: durableSnapshot,
-          runtime: runtimePackage
-        };
+    function scheduleMonthDashboardCacheBackup_() {
+      if (monthDashboardBackupTimer_) {
+        clearTimeout(monthDashboardBackupTimer_);
       }
 
-      const durableLoadPromise = loadDurableBackups_().catch(() => ({ snapshot: null, runtime: null }));
+      monthDashboardBackupTimer_ = setTimeout(function() {
+        monthDashboardBackupTimer_ = null;
+        persistMonthDashboardCache_();
+      }, 140);
+    }
 
-      function scheduleRuntimePersist_() {
-        if (runtimePersistTimer) clearTimeout(runtimePersistTimer);
-
-        runtimePersistTimer = setTimeout(() => {
-          runtimePersistTimer = null;
-          if (!runtimePackage) return;
-          runtimePackage.savedAt = Date.now();
-          cacheWriteJson_(RUNTIME_BACKUP_URL, runtimePackage);
-        }, 180);
-      }
-
-      function updateRuntimeComponent_(name, payload) {
-        if (!runtimePackage) runtimePackage = localRuntimePackage_();
-        runtimePackage[name] = payload || null;
-        runtimePackage.savedAt = Date.now();
-        scheduleRuntimePersist_();
-      }
-
-      let dashboardClient = null;
-      let dashboardOrigin = null;
-
-      // Accept only Google's dashboard inside OUR app iframe, including its
-      // sandbox descendant. An unrelated tab/frame cannot request the cache.
-      function isDashboardSender_(event) {
-        if (!/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
-        let sender = event.source;
-        try {
-          for (let depth = 0; sender && depth < 8; depth++) {
-            if (sender === frame.contentWindow) return true;
-            const parent = sender.parent;
-            if (!parent || parent === sender) break;
-            sender = parent;
-          }
-        } catch (_) {}
+    function restoreMonthDashboardCache_() {
+      const raw = readLocalStorage_(MONTHS_DASHBOARD_STORAGE_KEY);
+      if (!raw) {
         return false;
       }
 
-      function postRestorePayload_(payload) {
-        try {
-          if (!dashboardClient || !dashboardOrigin) return;
-          dashboardClient.postMessage(
-            {
-              source: 'budzet-pwa-v5',
-              type: 'BUDZET_PWA_CACHE_RESTORE',
-              payload: payload || {}
-            },
-            dashboardOrigin
+      try {
+        const payload = JSON.parse(raw);
+        if (
+          !payload ||
+          Number(payload.schema || 0) !== 1 ||
+          !payload.savedAt ||
+          !payload.cache ||
+          Date.now() - Number(payload.savedAt) > MONTHS_DASHBOARD_PERSIST_MAX_AGE_MS
+        ) {
+          return false;
+        }
+
+        Object.keys(payload.cache).forEach(function(key) {
+          const entry = payload.cache[key];
+          const data = entry && entry.data;
+          const timestamp = Number(entry && entry.timestamp || 0);
+
+          if (
+            data &&
+            data.year &&
+            data.monthNumber &&
+            Array.isArray(data.categories) &&
+            timestamp
+          ) {
+            monthCache[key] = {
+              data: data,
+              timestamp: timestamp
+            };
+          }
+        });
+
+        prunePersistentMonthCache_();
+        return Object.keys(monthCache).length > 0;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function markMonthDashboardCacheStale_() {
+      const staleTimestamp = Date.now() - MONTH_CACHE_TTL_MS - 1000;
+
+      Object.keys(monthCache).forEach(function(key) {
+        const entry = monthCache[key];
+        if (entry && entry.data) {
+          entry.timestamp = Math.min(
+            Number(entry.timestamp || staleTimestamp),
+            staleTimestamp
           );
-        } catch (_) {}
-      }
-
-      function sendCacheRestore_() {
-        // 1) natychmiast wysyłamy szybką kopię localStorage.
-        const localPkg = localRuntimePackage_();
-        postRestorePayload_(localPkg);
-
-        // 2) po odczycie trwałej kopii wysyłamy jeszcze raz scalony pakiet.
-        // Dashboard V8 potrafi przyjąć ten drugi komunikat nawet po timeoutcie.
-        durableLoadPromise.then(() => {
-          const merged = mergeRuntimePackages_(localRuntimePackage_(), runtimePackage);
-          if (hasUsefulRuntimeData_(merged)) {
-            postRestorePayload_(merged);
-          }
-        }).catch(() => {});
-      }
-
-      window.addEventListener('message', (event) => {
-        if (!isDashboardSender_(event)) return;
-
-        const message = event.data || {};
-        if (message.source !== 'budzet-dashboard-v5') return;
-        dashboardClient = event.source;
-        dashboardOrigin = event.origin;
-        diagnostics.bridgeConnected = true;
-        persistDiagnostics_();
-
-        const payload = message.payload || {};
-
-        if (message.type === 'BUDZET_PWA_CACHE_REQUEST') {
-          sendCacheRestore_();
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_DASHBOARD_CACHE') {
-          const raw = safeJsonStringify_(payload);
-          if (raw) safeSet_(PWA_DASHBOARD_CACHE_KEY, raw);
-          updateRuntimeComponent_('dashboardCache', payload);
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_MONTH_CACHE') {
-          const raw = safeJsonStringify_(payload);
-          if (raw) safeSet_(PWA_MONTH_CACHE_KEY, raw);
-          updateRuntimeComponent_('monthCache', payload);
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_CATEGORY_CACHE') {
-          const raw = safeJsonStringify_(payload);
-          if (raw) safeSet_(PWA_CATEGORY_CACHE_KEY, raw);
-          updateRuntimeComponent_('categoryCache', payload);
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_REFRESH_STATE') {
-          const raw = safeJsonStringify_(payload);
-          if (raw) safeSet_(PWA_REFRESH_STATE_KEY, raw);
-          updateRuntimeComponent_('refreshState', payload);
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_DASHBOARD_SNAPSHOT') {
-          const raw = safeJsonStringify_(payload);
-          if (raw) safeSet_(PWA_SNAPSHOT_KEY, raw);
-
-          // Snapshot jest krytyczny dla zimnego startu, więc zapisujemy go
-          // od razu do Cache Storage – bez debounce i niezależnie od localStorage.
-          cacheWriteJson_(SNAPSHOT_BACKUP_URL, payload);
-          return;
-        }
-
-        if (message.type === 'BUDZET_PWA_READY') {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              hideStartupLayers_();
-              scheduleShellRefresh_();
-            }, 30);
-          });
         }
       });
 
-      function startLiveApp_() {
-        if (liveAppStarted) return;
-        liveAppStarted = true;
-        diagnostics.liveFrameStartedMs = elapsed_();
-        persistDiagnostics_();
-        frame.src = APP_URL;
+      scheduleMonthDashboardCacheBackup_();
+    }
+
+    // In-memory fallback also allows restoring the parent cache when
+    // storage in the Google iframe is unavailable.
+    const sessionStorageFallback_ = Object.create(null);
+    function readLocalStorage_(key) {
+      if (Object.prototype.hasOwnProperty.call(sessionStorageFallback_, key)) {
+        return sessionStorageFallback_[key];
+      }
+      try { return window.localStorage.getItem(key); } catch (_) { return null; }
+    }
+    function writeLocalStorage_(key, value) {
+      sessionStorageFallback_[key] = value;
+      try { window.localStorage.setItem(key, value); } catch (_) {}
+      budgetDisk.schedule();
+    }
+
+    let pwaRestoreCallback_ = null;
+    let pwaCategoryBackupTimer_ = null;
+
+    const PWA_ORIGIN_ = 'https://sebastiankostrzynski-gif.github.io';
+
+    function postToPwa_() { budgetDisk.schedule(); }
+
+    function schedulePwaCategoryBackup_() {
+      if (pwaCategoryBackupTimer_) {
+        clearTimeout(pwaCategoryBackupTimer_);
       }
 
-      // KROK 1: synchronizacyjnie pokazujemy snapshot z localStorage.
-      const hasLocalSnapshot = showInstantLocalSnapshot_();
+      pwaCategoryBackupTimer_ = setTimeout(function() {
+        pwaCategoryBackupTimer_ = null;
+        postToPwa_(
+          'BUDZET_PWA_CATEGORY_CACHE',
+          {
+            savedAt: Date.now(),
+            cache: categoryDetailsCache
+          }
+        );
+      }, 180);
+    }
 
-      // KROK 2: jeżeli localStorage nie ma snapshotu, dajemy Cache Storage
-      // krótkie 250 ms na odtworzenie trwałej kopii. To nadal wielokrotnie
-      // szybciej niż start Apps Script na LTE i eliminuje pusty loader.
-      if (hasLocalSnapshot) {
-        requestAnimationFrame(() => setTimeout(startLiveApp_, 60));
+    function sendPwaDashboardSnapshot_(data) {
+      try {
+        const app = document.getElementById('app');
+        if (!app) {
+          return;
+        }
+
+        const css = Array.prototype.map.call(
+          document.querySelectorAll('style'),
+          function(styleNode) {
+            return styleNode.textContent || '';
+          }
+        ).join('\n');
+
+        postToPwa_(
+          'BUDZET_PWA_DASHBOARD_SNAPSHOT',
+          {
+            savedAt: Date.now(),
+            year: Number(data && data.year) || Number(selectedYear) || null,
+            month: Number(data && data.monthNumber) || Number(selectedMonth) || null,
+            html: app.innerHTML,
+            css: css
+          }
+        );
+      } catch (e) {}
+    }
+
+    function notifyPwaReady_(view) {
+      postToPwa_(
+        'BUDZET_PWA_READY',
+        { view: view || 'dashboard' }
+      );
+    }
+
+    function applyPwaRestore_(payload) {
+      const backup = payload || {};
+
+      try {
+        if (backup.dashboardCache) {
+          writeLocalStorage_(
+            LAST_DASHBOARD_CACHE_KEY,
+            JSON.stringify(backup.dashboardCache)
+          );
+        }
+
+        if (backup.refreshState) {
+          writeLocalStorage_(
+            LAST_REFRESH_STATE_KEY,
+            JSON.stringify(backup.refreshState)
+          );
+        }
+
+        if (backup.categoryCache) {
+          writeLocalStorage_(
+            CATEGORY_DETAILS_STORAGE_KEY,
+            JSON.stringify(backup.categoryCache)
+          );
+        }
+
+        if (backup.monthCache) {
+          writeLocalStorage_(
+            MONTHS_DASHBOARD_STORAGE_KEY,
+            JSON.stringify(backup.monthCache)
+          );
+        }
+      } catch (e) {}
+    }
+
+    function requestPwaRestore_(callback) {
+      if (
+        !window.top ||
+        window.top === window
+      ) {
+        callback(false);
+        return;
+      }
+
+      let finished = false;
+
+      function finish(restored) {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        pwaRestoreCallback_ = null;
+        callback(Boolean(restored));
+      }
+
+      pwaRestoreCallback_ = finish;
+
+      postToPwa_(
+        'BUDZET_PWA_CACHE_REQUEST',
+        {}
+      );
+
+      
+      
+      setTimeout(function() {
+        finish(false);
+      }, 900);
+    }
+
+    window.addEventListener('message', function(event) {
+      if (
+        window.top &&
+        (event.source !== window.top || event.origin !== PWA_ORIGIN_)
+      ) {
+        return;
+      }
+
+      const message = event.data || {};
+      if (
+        message.source !== 'budzet-pwa-v5' ||
+        message.type !== 'BUDZET_PWA_CACHE_RESTORE'
+      ) {
+        return;
+      }
+
+      applyPwaRestore_(message.payload || {});
+
+      
+      
+      
+      
+      if (!dashboardData && !startupCompleted_) {
+        tryRestoreStartupCaches_();
+      }
+
+      if (pwaRestoreCallback_) {
+        pwaRestoreCallback_(true);
+      }
+    });
+
+    function persistCurrentDashboard_(data) {
+      if (
+        !data ||
+        !data.year ||
+        !data.monthNumber ||
+        data.isCurrentMonth !== true
+      ) {
+        return;
+      }
+
+      const payload = {
+        timestamp: Date.now(),
+        data: data
+      };
+
+      writeLocalStorage_(
+        LAST_DASHBOARD_CACHE_KEY,
+        JSON.stringify(payload)
+      );
+
+      postToPwa_(
+        'BUDZET_PWA_DASHBOARD_CACHE',
+        payload
+      );
+    }
+
+    function persistRefreshState_(state) {
+      if (!state) {
+        return;
+      }
+
+      writeLocalStorage_(
+        LAST_REFRESH_STATE_KEY,
+        JSON.stringify(state)
+      );
+
+      postToPwa_(
+        'BUDZET_PWA_REFRESH_STATE',
+        state
+      );
+    }
+
+    function restoreLastDashboard_() {
+      const raw =
+        readLocalStorage_(
+          LAST_DASHBOARD_CACHE_KEY
+        );
+
+      if (!raw) {
+        return false;
+      }
+
+      try {
+        const payload =
+          JSON.parse(raw);
+
+        if (
+          !payload ||
+          !payload.data ||
+          !payload.timestamp ||
+          Date.now() - Number(payload.timestamp) >
+            LAST_DASHBOARD_MAX_AGE_MS
+        ) {
+          return false;
+        }
+
+        const data =
+          payload.data;
+
+        if (
+          !data.year ||
+          !data.monthNumber ||
+          !Array.isArray(data.categories)
+        ) {
+          return false;
+        }
+
+        dashboardData = data;
+        selectedYear = Number(data.year);
+        selectedMonth = Number(data.monthNumber);
+        maxYear = Number(data.maxYear);
+        maxMonth = Number(data.maxMonth);
+
+        setCachedMonth(data);
+
+        const refreshRaw =
+          readLocalStorage_(
+            LAST_REFRESH_STATE_KEY
+          );
+
+        if (refreshRaw) {
+          try {
+            refreshState =
+              JSON.parse(refreshRaw);
+          } catch (e) {
+            refreshState = null;
+          }
+        }
+
+        renderDashboard(data);
+        return true;
+
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function restoreCurrentMonthFromMonthCache_() {
+      const current = getCurrentYearMonth();
+      const cached = getCachedMonth(current.year, current.month);
+
+      if (!cached || !cached.data) {
+        return false;
+      }
+
+      const data = cached.data;
+      dashboardData = data;
+      selectedYear = Number(data.year);
+      selectedMonth = Number(data.monthNumber);
+      maxYear = Number(data.maxYear);
+      maxMonth = Number(data.maxMonth);
+
+      const refreshRaw = readLocalStorage_(LAST_REFRESH_STATE_KEY);
+      if (refreshRaw) {
+        try {
+          refreshState = JSON.parse(refreshRaw);
+        } catch (e) {
+          refreshState = null;
+        }
+      }
+
+      renderDashboard(data);
+      return true;
+    }
+
+
+    
+    
+    
+    const categoryDetailsCache = {};
+    const categoryDetailsInflight = {};
+    const categoryBundleInflight = {};
+    const categoryDetailPreloadRunning = {};
+    const CATEGORY_DETAILS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+    
+    
+    
+    const CATEGORY_DETAILS_STORAGE_KEY =
+      'budzet-category-details-v1';
+
+    const CATEGORY_DETAILS_PERSIST_MAX_AGE_MS =
+      30 * 24 * 60 * 60 * 1000;
+
+    
+    
+    const CATEGORY_DETAILS_MAX_MONTHS = 18;
+    let categoryLocalPersistTimer_ = null;
+
+    function pruneCategoryDetailsCache_() {
+      const keys = Object.keys(categoryDetailsCache).sort().reverse();
+      keys.slice(CATEGORY_DETAILS_MAX_MONTHS).forEach(function(key) {
+        delete categoryDetailsCache[key];
+      });
+    }
+
+    function flushCategoryDetailsCache_() {
+      try {
+        pruneCategoryDetailsCache_();
+        writeLocalStorage_(
+          CATEGORY_DETAILS_STORAGE_KEY,
+          JSON.stringify({
+            savedAt: Date.now(),
+            cache: categoryDetailsCache
+          })
+        );
+      } catch (e) {
+        
+      }
+    }
+
+    function removeLocalStorage_(key) {
+      sessionStorageFallback_[key] = null;
+      try {
+        if (window.localStorage) {
+          window.localStorage.removeItem(key);
+        }
+      } catch (e) {}
+    }
+
+    function persistCategoryDetailsCache_() {
+      
+      
+      
+      if (categoryLocalPersistTimer_) {
+        clearTimeout(categoryLocalPersistTimer_);
+      }
+
+      categoryLocalPersistTimer_ = setTimeout(function() {
+        categoryLocalPersistTimer_ = null;
+        flushCategoryDetailsCache_();
+      }, 140);
+
+      
+      
+      schedulePwaCategoryBackup_();
+    }
+
+    function restoreCategoryDetailsCache_() {
+      const raw =
+        readLocalStorage_(
+          CATEGORY_DETAILS_STORAGE_KEY
+        );
+
+      if (!raw) {
+        return false;
+      }
+
+      try {
+        const payload = JSON.parse(raw);
+
+        if (
+          !payload ||
+          !payload.cache ||
+          !payload.savedAt ||
+          Date.now() - Number(payload.savedAt) >
+            CATEGORY_DETAILS_PERSIST_MAX_AGE_MS
+        ) {
+          removeLocalStorage_(
+            CATEGORY_DETAILS_STORAGE_KEY
+          );
+          return false;
+        }
+
+        Object.keys(payload.cache).forEach(
+          function(monthKey) {
+            categoryDetailsCache[monthKey] =
+              payload.cache[monthKey];
+          }
+        );
+
+        return true;
+
+      } catch (e) {
+        removeLocalStorage_(
+          CATEGORY_DETAILS_STORAGE_KEY
+        );
+        return false;
+      }
+    }
+
+    function clearCategoryDetailsCaches_() {
+      Object.keys(categoryDetailsCache).forEach(
+        function(key) {
+          delete categoryDetailsCache[key];
+        }
+      );
+
+      removeLocalStorage_(
+        CATEGORY_DETAILS_STORAGE_KEY
+      );
+    }
+
+
+    function markCategoryDetailsStale_() {
+      
+      
+      
+      
+      Object.keys(categoryDetailsCache).forEach(function(monthKey) {
+        const monthEntry = categoryDetailsCache[monthKey];
+        const categories =
+          monthEntry && monthEntry.categories
+            ? monthEntry.categories
+            : {};
+
+        Object.keys(categories).forEach(function(categoryName) {
+          if (categories[categoryName]) {
+            categories[categoryName].timestamp = 0;
+          }
+        });
+      });
+
+      persistCategoryDetailsCache_();
+    }
+
+
+    
+    
+    
+
+    let refreshState = null;
+    let refreshStateRequestInFlight = false;
+    let silentRefreshInFlight = false;
+    let lastRefreshCheckAt = 0;
+    let lastRefreshSuccessAt = 0;
+
+    function formatRefreshClock_(timestamp) {
+      if (!timestamp) {
+        return '';
+      }
+
+      try {
+        return new Date(timestamp).toLocaleTimeString(
+          'pl-PL',
+          {
+            hour: '2-digit',
+            minute: '2-digit'
+          }
+        );
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function getFreshnessLabel_() {
+      if (!lastRefreshSuccessAt) {
+        return 'Zapisane dane · aktualizowanie…';
+      }
+
+      const time =
+        formatRefreshClock_(
+          lastRefreshSuccessAt
+        );
+
+      return time
+        ? 'Aktualne · ' + time
+        : 'Aktualne';
+    }
+
+    function updateFreshnessIndicator_(mode) {
+      const element =
+        document.querySelector(
+          '.data-freshness'
+        );
+
+      if (!element) {
+        return;
+      }
+
+      const state = mode || 'ok';
+
+      element.className =
+        'data-freshness is-' + state;
+
+      let label = '';
+
+      if (state === 'checking') {
+        label = 'Sprawdzam aktualność…';
+      } else if (state === 'updating') {
+        label = 'Aktualizuję dane…';
+      } else if (state === 'error') {
+        label =
+          lastRefreshSuccessAt
+            ? 'Ostatnio sprawdzono · ' +
+              formatRefreshClock_(
+                lastRefreshSuccessAt
+              )
+            : 'Nie udało się sprawdzić';
       } else {
-        Promise.race([
-          durableLoadPromise,
-          new Promise(resolve => setTimeout(resolve, 250))
-        ]).finally(startLiveApp_);
+        label = getFreshnessLabel_();
       }
 
-      frame.addEventListener('load', () => {
-        diagnostics.frameLoadMs = elapsed_();
-        persistDiagnostics_();
+      element.innerHTML =
+        '<span class="data-freshness-dot" aria-hidden="true"></span>' +
+        '<span>' +
+        escapeHtml(label) +
+        '</span>';
+    }
 
-        // Samo załadowanie HTML Apps Script nie oznacza gotowego dashboardu.
-        // Jeżeli snapshot jest widoczny, pozostaje na ekranie aż do READY.
-        if (snapshotVisible) return;
+    
+    const REFRESH_CHECK_MIN_INTERVAL_MS = 30 * 1000;
 
-        // Pierwsze uruchomienie na zupełnie nowym urządzeniu może nie mieć cache.
-        // Wtedy po 4 s pokazujemy iframe zamiast zasłaniać go loaderem rodzica.
-        setTimeout(() => {
-          if (!appReady && !snapshotVisible) {
-            loading.classList.add('is-hidden');
+    
+    
+
+    const CATEGORY_NAMES = [
+      'Finansowe',
+      'Mieszkanie',
+      'Transport',
+      'Wyżywienie i chemia',
+      'Rachunki i inne opłaty',
+      'Dzieci',
+      'Taniec Julki',
+      'Zdrowie i uroda',
+      'Ubrania i prezenty',
+      'Urlop, hobby i rozrywka'
+    ];
+
+    const MIN_YEAR = 2026;
+    const MIN_MONTH = 9;
+
+    function getCurrentYearMonth() {
+      const now = new Date();
+      return {
+        year: now.getFullYear(),
+        month: now.getMonth() + 1
+      };
+    }
+
+    function getMonthLabel(year, month) {
+      const labels = [
+        'Styczeń', 'Luty', 'Marzec', 'Kwiecień',
+        'Maj', 'Czerwiec', 'Lipiec', 'Sierpień',
+        'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+      ];
+
+      return labels[month - 1] + ' ' + year;
+    }
+
+    function monthToIndex(year, month) {
+      return year * 12 + (month - 1);
+    }
+
+    function canGoPreviousMonth() {
+      return monthToIndex(selectedYear, selectedMonth) >
+        monthToIndex(MIN_YEAR, MIN_MONTH);
+    }
+
+    function canGoNextMonth() {
+      const currentYear =
+        maxYear || getCurrentYearMonth().year;
+
+      const currentMonth =
+        maxMonth || getCurrentYearMonth().month;
+
+      return monthToIndex(selectedYear, selectedMonth) <
+        monthToIndex(currentYear, currentMonth);
+    }
+
+    function monthCacheKey(year, month) {
+      return String(year) + '-' + String(month).padStart(2, '0');
+    }
+
+    function getCachedMonth(year, month) {
+      const key = monthCacheKey(year, month);
+      const entry = monthCache[key];
+
+      if (!entry) {
+        return null;
+      }
+
+      return {
+        data: entry.data,
+        isFresh: (Date.now() - entry.timestamp) < MONTH_CACHE_TTL_MS
+      };
+    }
+
+    function setCachedMonth(data) {
+      if (!data || !data.year || !data.monthNumber) {
+        return;
+      }
+
+      monthCache[
+        monthCacheKey(
+          Number(data.year),
+          Number(data.monthNumber)
+        )
+      ] = {
+        data: data,
+        timestamp: Date.now()
+      };
+
+      
+      
+      scheduleMonthDashboardCacheBackup_();
+    }
+
+    function fetchMonthData(year, month, success, failure) {
+      const key = monthCacheKey(year, month);
+
+      
+      
+      if (monthInflight[key]) {
+        monthInflight[key].push({
+          success: success,
+          failure: failure
+        });
+        return;
+      }
+
+      monthInflight[key] = [{
+        success: success,
+        failure: failure
+      }];
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          setCachedMonth(data);
+
+          const callbacks =
+            monthInflight[key] || [];
+
+          delete monthInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.success === 'function') {
+              callback.success(data);
+            }
+          });
+        })
+        .withFailureHandler(function(error) {
+          const callbacks =
+            monthInflight[key] || [];
+
+          delete monthInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.failure === 'function') {
+              callback.failure(error);
+            }
+          });
+        })
+        .getBudgetData(year, month);
+    }
+
+    
+    
+    function fetchMonthDataFresh_(year, month, success, failure) {
+
+      const key = monthCacheKey(year, month);
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          setCachedMonth(data);
+
+          if (typeof success === 'function') {
+            success(data);
           }
-        }, 4000);
-      }, { once: true });
+        })
+        .withFailureHandler(function(error) {
+          if (typeof failure === 'function') {
+            failure(error);
+          }
+        })
+        .getBudgetData(year, month);
+    }
 
-      // Service Worker NIE może już wykonywać sieci w ścieżce startowej.
-      // Rejestrację/aktualizację odkładamy do chwili, gdy shell jest już na ekranie.
-      function scheduleShellRefresh_() {
-        if (!("serviceWorker" in navigator) || shellRefreshScheduled) return;
-        shellRefreshScheduled = true;
 
-        setTimeout(() => {
-          navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
-            .then(reg => {
-              // Sprawdzenie nowego sw.js nie wpływa na bieżący start.
-              setTimeout(() => reg.update().catch(() => {}), 1200);
+    function preloadMonth(year, month) {
+      if (!year || !month) {
+        return;
+      }
 
-              // Po ustabilizowaniu aplikacji odświeżamy pliki powłoki w tle.
-              setTimeout(() => {
-                const target = navigator.serviceWorker.controller || reg.active;
-                if (target) {
-                  try { target.postMessage({ type: 'BUDZET_REFRESH_SHELL' }); } catch (_) {}
+      const cached = getCachedMonth(year, month);
+
+      if (cached && cached.isFresh) {
+        return;
+      }
+
+      fetchMonthData(
+        year,
+        month,
+        function() {},
+        function() {}
+      );
+    }
+
+    function categoryDetailsCacheKey(year, month) {
+      return monthCacheKey(year, month);
+    }
+
+    function categoryDetailKey(categoryName, year, month) {
+      return categoryDetailsCacheKey(year, month) +
+        '|' +
+        String(categoryName);
+    }
+
+    function getCachedCategoryDetailFromFastCache(
+      categoryName,
+      year,
+      month
+    ) {
+
+      const monthKey =
+        categoryDetailsCacheKey(year, month);
+
+      const entry =
+        categoryDetailsCache[monthKey];
+
+      if (!entry) {
+        return null;
+      }
+
+      const item =
+        entry.categories &&
+        entry.categories[categoryName]
+          ? entry.categories[categoryName]
+          : null;
+
+      if (!item) {
+        return null;
+      }
+
+      return {
+        data: item.data || null,
+        error: item.error || null,
+        isFresh:
+          (Date.now() - Number(item.timestamp || 0)) <
+          CATEGORY_DETAILS_CACHE_TTL_MS
+      };
+    }
+
+    function setCachedCategoryDetail(
+      categoryName,
+      year,
+      month,
+      data,
+      error
+    ) {
+
+      const key =
+        categoryDetailsCacheKey(year, month);
+
+      if (!categoryDetailsCache[key]) {
+        categoryDetailsCache[key] = {
+          categories: {},
+          errors: {}
+        };
+      }
+
+      if (!data && categoryDetailsCache[key].categories[categoryName] &&
+          categoryDetailsCache[key].categories[categoryName].data) return;
+      categoryDetailsCache[key].categories[categoryName] = {
+        data: data || null,
+        error: error || null,
+        timestamp: Date.now()
+      };
+
+      if (data) {
+        persistCategoryDetailsCache_();
+      }
+    }
+
+    function fetchCategoryDetail(
+      categoryName,
+      year,
+      month,
+      success,
+      failure
+    ) {
+
+      const key =
+        categoryDetailKey(
+          categoryName,
+          year,
+          month
+        );
+
+      if (categoryDetailsInflight[key]) {
+        categoryDetailsInflight[key].push({
+          success: success,
+          failure: failure
+        });
+        return;
+      }
+
+      categoryDetailsInflight[key] = [{
+        success: success,
+        failure: failure
+      }];
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+
+          setCachedCategoryDetail(
+            categoryName,
+            year,
+            month,
+            data,
+            null
+          );
+
+          const callbacks =
+            categoryDetailsInflight[key] || [];
+
+          delete categoryDetailsInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.success === 'function') {
+              callback.success(data);
+            }
+          });
+        })
+        .withFailureHandler(function(error) {
+
+          setCachedCategoryDetail(
+            categoryName,
+            year,
+            month,
+            null,
+            error && error.message
+              ? error.message
+              : String(error)
+          );
+
+          const callbacks =
+            categoryDetailsInflight[key] || [];
+
+          delete categoryDetailsInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.failure === 'function') {
+              callback.failure(error);
+            }
+          });
+        })
+        .getCategoryDetails(
+          categoryName,
+          year,
+          month
+        );
+    }
+
+    function getCachedCategoryBundle(year, month) {
+      
+      
+      const key = categoryDetailsCacheKey(year, month);
+      const entry = categoryDetailsCache[key];
+
+      if (!entry) {
+        return null;
+      }
+
+      const categories = {};
+      const errors = {};
+      let latestTimestamp = 0;
+
+      CATEGORY_NAMES.forEach(function(categoryName) {
+        const item = entry.categories && entry.categories[categoryName];
+        if (!item) return;
+
+        if (item.data) {
+          categories[categoryName] = item.data;
+        }
+        if (item.error) {
+          errors[categoryName] = item.error;
+        }
+        latestTimestamp = Math.max(
+          latestTimestamp,
+          Number(item.timestamp || 0)
+        );
+      });
+
+      if (!latestTimestamp) {
+        return null;
+      }
+
+      return {
+        categories: categories,
+        errors: errors,
+        isFresh:
+          (Date.now() - latestTimestamp) <
+          CATEGORY_DETAILS_CACHE_TTL_MS
+      };
+    }
+
+    
+    
+    function fetchCategoryBundle(year, month, success, failure) {
+      const key = categoryDetailsCacheKey(year, month);
+
+      if (categoryBundleInflight[key]) {
+        categoryBundleInflight[key].push({
+          success: success,
+          failure: failure
+        });
+        return;
+      }
+
+      categoryBundleInflight[key] = [{
+        success: success,
+        failure: failure
+      }];
+
+      google.script.run
+        .withSuccessHandler(function(bundle) {
+          if (bundle && bundle.categories) {
+            CATEGORY_NAMES.forEach(function(categoryName) {
+              if (bundle.categories[categoryName]) {
+                setCachedCategoryDetail(
+                  categoryName,
+                  year,
+                  month,
+                  bundle.categories[categoryName],
+                  null
+                );
+              } else if (
+                bundle.errors &&
+                bundle.errors[categoryName]
+              ) {
+                setCachedCategoryDetail(
+                  categoryName,
+                  year,
+                  month,
+                  null,
+                  bundle.errors[categoryName]
+                );
+              }
+            });
+          }
+
+          const callbacks =
+            categoryBundleInflight[key] || [];
+
+          delete categoryBundleInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.success === 'function') {
+              callback.success(bundle);
+            }
+          });
+        })
+        .withFailureHandler(function(error) {
+          const callbacks =
+            categoryBundleInflight[key] || [];
+
+          delete categoryBundleInflight[key];
+
+          callbacks.forEach(function(callback) {
+            if (typeof callback.failure === 'function') {
+              callback.failure(error);
+            }
+          });
+        })
+        .getCategoryDetailsBundle(year, month);
+    }
+
+    function preloadCategoryBundle(year, month) {
+      
+      
+      preloadCategoryDetailsForMonth(year, month);
+    }
+
+    function refreshCategoryBundleInBackground(year, month) {
+      preloadCategoryDetailsForMonth(year, month, {
+        forceRefresh: true
+      });
+    }
+
+    function getCachedCategoryDetail(categoryName, year, month) {
+
+      const fast =
+        getCachedCategoryDetailFromFastCache(
+          categoryName,
+          year,
+          month
+        );
+
+      if (fast) {
+        return fast;
+      }
+
+      return null;
+    }
+
+    function preloadSingleCategoryDetail(
+      categoryName,
+      year,
+      month,
+      options
+    ) {
+
+      const forceRefresh =
+        options && options.forceRefresh === true;
+
+      const cached =
+        getCachedCategoryDetailFromFastCache(
+          categoryName,
+          year,
+          month
+        );
+
+      if (cached && cached.isFresh && !forceRefresh) {
+        return;
+      }
+
+      fetchCategoryDetail(
+        categoryName,
+        year,
+        month,
+        function() {},
+        function() {}
+      );
+    }
+
+    function preloadCategoryDetailsForMonth(
+      year,
+      month,
+      options
+    ) {
+
+      if (!year || !month) {
+        return;
+      }
+
+      const key =
+        categoryDetailsCacheKey(year, month);
+
+      if (categoryBundleInflight[key] || categoryDetailPreloadRunning[key]) {
+        return;
+      }
+
+      const forceRefresh =
+        options && options.forceRefresh === true;
+
+      
+      if (!forceRefresh) {
+        const bundle = getCachedCategoryBundle(year, month);
+        if (bundle && bundle.isFresh && CATEGORY_NAMES.every(function(categoryName) {
+          const item = getCachedCategoryDetailFromFastCache(
+            categoryName,
+            year,
+            month
+          );
+          return item && item.data && item.isFresh;
+        })) {
+          return;
+        }
+      }
+
+      
+      
+      
+      categoryDetailPreloadRunning[key] = true;
+
+      fetchCategoryBundle(
+        year,
+        month,
+        function() {
+          delete categoryDetailPreloadRunning[key];
+        },
+        function() {
+          delete categoryDetailPreloadRunning[key];
+
+          
+          
+          const queue = CATEGORY_NAMES.slice();
+          let active = 0;
+          const workers = 3;
+
+          function next() {
+            while (active < workers && queue.length) {
+              const categoryName = queue.shift();
+              const cached =
+                getCachedCategoryDetailFromFastCache(
+                  categoryName,
+                  year,
+                  month
+                );
+
+              if (
+                cached &&
+                cached.isFresh &&
+                !forceRefresh
+              ) {
+                continue;
+              }
+
+              active++;
+              fetchCategoryDetail(
+                categoryName,
+                year,
+                month,
+                function() {
+                  active--;
+                  next();
+                },
+                function() {
+                  active--;
+                  next();
                 }
-              }, 2500);
-            })
-            .catch(() => {});
-        }, 600);
+              );
+            }
+          }
+
+          next();
+        }
+      );
+    }
+
+    function preloadAdjacentMonths(options) {
+      if (!selectedYear || !selectedMonth) {
+        return;
       }
 
-      // Jeśli z jakiegoś powodu READY nie przyjdzie (np. brak sieci), a snapshot
-      // jest widoczny, zostawiamy go. SW można mimo to zarejestrować po 5 s.
-      setTimeout(() => {
-        if (!appReady) scheduleShellRefresh_();
+      const includeCurrent =
+        !options || options.includeCurrent !== false;
+
+      const includeTargetDetails =
+        !options || options.includeTargetDetails !== false;
+
+      const targets = [];
+
+      if (canGoPreviousMonth()) {
+        targets.push({ delta: -1 });
+      }
+
+      if (canGoNextMonth()) {
+        targets.push({ delta: 1 });
+      }
+
+      
+      
+      
+      if (includeCurrent) {
+        preloadCategoryDetailsForMonth(
+          selectedYear,
+          selectedMonth
+        );
+      }
+
+      targets.forEach(function(target) {
+        let year = selectedYear;
+        let month = selectedMonth + target.delta;
+
+        if (month < 1) {
+          month = 12;
+          year--;
+        } else if (month > 12) {
+          month = 1;
+          year++;
+        }
+
+        
+        
+        
+        preloadMonth(year, month);
+
+        if (includeTargetDetails) {
+          preloadCategoryDetailsForMonth(year, month);
+        }
+      });
+    }
+
+    function startInitialBackgroundPreload() {
+      
+      
+      
+      
+      
+      setTimeout(function() {
+        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') {
+          return;
+        }
+
+        preloadAdjacentMonths({
+          includeCurrent: false,
+          includeTargetDetails: false
+        });
+      }, 3000);
+
+      
+      
+      
+      setTimeout(function() {
+        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') {
+          return;
+        }
+
+        preloadCategoryDetailsForMonth(
+          selectedYear,
+          selectedMonth
+        );
       }, 5000);
+    }
 
-      const installHelp = document.getElementById('install-help');
-      const installText = document.getElementById('install-text');
-      const installAction = document.getElementById('install-action');
-      const installDismiss = document.getElementById('install-dismiss');
-      let deferredPrompt = null;
 
-      window.addEventListener('beforeinstallprompt', (event) => {
-        event.preventDefault();
-        deferredPrompt = event;
-        installText.textContent = 'Zainstaluj na ekranie głównym.';
-        installAction.textContent = 'Zainstaluj';
-        installHelp.classList.add('is-visible');
-      });
+    function refreshMonthInBackground(year, month) {
+      fetchMonthData(
+        year,
+        month,
+        function(data) {
+          
+          
+          if (
+            Number(selectedYear) === Number(year) &&
+            Number(selectedMonth) === Number(month)
+          ) {
+            dashboardData = data;
+            renderDashboard(data);
+            persistCurrentDashboard_(data);
+          }
 
-      installAction.addEventListener('click', async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        try { await deferredPrompt.userChoice; } catch (_) {}
-        deferredPrompt = null;
-        installHelp.classList.remove('is-visible');
-      });
+          
+          
+          
+          preloadAdjacentMonths({
+            includeCurrent: false,
+            includeTargetDetails: false
+          });
+        },
+        function() {}
+      );
+    }
 
-      installDismiss.addEventListener('click', () => {
-        installHelp.classList.remove('is-visible');
-      });
-
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-      if (isIOS && isSafari && !isStandalone && !localStorage.getItem('budzet-ios-install-help-dismissed')) {
-        installText.textContent = 'W Safari wybierz Udostępnij → Dodaj do ekranu początkowego.';
-        installAction.textContent = 'Jak?';
-        installAction.addEventListener('click', () => {
-          installHelp.classList.remove('is-visible');
-        }, { once: true });
-        installHelp.classList.add('is-visible');
+    function changeMonth(delta) {
+      if (!selectedYear || !selectedMonth || isMonthLoading) {
+        return;
       }
 
-      if (isStandalone) document.documentElement.classList.add('is-standalone');
-
-      // Best-effort: na przeglądarkach, które to wspierają, prosimy o
-      // trwalsze przechowywanie danych PWA. Brak wsparcia/zgody niczego nie blokuje.
-      if (navigator.storage && typeof navigator.storage.persist === 'function') {
-        setTimeout(() => {
-          try { navigator.storage.persist().catch(() => {}); } catch (_) {}
-        }, 3000);
+      if (delta < 0 && !canGoPreviousMonth()) {
+        return;
       }
-    })();
+
+      if (delta > 0 && !canGoNextMonth()) {
+        return;
+      }
+
+      let year = selectedYear;
+      let month = selectedMonth + delta;
+
+      if (month < 1) {
+        month = 12;
+        year--;
+      } else if (month > 12) {
+        month = 1;
+        year++;
+      }
+
+      const cached = getCachedMonth(year, month);
+
+      selectedYear = year;
+      selectedMonth = month;
+
+      if (cached) {
+        
+        
+        dashboardData = cached.data;
+        renderDashboard(cached.data);
+        persistCurrentDashboard_(cached.data);
+
+        if (!cached.isFresh) {
+          refreshMonthInBackground(year, month);
+        }
+
+        
+        
+        
+        setTimeout(function() {
+          preloadAdjacentMonths({
+            includeCurrent: false,
+            includeTargetDetails: false
+          });
+        }, 120);
+
+        setTimeout(function() {
+          if (document.visibilityState === 'visible') {
+            preloadCategoryDetailsForMonth(year, month);
+          }
+        }, 1200);
+
+        return;
+      }
+
+      
+      
+      loadDashboard(year, month);
+    }
+
+
+    
+    
+    
+
+    const categoryStyle = {
+
+      'Finansowe': {
+        icon: '💰',
+        color: '#6c63ff'
+      },
+
+      'Mieszkanie': {
+        icon: '🏠',
+        color: '#39a96b'
+      },
+
+      'Transport': {
+        icon: '🚗',
+        color: '#5c8df6'
+      },
+
+      'Wyżywienie i chemia': {
+        icon: '🛒',
+        color: '#f39c4a'
+      },
+
+      'Rachunki i inne opłaty': {
+        icon: '📱',
+        color: '#9b59b6'
+      },
+
+      'Dzieci': {
+        icon: '👧',
+        color: '#ff6f91'
+      },
+
+      'Taniec Julki': {
+        icon: '💃',
+        color: '#e84393'
+      },
+
+      'Zdrowie i uroda': {
+        icon: '❤️',
+        color: '#e57373'
+      },
+
+      'Ubrania i prezenty': {
+        icon: '👕',
+        color: '#00a8a8'
+      },
+
+      'Urlop, hobby i rozrywka': {
+        icon: '🌴',
+        color: '#20a4f3'
+      },
+
+      'Inne wydatki': {
+        icon: '📦',
+        color: '#7f8c8d'
+      },
+
+      'Jednorazowe wydatki': {
+        icon: '⭐',
+        color: '#f1c40f'
+      }
+
+    };
+
+
+    
+    
+    
+
+    function formatPLN(value) {
+
+      const number =
+        Number(value) || 0;
+
+      return (
+        number.toLocaleString(
+          'pl-PL',
+          {
+            useGrouping: true,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }
+        ) +
+        ' zł'
+      );
+    }
+function formatHistoryValue(value) {
+
+  const number =
+    Number(value) || 0;
+
+  if (number === 0) {
+    return '0';
+  }
+
+  return (
+    (number / 1000)
+      .toLocaleString(
+        'pl-PL',
+        {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        }
+      ) +
+    'k'
+  );
+}
+
+    
+    
+    
+
+    function escapeHtml(value) {
+
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+
+    
+    
+    
+
+    function loadDashboard(year, month, options) {
+
+      const isInitialLoad = !dashboardData;
+      const opts = options || {};
+
+      if (year != null && month != null) {
+        selectedYear = Number(year);
+        selectedMonth = Number(month);
+      }
+
+      const app =
+        document.getElementById('app');
+
+      if (isInitialLoad) {
+
+        app.innerHTML = `
+
+          <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
+          <div class="loading-box">
+
+            <div class="loading-icon">
+              ⏳
+            </div>
+
+            <div>
+              Ładowanie danych...
+            </div>
+
+          </div>
+
+        `;
+
+      } else if (!opts.silent) {
+
+        isMonthLoading = true;
+        app.classList.add('month-refreshing');
+
+        const monthLabel =
+          document.querySelector('.month-nav-label');
+
+        if (monthLabel && selectedYear && selectedMonth) {
+          monthLabel.classList.add('is-loading');
+          monthLabel.innerHTML =
+            escapeHtml(
+              getMonthLabel(selectedYear, selectedMonth)
+            ) +
+            '<span class="month-loading-dots" aria-hidden="true"></span>';
+        }
+      }
+
+      fetchMonthData(
+        selectedYear,
+        selectedMonth,
+        function(data) {
+          if (!selectedYear || !selectedMonth) {
+            selectedYear = Number(data.year);
+            selectedMonth = Number(data.monthNumber);
+          }
+
+          maxYear = Number(data.maxYear);
+          maxMonth = Number(data.maxMonth);
+
+          dashboardData = data;
+          isMonthLoading = false;
+          app.classList.remove('month-refreshing');
+
+          renderDashboard(data);
+          persistCurrentDashboard_(data);
+
+          // Najpierw kończymy render i oddajemy sterowanie przeglądarce.
+          // Sprawdzenie źródła oraz preloading nie mogą blokować pierwszego obrazu.
+          setTimeout(function() {
+            checkRefreshState_(true);
+          }, 150);
+
+          if (!opts.silent) {
+            startInitialBackgroundPreload();
+          }
+        },
+        function(error) {
+          isMonthLoading = false;
+          app.classList.remove('month-refreshing');
+
+          // Przy cichym odświeżeniu nie niszczymy aktualnego ekranu,
+          // jeżeli stare dane nadal są dostępne.
+          if (opts.silent && dashboardData) {
+            return;
+          }
+
+          if (dashboardData) {
+            selectedYear = Number(dashboardData.year);
+            selectedMonth = Number(dashboardData.monthNumber);
+            renderDashboard(dashboardData);
+            updateFreshnessIndicator_('error');
+            return;
+          }
+          showError(
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+          );
+        }
+      );
+    }
+
+
+    // ========================================================
+    // LEKKIE SPRAWDZENIE STANU ŹRÓDŁA
+    // ========================================================
+
+    function checkRefreshState_(force) {
+
+      if (!dashboardData || refreshStateRequestInFlight) {
+        return;
+      }
+
+      const now = Date.now();
+
+      if (
+        !force &&
+        now - lastRefreshCheckAt <
+          REFRESH_CHECK_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      lastRefreshCheckAt = now;
+      refreshStateRequestInFlight = true;
+
+      if (!lastRefreshSuccessAt) {
+        updateFreshnessIndicator_('checking');
+      }
+
+      google.script.run
+        .withSuccessHandler(function(state) {
+
+          refreshStateRequestInFlight = false;
+
+          if (!state) {
+            return;
+          }
+
+          const dayChanged =
+            !refreshState ||
+            String(refreshState.dayKey) !==
+              String(state.dayKey);
+
+          const sourceChanged =
+            !refreshState ||
+            String(refreshState.sourceUpdatedMs) !==
+              String(state.sourceUpdatedMs);
+
+          const buildChanged =
+            !refreshState ||
+            String(refreshState.buildVersion) !==
+              String(state.buildVersion);
+
+          refreshState = state;
+          persistRefreshState_(state);
+
+          if (
+            dayChanged ||
+            sourceChanged ||
+            buildChanged
+          ) {
+            updateFreshnessIndicator_('updating');
+
+            // V5: nigdy nie wyrzucamy ostatnich poprawnych kategorii
+            // przed pobraniem nowych. Dzięki temu także po zmianie źródła,
+            // wersji lub dnia użytkownik widzi cache od razu, a świeże dane
+            // są dogrywane w tle (stale-while-revalidate).
+            const categoryCacheMode = 'stale';
+            markCategoryDetailsStale_();
+
+            // Zmiana źródła lub wersji może dotyczyć także starszych miesięcy.
+            // Nie usuwamy ich (żeby nadal otwierały się natychmiast), tylko
+            // oznaczamy jako stale. Przy wejściu odświeżą się w tle.
+            if (sourceChanged || buildChanged) {
+              markMonthDashboardCacheStale_();
+            }
+
+            refreshDashboardSilently_({
+              categoryCacheMode: categoryCacheMode
+            });
+            return;
+          }
+
+          lastRefreshSuccessAt = Date.now();
+          updateFreshnessIndicator_('ok');
+        })
+        .withFailureHandler(function() {
+          refreshStateRequestInFlight = false;
+          updateFreshnessIndicator_('error');
+        })
+        .getRefreshState();
+    }
+
+
+    // ========================================================
+    // PEŁNE DANE – TYLKO PO WYKRYCIU ZMIANY
+    // ========================================================
+
+    function refreshDashboardSilently_(options) {
+
+      const opts = options || {};
+      const categoryCacheMode =
+        opts.categoryCacheMode || 'clear';
+
+      if (
+        silentRefreshInFlight ||
+        isMonthLoading ||
+        !dashboardData
+      ) {
+        return;
+      }
+
+      silentRefreshInFlight = true;
+      const refreshYear_ = selectedYear, refreshMonth_ = selectedMonth;
+
+      // Po wykryciu zmiany źródła NIE możemy użyć zwykłego
+      // fetchMonthData(), ponieważ korzysta on z lokalnego cache
+      // miesiąca. Musimy pobrać świeże dane bezpośrednio z serwera.
+      fetchMonthDataFresh_(
+        selectedYear,
+        selectedMonth,
+        function(data) {
+
+          silentRefreshInFlight = false;
+          if (selectedYear !== refreshYear_ || selectedMonth !== refreshMonth_) return;
+
+          maxYear = Number(data.maxYear);
+          maxMonth = Number(data.maxMonth);
+
+          dashboardData = data;
+          lastRefreshSuccessAt = Date.now();
+
+          renderDashboard(data);
+          persistCurrentDashboard_(data);
+
+          // V5: ostatnie szczegóły kategorii pozostają dostępne do chwili,
+          // gdy świeże dane zastąpią je w tle. Nie pokazujemy pustego ekranu.
+          // Na wolniejszym łączu nie konkurujemy od razu z renderem i kliknięciami.
+          // Stare szczegóły są już dostępne natychmiast; pełny pakiet świeżych
+          // kategorii dogrzewamy po krótkiej chwili w tle.
+          setTimeout(function() {
+            if (document.visibilityState === 'visible') {
+              preloadCategoryDetailsForMonth(
+                selectedYear,
+                selectedMonth,
+                { forceRefresh: true }
+              );
+            }
+          }, 1800);
+
+          checkRefreshState_(true);
+        },
+        function() {
+
+          silentRefreshInFlight = false;
+          updateFreshnessIndicator_('error');
+
+          // Przy błędzie zachowujemy ostatni poprawny ekran.
+        }
+      );
+    }
+
+
+    // ========================================================
+    // POWRÓT Z TŁA / PWA
+    // ========================================================
+
+    function handleAppResume_() {
+
+      checkRefreshState_(true);
+    }
+
+    window.addEventListener(
+      'pageshow',
+      handleAppResume_
+    );
+
+    document.addEventListener(
+      'visibilitychange',
+      function() {
+
+        if (
+          document.visibilityState ===
+          'visible'
+        ) {
+          handleAppResume_();
+        }
+      }
+    );
+
+
+    // Gdy iOS zamyka/ubija PWA, wykonujemy ostatni synchroniczny zapis
+    // kategorii, jeżeli debounce jeszcze czekał.
+    window.addEventListener('pagehide', function() {
+      if (categoryLocalPersistTimer_) {
+        clearTimeout(categoryLocalPersistTimer_);
+        categoryLocalPersistTimer_ = null;
+        flushCategoryDetailsCache_();
+      }
+    });
+
+
+    // ========================================================
+    // LEKKIE SPRAWDZENIE W TLE CO 30 SEKUND
+    // ========================================================
+    // To jest tylko małe sprawdzenie stanu źródła.
+    // Pełne dane dashboardu są pobierane wyłącznie po wykryciu zmiany.
+    // Cache miesięcy i szczegółów pozostaje bez zmian.
+
+    setInterval(function() {
+
+      if (
+        document.visibilityState ===
+        'visible'
+      ) {
+        checkRefreshState_(false);
+      }
+
+    }, 30 * 1000);
+
+
+    // ========================================================
+    // EKRAN GŁÓWNY
+    // ========================================================
+
+    function renderDashboard(data) {
+      if (activeView_ !== 'dashboard') return;
+
+
+      cleanupDetailSticky_();
+
+      dashboardData = data;
+
+
+      const app =
+        document.getElementById('app');
+
+
+      const dochody =
+        Number(data.dochody) || 0;
+
+
+      const wydatki =
+        Number(data.wydatki) || 0;
+
+
+      const wolneSrodki =
+        Number(data.wolneSrodki) || 0;
+
+
+      const financialFlows =
+        data.financialFlows || {};
+
+      const savings =
+        Number(financialFlows.savings) || 0;
+
+      const investments =
+        Number(financialFlows.investments) || 0;
+
+      const mortgageOverpayment =
+        Number(financialFlows.mortgageOverpayment) || 0;
+
+      const savingsLabel =
+        savings < 0
+          ? 'Pobrano z oszczędności'
+          : savings > 0
+            ? 'Odłożono na oszczędności'
+            : 'Oszczędności';
+
+      const savingsValueClass =
+        savings < 0
+          ? 'negative'
+          : savings > 0
+            ? 'positive'
+            : 'zero';
+
+      // Bilans rozliczenia pokazuje rzeczywisty efekt
+      // nadpłaty kredytu + inwestycji + zmiany oszczędności.
+      // Ujemna zmiana oszczędności oznacza pobranie środków.
+      const dispositionBalance =
+        mortgageOverpayment +
+        investments +
+        savings;
+
+      const isCurrentMonth =
+        Boolean(data.isCurrentMonth);
+
+      const isClosedMonth =
+        Boolean(data.isClosedMonth);
+
+      // Zamknięty miesiąc pokazuje wynik operacyjny:
+      // wpływy minus wydatki. Nie pokazujemy tu końcowego
+      // salda po transferach z oszczędności.
+      const monthlyResult =
+        dochody - wydatki;
+
+      const mainCardValue =
+        isClosedMonth
+          ? monthlyResult
+          : wolneSrodki;
+
+      const mainCardClass =
+        isClosedMonth
+          ? 'main-card-neutral'
+          : wolneSrodki < 0
+            ? 'main-card-negative'
+            : '';
+
+      const mainCardLabel =
+        isClosedMonth
+          ? 'Wynik miesiąca'
+          : 'Wolne środki teraz';
+
+      const mainCardStatus =
+        isClosedMonth
+          ? ''
+          : wolneSrodki < 0
+            ? 'Saldo ujemne'
+            : wolneSrodki > 0
+              ? 'Dostępne'
+              : 'Brak wolnych środków';
+
+      const mainCardValueClass =
+        mainCardValue < 0
+          ? 'negative'
+          : mainCardValue > 0
+            ? 'positive'
+            : 'zero';
+
+
+      const sortedCategories =
+        [...data.categories]
+          .sort(
+            function(a, b) {
+              return (
+                Number(b.execution) -
+                Number(a.execution)
+              );
+            }
+          );
+
+
+      let categoriesHtml = '';
+
+
+      sortedCategories.forEach(
+        function(category) {
+
+          const style =
+            categoryStyle[category.name] ||
+            {
+              icon: '📦',
+              color: '#7f8c8d'
+            };
+
+
+          const budget =
+            Number(category.budget) || 0;
+
+
+          const execution =
+            Number(category.execution) || 0;
+
+
+          const remaining =
+            Number(category.remaining) || 0;
+
+
+          const percent =
+            budget > 0
+              ? Math.min(
+                  (execution / budget) * 100,
+                  100
+                )
+              : 0;
+
+
+          // Zielony = w budżecie
+          // Czerwony = przekroczenie
+          const progressColor =
+            execution > budget
+              ? '#e74c3c'
+              : '#39aa6b';
+
+
+          const isNonExpandable =
+            category.name === 'Inne wydatki' ||
+            category.name === 'Jednorazowe wydatki';
+
+
+          categoriesHtml += `
+
+            <div
+              class="category-card${
+                isNonExpandable
+                  ? ' non-expandable'
+                  : ''
+              }"
+              ${
+                isNonExpandable
+                  ? ''
+                  : `onclick='openCategory(${JSON.stringify(category.name)})'`
+              }
+            >
+
+              <div class="category-top">
+
+                <div
+                  class="category-icon"
+                  style="
+                    background:
+                      ${style.color}18;
+                    color:
+                      ${style.color};
+                  "
+                >
+                  ${style.icon}
+                </div>
+
+
+                <div class="category-content">
+
+                  <div class="category-header-row">
+
+                    <div class="category-name">
+                      ${escapeHtml(category.name)}
+                    </div>
+
+                    ${
+                      budget > 0
+                        ? `<div class="category-status ${execution > budget ? 'over' : 'within'}">
+                            ${execution > budget ? 'Przekroczono' : 'W budżecie'}
+                          </div>`
+                        : ''
+                    }
+
+                  </div>
+
+                  <div class="category-amount">
+                    ${formatPLN(execution)}
+                    z ${formatPLN(budget)}
+                  </div>
+
+                </div>
+
+
+                ${
+                  isNonExpandable
+                    ? ''
+                    : `
+                <div class="category-arrow">
+                  ›
+                </div>
+                    `
+                }
+
+              </div>
+
+
+              <div class="category-progress">
+
+                <div class="progress-background">
+
+                  <div
+                    class="progress-bar"
+                    style="
+                      width: ${percent}%;
+                      background:
+                        ${progressColor};
+                    "
+                  ></div>
+
+                </div>
+
+
+                <div class="category-bottom">
+
+                  <span>
+                    ${
+                      execution > budget
+                        ? 'Przekroczono o ' +
+                          formatPLN(
+                            Math.abs(remaining)
+                          )
+                        : 'Pozostało ' +
+                          formatPLN(
+                            remaining
+                          )
+                    }
+                  </span>
+
+
+                  <span class="category-bottom-percent">
+                    ${Math.round(
+                      budget > 0
+                        ? (execution / budget) * 100
+                        : 0
+                    )}%
+                  </span>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          `;
+        }
+      );
+
+
+      app.innerHTML = `
+
+        <div class="page-header dashboard-page-header">
+
+          <h1 class="page-title">
+            Budżet rodzinny
+          </h1>
+
+        </div>
+
+        <div class="dashboard-month-sticky">
+
+          <div class="month-nav">
+            ${
+              canGoPreviousMonth()
+                ? `
+                  <button
+                    class="month-nav-button"
+                    type="button"
+                    onclick="changeMonth(-1)"
+                    aria-label="Poprzedni miesiąc"
+                    title="Poprzedni miesiąc"
+                  >
+                    ‹
+                  </button>
+                `
+                : `
+                  <div
+                    class="month-nav-spacer"
+                    aria-hidden="true"
+                  ></div>
+                `
+            }
+
+            <div
+              class="month-nav-label"
+              aria-live="polite"
+            >
+              ${escapeHtml(
+                selectedYear && selectedMonth
+                  ? getMonthLabel(selectedYear, selectedMonth)
+                  : data.month
+              )}
+            </div>
+
+            <button
+              class="month-nav-button"
+              type="button"
+              onclick="changeMonth(1)"
+              ${canGoNextMonth() ? '' : 'disabled'}
+              aria-label="Następny miesiąc"
+              title="Następny miesiąc"
+            >
+              ›
+            </button>
+          </div>
+
+          <div
+            class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}"
+            aria-live="polite"
+          >
+            <span
+              class="data-freshness-dot"
+              aria-hidden="true"
+            ></span>
+            <span>
+              ${escapeHtml(getFreshnessLabel_())}
+            </span>
+          </div>
+
+        </div>
+
+
+        <!-- WOLNE ŚRODKI -->
+
+        <div
+          class="main-card ${mainCardClass}"
+        >
+
+          <div class="main-card-header">
+
+            <div class="main-card-label">
+              ${mainCardLabel}
+            </div>
+
+            ${
+              mainCardStatus
+                ? `
+            <div class="main-card-status">
+              <span class="main-card-status-dot"></span>
+              ${mainCardStatus}
+            </div>
+                `
+                : ''
+            }
+
+          </div>
+
+          <div class="main-card-value ${mainCardValueClass}">
+            ${formatPLN(mainCardValue)}
+          </div>
+
+          <div class="main-card-description">
+            ${
+              isClosedMonth
+                ? (
+                    monthlyResult < 0
+                      ? 'Wydatki były wyższe od wpływów · miesiąc zamknięty'
+                      : monthlyResult > 0
+                        ? 'Wpływy były wyższe od wydatków · miesiąc zamknięty'
+                        : 'Wpływy pokryły wydatki · miesiąc zamknięty'
+                  )
+                : 'Środki pozostające po bieżących wydatkach'
+            }
+          </div>
+
+        </div>
+
+
+        <!-- WPŁYWY / WYDATKI -->
+
+        <div class="summary-grid">
+
+          <div class="summary-card income">
+
+            <div class="summary-label">
+              Wpływy w miesiącu
+            </div>
+
+            <div class="summary-value">
+              ${formatPLN(dochody)}
+            </div>
+
+          </div>
+
+
+          <div class="summary-card expense">
+
+            <div class="summary-label">
+              Wydatki w miesiącu
+            </div>
+
+            <div class="summary-value">
+              ${formatPLN(wydatki)}
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- PODSUMOWANIE MIESIĄCA -->
+
+        <div class="surplus-card balance-card">
+
+          <div class="section-title">
+            Podsumowanie miesiąca
+          </div>
+
+
+          <div class="surplus-row">
+
+            <div class="surplus-label">
+              Wpływy
+            </div>
+
+            <div class="surplus-value">
+              ${formatPLN(dochody)}
+            </div>
+
+          </div>
+
+
+          <div class="surplus-row">
+
+            <div class="surplus-label">
+              Wydatki
+            </div>
+
+            <div class="surplus-value">
+              ${formatPLN(wydatki)}
+            </div>
+
+          </div>
+
+
+          <div class="surplus-row is-total">
+
+            <div class="surplus-label">
+              ${isClosedMonth ? 'Wynik miesiąca' : 'Wolne środki'}
+            </div>
+
+            <div
+              class="surplus-value"
+              style="
+                color: ${
+                  (isClosedMonth ? monthlyResult : wolneSrodki) < 0
+                    ? '#e74c3c'
+                    : (isClosedMonth ? monthlyResult : wolneSrodki) > 0
+                      ? '#39aa6b'
+                      : '#777'
+                };
+              "
+            >
+              ${formatPLN(isClosedMonth ? monthlyResult : wolneSrodki)}
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- ROZLICZENIE MIESIĄCA -->
+
+        <div class="surplus-card disposition-card">
+
+          <div class="section-title">
+            Rozliczenie miesiąca
+          </div>
+
+          <div class="disposition-grid">
+
+            <div class="disposition-item">
+              <div class="disposition-item-label">
+                Nadpłata kredytu
+              </div>
+              <div class="disposition-item-value">
+                ${formatPLN(mortgageOverpayment)}
+              </div>
+            </div>
+
+            <div class="disposition-item">
+              <div class="disposition-item-label">
+                Inwestycje / IKZE
+              </div>
+              <div class="disposition-item-value">
+                ${formatPLN(investments)}
+              </div>
+            </div>
+
+            <div class="disposition-item ${savingsValueClass}">
+              <div class="disposition-item-label">
+                ${savingsLabel}
+              </div>
+              <div class="disposition-item-value"
+                   style="color:${
+                     savings < 0
+                       ? '#e74c3c'
+                       : savings > 0
+                         ? '#39aa6b'
+                         : '#777'
+                   };">
+                ${formatPLN(savings)}
+              </div>
+            </div>
+
+          </div>
+
+          <div class="disposition-total">
+            <div class="disposition-total-label">
+              Bilans rozliczenia
+            </div>
+            <div
+              class="disposition-total-value"
+              style="
+                color: ${
+                  dispositionBalance < 0
+                    ? '#e74c3c'
+                    : dispositionBalance > 0
+                      ? '#39aa6b'
+                      : '#777'
+                };
+              "
+            >
+              ${formatPLN(dispositionBalance)}
+            </div>
+          </div>
+
+        </div>
+
+
+        <!-- KATEGORIE -->
+
+        <div class="categories-title">
+          Wydatki według kategorii
+        </div>
+
+
+        ${categoriesHtml}
+
+      `;
+
+      // PWA zapisuje gotowy widok dashboardu poza iframe. Przy kolejnym
+      // zimnym starcie może go pokazać natychmiast, zanim Apps Script się pobierze.
+      sendPwaDashboardSnapshot_(data);
+      notifyPwaReady_('dashboard');
+    }
+
+
+    // ========================================================
+    // OTWARCIE SZCZEGÓŁÓW KATEGORII
+    // ========================================================
+
+    let detailStickyScrollHandler_ = null;
+
+    function cleanupDetailSticky_() {
+      // V4: pasek szczegółów jest natywnym CSS position: sticky,
+      // więc nie potrzebuje listenera scroll. Zostawiamy funkcję,
+      // aby istniejące wywołania przy zmianie widoku pozostały bezpieczne.
+      detailStickyScrollHandler_ = null;
+    }
+
+    function initDetailSticky_() {
+      const sticky =
+        document.querySelector(
+          '.detail-sticky-bar'
+        );
+
+      if (!sticky) {
+        return;
+      }
+
+      sticky.classList.add('is-visible');
+      sticky.setAttribute('aria-hidden', 'false');
+    }
+
+    function forceScrollToTop_() {
+
+      const scrollTop = function() {
+        try {
+          window.scrollTo(0, 0);
+        } catch (e) {}
+
+        const scrollingElement = document.scrollingElement;
+        if (scrollingElement) {
+          scrollingElement.scrollTop = 0;
+        }
+
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      };
+
+      // iOS/Safari może przywrócić poprzednią pozycję po zmianie DOM.
+      // Wykonujemy reset po renderze oraz po następnym repaint.
+      scrollTop();
+      requestAnimationFrame(function() {
+        scrollTop();
+        requestAnimationFrame(scrollTop);
+      });
+
+      setTimeout(scrollTop, 50);
+      setTimeout(scrollTop, 250);
+    }
+
+    function openCategory(categoryName) {
+      activeView_ = 'category';
+      activeCategory_ = categoryName;
+
+
+      // Przy wejściu resetujemy pozycję od razu; po renderze wykonamy
+      // dodatkowy reset, ponieważ iOS/Safari może przywrócić poprzedni scroll.
+      forceScrollToTop_();
+
+      const app =
+        document.getElementById('app');
+
+      const year = Number(selectedYear);
+      const month = Number(selectedMonth);
+
+      const cached =
+        getCachedCategoryDetail(
+          categoryName,
+          year,
+          month
+        );
+
+      if (cached && cached.data) {
+        // Szczegóły są już przygotowane — pokazujemy je od razu.
+        renderCategoryDetails(cached.data);
+
+        // Stary cache może być nieświeży; odświeżamy tylko tę kategorię.
+        if (!cached.isFresh) {
+          fetchCategoryDetail(
+            categoryName,
+            year,
+            month,
+            function(data) {
+              // Nie nadpisujemy widoku, jeżeli użytkownik przeszedł już
+              // do innej kategorii. Cache został zaktualizowany niezależnie.
+            },
+            function() {}
+          );
+        }
+
+        return;
+      }
+
+      const monthKey =
+        categoryDetailsCacheKey(year, month);
+
+      // Jeżeli w tle trwa pakiet wszystkich kategorii, NIE czekamy
+      // na zakończenie całego batcha. Kliknięta kategoria dostaje
+      // własny priorytetowy request i pojawi się tak szybko, jak tylko
+      // przygotowane zostaną jej dane.
+      if (categoryBundleInflight[monthKey]) {
+        app.innerHTML = `
+
+          <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
+          <div class="loading-box">
+
+            <div class="loading-icon">
+              ⏳
+            </div>
+
+            <div>
+              Ładowanie szczegółów...
+            </div>
+
+          </div>
+
+        `;
+
+        fetchCategoryDetail(
+          categoryName,
+          year,
+          month,
+          function(data) {
+            if (data) {
+              renderCategoryDetails(data);
+              return;
+            }
+
+            showCategoryError(
+              'Nie znaleziono danych tej kategorii.'
+            );
+          },
+          function(error) {
+            showCategoryError(
+              error && error.message
+                ? error.message
+                : String(error)
+            );
+          }
+        );
+
+        return;
+      }
+
+      // Jeżeli dana kategoria nie jest jeszcze w cache, pobieramy tylko ją.
+      // To pozostaje szybkim fallbackiem dla pierwszego kliknięcia po zmianie
+      // miesiąca, zanim batch zdąży się przygotować.
+      app.innerHTML = `
+
+        <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
+        <div class="loading-box">
+
+          <div class="loading-icon">
+            ⏳
+          </div>
+
+          <div>
+            Ładowanie szczegółów...
+          </div>
+
+        </div>
+
+      `;
+
+      fetchCategoryDetail(
+        categoryName,
+        year,
+        month,
+        function(data) {
+          if (data) {
+            renderCategoryDetails(data);
+            return;
+          }
+
+          showCategoryError(
+            'Nie znaleziono danych tej kategorii.'
+          );
+        },
+        function(error) {
+          showCategoryError(
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+          );
+        }
+      );
+    }
+
+
+    // ========================================================
+    // SZCZEGÓŁY KATEGORII
+    // ========================================================
+
+    function renderCategoryDetails(data) {
+      if (activeView_ !== 'category' || activeCategory_ !== data.category) return;
+
+
+      const app =
+        document.getElementById('app');
+
+
+      const style =
+        categoryStyle[data.category] ||
+        {
+          icon: '📦',
+          color: '#7f8c8d'
+        };
+
+
+      const budget =
+        Number(data.budget) || 0;
+
+
+      const execution =
+        Number(data.execution) || 0;
+
+
+      const remaining =
+        Number(data.remaining) || 0;
+
+
+      const percent =
+        budget > 0
+          ? Math.min(
+              (execution / budget) * 100,
+              100
+            )
+          : 0;
+
+
+      const progressColor =
+        execution > budget
+          ? '#e74c3c'
+          : '#39aa6b';
+
+
+      const budgetExceeded = budget > 0 && execution > budget;
+      const statusLabel = budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
+      const statusBackground = budgetExceeded ? '#fdeeee' : '#edf8f1';
+      const statusForeground = budgetExceeded ? '#d84a3d' : '#2f9560';
+
+      let dailyBudgetHtml = '';
+
+      if (
+        data.category ===
+        'Wyżywienie i chemia' &&
+        data.dailyBudget
+      ) {
+
+        const daily =
+          data.dailyBudget;
+
+        const availableToday =
+          Number(
+            daily.availableToday
+          ) || 0;
+
+        const dailyLimit =
+          Number(
+            daily.dailyLimit
+          ) || 150;
+
+        const dailyColor =
+          daily.status === 'over'
+            ? '#e74c3c'
+            : daily.status === 'warning'
+              ? '#f39c12'
+              : '#39aa6b';
+
+        const dailyMessage =
+          availableToday < 0
+            ? 'Przekroczono narastający limit o ' +
+              formatPLN(
+                Math.abs(
+                  availableToday
+                )
+              )
+            : 'Do wydania według limitu ' +
+              formatPLN(
+                availableToday
+              );
+
+        const isViewingCurrentMonth =
+          Number(selectedYear) === Number(maxYear) &&
+          Number(selectedMonth) === Number(maxMonth);
+
+        const dailyStatusLabel =
+          daily.status === 'over'
+            ? 'Limit przekroczony'
+            : daily.status === 'warning'
+              ? 'Zbliżasz się do limitu'
+              : isViewingCurrentMonth
+                ? 'Limit pod kontrolą'
+                : 'Limit miesięczny zachowany';
+
+        dailyBudgetHtml = `
+
+          <div
+            class="daily-limit-card"
+          >
+
+            <div class="daily-limit-head">
+
+              <div>
+                <div class="daily-limit-title">
+                  🛒 Dzienny limit
+                </div>
+
+                <div
+                  class="daily-limit-value"
+                  style="color:${dailyColor};"
+                >
+                  ${formatPLN(
+                    availableToday
+                  )}
+                </div>
+
+                <div class="daily-limit-note">
+                  ${dailyMessage}
+                </div>
+              </div>
+
+              <div class="daily-limit-side">
+                <div>
+                  Dzień ${daily.dayOfMonth} z ${daily.daysInMonth}
+                </div>
+                <div>
+                  ${formatPLN(dailyLimit)} / dzień
+                </div>
+                <div class="daily-limit-status">
+                  ${dailyStatusLabel}
+                </div>
+              </div>
+
+            </div>
+
+            <div class="daily-limit-meta">
+              <span>
+                Narastająco: ${formatPLN(
+                  daily.cumulativeAllowance
+                )}
+              </span>
+              <span>
+                Wydano: ${formatPLN(
+                  daily.monthExecution
+                )}
+              </span>
+            </div>
+
+          </div>
+
+        `;
+      }
+
+
+      let subcategoriesHtml = '';
+
+
+      if (
+        !data.subcategories ||
+        data.subcategories.length === 0
+      ) {
+
+        subcategoriesHtml = `
+
+          <div
+            class="subcategory-card"
+            style="
+              text-align: center;
+              color: #777;
+              padding: 25px;
+            "
+          >
+            Brak podkategorii do wyświetlenia.
+          </div>
+
+        `;
+
+      } else {
+
+        data.subcategories.forEach(
+          function(sub) {
+
+            const hasSubBudget =
+              sub.budget !== null &&
+              sub.budget !== undefined;
+
+            const subBudget =
+              hasSubBudget
+                ? Number(sub.budget) || 0
+                : 0;
+
+            const subExecution =
+              Number(sub.execution) || 0;
+
+            const subRemaining =
+              hasSubBudget
+                ? subBudget - subExecution
+                : null;
+
+            const subPercent =
+              hasSubBudget && subBudget > 0
+                ? Math.min(
+                    (subExecution /
+                      subBudget) * 100,
+                    100
+                  )
+                : 0;
+
+            const subProgressColor =
+              hasSubBudget &&
+              subExecution > subBudget
+                ? '#e74c3c'
+                : '#39aa6b';
+
+            const isHoliday =
+              sub.name ===
+              'Urlop i wakacje';
+
+            let tripsHtml = '';
+
+            if (
+              isHoliday &&
+              Array.isArray(sub.trips) &&
+              sub.trips.length > 0
+            ) {
+tripsHtml = `
+  <div
+    id="holiday-trips"
+    style="
+      display:none;
+      margin-top:14px;
+      padding-top:12px;
+      border-top:1px solid #eeeeee;
+    "
+  >
+
+    <div
+      style="
+        font-size:15px;
+        color:#555;
+        margin-bottom:12px;
+        font-weight:700;
+      "
+    >
+      Wyjazdy — narastająco w 2026
+    </div>
+
+    ${sub.trips.map(
+      function(trip) {
+
+        return `
+          <div
+            style="
+              display:flex;
+              justify-content:space-between;
+              align-items:center;
+              gap:12px;
+              padding:8px 0;
+              font-size:12px;
+            "
+          >
+
+            <span
+              style="
+                color:#666;
+                line-height:1.35;
+              "
+            >
+              ${escapeHtml(
+                trip.name
+              )}
+            </span>
+
+            <strong
+              style="
+                color:#222;
+                white-space:nowrap;
+              "
+            >
+              ${formatPLN(
+                trip.execution
+              )}
+            </strong>
+
+          </div>
+        `;
+
+      }
+    ).join('')}
+
+  </div>
+`;
+
+                    }
+
+            subcategoriesHtml += `
+
+              <div
+                class="subcategory-card"
+                ${
+                  isHoliday
+                    ? `onclick="toggleHolidayTrips()"
+                       style="cursor:pointer;"`
+                    : ''
+                }
+              >
+
+                <div class="subcategory-top">
+
+                  <div
+                    class="subcategory-name"
+                  >
+
+                    ${escapeHtml(
+                      sub.name
+                    )}
+
+                    ${
+                      isHoliday
+                        ? `
+              <span
+  id="holiday-trips-arrow"
+  style="
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:20px;
+    height:20px;
+    margin-left:6px;
+    border-radius:50%;
+    background:#eeeeee;
+    color:#888;
+    font-size:14px;
+    font-weight:800;
+    transition:transform 0.15s ease;
+    vertical-align:middle;
+  "
+>
+  ⌄
+</span>
+                        `
+                        : ''
+                    }
+
+                  </div>
+
+                  <div
+                    class="subcategory-values"
+                  >
+
+                    <div
+                      class="subcategory-execution"
+                    >
+                      ${formatPLN(
+                        subExecution
+                      )}
+                    </div>
+
+                    <div
+                      class="subcategory-budget"
+                    >
+                      ${
+                        hasSubBudget
+                          ? 'z ' +
+                            formatPLN(
+                              subBudget
+                            )
+                          : 'brak osobnego budżetu'
+                      }
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div
+                  class="subcategory-progress"
+                >
+
+                  <div
+                    class="subcategory-progress-bar"
+                    style="
+                      width:
+                        ${subPercent}%;
+                      background:
+                        ${subProgressColor};
+                    "
+                  ></div>
+
+                </div>
+
+                <div
+                  style="
+                    display:flex;
+                    justify-content:space-between;
+                    margin-top:7px;
+                    font-size:11px;
+                    color:#999;
+                  "
+                >
+
+                  <span>
+
+                    ${
+                      !hasSubBudget
+                        ? 'Brak osobnego budżetu'
+                        : subExecution >
+                          subBudget
+                          ? 'Przekroczono o ' +
+                            formatPLN(
+                              Math.abs(
+                                subRemaining
+                              )
+                            )
+                          : 'Pozostało ' +
+                            formatPLN(
+                              subRemaining
+                            )
+                    }
+
+                  </span>
+
+                  <span>
+
+                    ${
+                      hasSubBudget &&
+                      subBudget > 0
+                        ? Math.round(
+                            (subExecution /
+                              subBudget) *
+                              100
+                          ) + '%'
+                        : '—'
+                    }
+
+                  </span>
+
+                </div>
+
+                ${tripsHtml}
+
+              </div>
+
+            `;
+
+          }
+        );
+
+      }
+
+
+      app.innerHTML = `
+
+        <div
+          class="detail-sticky-bar is-visible"
+          aria-hidden="false"
+        >
+          <button
+            class="detail-sticky-back"
+            type="button"
+            onclick="showMainDashboard()"
+            aria-label="Wróć do wydatków"
+            title="Wróć do wydatków"
+          >
+            ‹
+          </button>
+
+          <div class="detail-sticky-center">
+            <div class="detail-sticky-title">
+              ${escapeHtml(data.category)}
+            </div>
+            <div class="detail-sticky-month">
+              ${escapeHtml(
+                getMonthLabel(
+                  selectedYear,
+                  selectedMonth
+                )
+              )}
+            </div>
+          </div>
+
+          <div
+            class="detail-sticky-spacer"
+            aria-hidden="true"
+          ></div>
+        </div>
+
+        <!-- NAGŁÓWEK -->
+
+        <div class="detail-header">
+
+          <div class="detail-title-row">
+
+            <div
+              class="detail-icon"
+              style="
+                background:
+                  ${style.color}18;
+                color:
+                  ${style.color};
+              "
+            >
+              ${style.icon}
+            </div>
+
+
+            <div>
+
+              <div class="detail-title">
+                ${escapeHtml(
+                  data.category
+                )}
+              </div>
+
+              <div class="detail-subtitle">
+                Szczegóły wydatków
+              </div>
+
+              <div
+                class="detail-status"
+                style="
+                  background:${statusBackground};
+                  color:${statusForeground};
+                "
+              >
+                ${statusLabel}
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="detail-money-row">
+
+            <div class="detail-money-block">
+
+              <div class="detail-money-label">
+                Wydano
+              </div>
+
+              <div class="detail-money-value">
+                ${formatPLN(
+                  execution
+                )}
+              </div>
+
+            </div>
+
+
+            <div class="detail-money-block detail-money-block-right">
+
+              <div class="detail-money-label">
+                Budżet
+              </div>
+
+              <div class="detail-budget-value">
+                ${formatPLN(
+                  budget
+                )}
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="detail-progress">
+
+            <div
+              class="detail-progress-bar"
+              style="
+                width:
+                  ${percent}%;
+                background:
+                  ${progressColor};
+              "
+            ></div>
+
+          </div>
+
+
+          <div class="detail-meta-row">
+
+            <span>
+
+              ${
+                execution > budget
+
+                  ? 'Przekroczono o ' +
+                    formatPLN(
+                      Math.abs(
+                        remaining
+                      )
+                    )
+
+                  : 'Pozostało ' +
+                    formatPLN(
+                      remaining
+                    )
+              }
+
+            </span>
+
+
+            <span>
+
+              ${Math.round(
+                budget > 0
+                  ? (
+                      execution /
+                      budget
+                    ) * 100
+                  : 0
+              )}%
+
+            </span>
+
+          </div>
+
+        </div>
+
+
+        ${dailyBudgetHtml}
+
+
+        <!-- PODKATEGORIE -->
+
+        <div class="subcategories-title">
+          <span>Podkategorie</span>
+          <span
+            class="subcategories-count"
+            aria-label="Liczba podkategorii"
+          >${data.subcategories ? data.subcategories.length : 0}</span>
+        </div>
+
+
+        ${subcategoriesHtml}
+
+
+        ${renderHistoryHtml(data)}
+
+      `;
+
+      initDetailSticky_();
+      forceScrollToTop_();
+      notifyPwaReady_('category');
+    }
+
+
+    // ========================================================
+    // HISTORIA WYDATKÓW
+    // ========================================================
+function toggleHolidayTrips() {
+
+  const trips =
+    document.getElementById(
+      'holiday-trips'
+    );
+
+  const arrow =
+    document.getElementById(
+      'holiday-trips-arrow'
+    );
+
+  if (!trips) {
+    return;
+  }
+
+  const isHidden =
+    trips.style.display === 'none';
+
+  trips.style.display =
+    isHidden
+      ? 'block'
+      : 'none';
+
+  if (arrow) {
+    arrow.style.transform =
+      isHidden
+        ? 'rotate(90deg)'
+        : 'rotate(0deg)';
+  }
+}
+    function renderHistoryHtml(data) {
+
+      const history = data && data.history;
+
+      if (!history || !Array.isArray(history.months)) {
+        return '';
+      }
+
+      // Historia kategorii pokazuje dane od stycznia 2026
+      // tylko do miesiąca aktualnie wybranego na dashboardzie.
+      // Przykład: po cofnięciu do września widzimy Sty–Wrz,
+      // a w październiku Sty–Paź.
+      let historyEndIndex = history.months.length - 1;
+
+      if (Number(history.year) === Number(selectedYear)) {
+        historyEndIndex = Math.min(
+          history.months.length - 1,
+          Math.max(0, Number(selectedMonth) - 1)
+        );
+      } else if (Number(history.year) > Number(selectedYear)) {
+        return '';
+      }
+
+      const months = history.months.slice(0, historyEndIndex + 1);
+
+      const values = months.map(function(item) {
+        return Number(item.value) || 0;
+      });
+
+      const maxValue = Math.max(...values, 0);
+
+      const total = values.reduce(
+        function(sum, value) {
+          return sum + value;
+        },
+        0
+      );
+
+      const historyStyle =
+        categoryStyle[data.category] ||
+        { color: '#39aa6b' };
+
+      const currentHistoryIndex =
+        Number(selectedMonth) >= 1 && Number(selectedMonth) <= 12
+          ? Number(selectedMonth) - 1
+          : -1;
+
+      const currentMonth =
+        currentHistoryIndex >= 0 && months[currentHistoryIndex]
+          ? months[currentHistoryIndex]
+          : null;
+
+      let barsHtml = '';
+
+      months.forEach(function(item, index) {
+
+        const value = Number(item.value) || 0;
+        const isCurrent = index === currentHistoryIndex;
+        const hasVisibleValue = value >= 400;
+
+        const height =
+          maxValue > 0
+            ? Math.max(
+                (Math.max(value, 0) / maxValue) * 100,
+                value > 0 ? 1.8 : 1.2
+              )
+            : 1.2;
+
+        barsHtml += `
+
+          <div
+            class="history-bar-wrap${isCurrent ? ' history-current' : ''}"
+            data-month="${escapeHtml(item.month)}"
+            data-value="${value}"
+            title="${escapeHtml(item.month)}: ${formatPLN(value)}"
+            onclick="showHistoryValue(this.dataset.month, this.dataset.value)"
+          >
+
+            <div class="history-bar-value">
+              ${hasVisibleValue ? formatHistoryValue(value) : ''}
+            </div>
+
+            <div
+              class="history-bar"
+              style="
+                height: ${height}%;
+                background: ${historyStyle.color};
+              "
+            ></div>
+
+            <div class="history-month${isCurrent ? ' history-month-current' : ''}">
+              ${escapeHtml(item.shortMonth)}
+            </div>
+
+          </div>
+
+        `;
+      });
+
+      const currentLabel =
+        currentMonth
+          ? currentMonth.shortMonth
+          : '2026';
+
+      return `
+
+        <div class="history-card">
+
+          <div class="history-title-row">
+            <div class="history-title">
+              Historia wydatków
+            </div>
+
+            <div class="history-current-badge">
+              Wybrany: ${escapeHtml(currentLabel)}
+            </div>
+          </div>
+
+          <div class="history-subtitle">
+            ${escapeHtml(data.category)} — 2026
+          </div>
+
+          <div class="history-chart">
+            ${barsHtml}
+          </div>
+
+          <div
+            id="history-selected"
+            class="history-selected"
+          >
+            Dotknij słupka, aby zobaczyć kwotę
+          </div>
+
+          <div class="history-total">
+            <span>Łącznie od stycznia 2026</span>
+            <strong>${formatPLN(total)}</strong>
+          </div>
+
+        </div>
+
+      `;
+    }
+
+
+    function showHistoryValue(month, value) {
+
+      const element =
+        document.getElementById('history-selected');
+
+      if (!element) {
+        return;
+      }
+
+      element.innerHTML =
+        '<strong>' +
+        escapeHtml(month) +
+        ': ' +
+        formatPLN(value) +
+        '</strong>';
+    }
+
+
+    // ========================================================
+    
+    
+
+    function showMainDashboard() {
+      activeView_ = 'dashboard';
+      activeCategory_ = null;
+
+
+      if (dashboardData) {
+
+        renderDashboard(
+          dashboardData
+        );
+
+        return;
+      }
+
+
+      loadDashboard();
+    }
+
+
+    
+    
+    
+
+    function showError(message) {
+
+      const app =
+        document.getElementById('app');
+
+
+      app.innerHTML = `
+
+        <div class="page-header">
+
+          <h1 class="page-title">
+            Budżet rodzinny
+          </h1>
+
+        </div>
+
+
+        <div class="error-box">
+
+          <button class="back-button" onclick="loadDashboard()">Spróbuj ponownie</button>
+          <div class="error-title">
+            Nie udało się pobrać danych.
+          </div>
+
+          <div>
+            ${escapeHtml(message)}
+          </div>
+
+        </div>
+
+      `;
+    }
+
+
+    // ========================================================
+    
+    
+
+    function showCategoryError(message) {
+      if (activeView_ !== 'category') return;
+
+
+      cleanupDetailSticky_();
+
+      const app =
+        document.getElementById('app');
+
+
+      app.innerHTML = `
+
+        <button
+          class="back-button"
+          onclick="showMainDashboard()"
+        >
+          ← Wydatki
+        </button>
+
+
+        <div class="error-box">
+
+          <div class="error-title">
+            Nie udało się pobrać szczegółów.
+          </div>
+
+          <div>
+            ${escapeHtml(message)}
+          </div>
+
+        </div>
+
+      `;
+    }
+
+
+    
+    
+    
+
+    let startupCompleted_ = false;
+    let startupNetworkStarted_ = false;
+
+    function continueAfterStartupRestore_() {
+      if (startupCompleted_) {
+        return;
+      }
+
+      startupCompleted_ = true;
+
+      
+      
+      setTimeout(function() {
+        if (dashboardData && document.visibilityState === 'visible') {
+          checkRefreshState_(true);
+        }
+      }, 250);
+
+      
+      if (dashboardData) {
+        startInitialBackgroundPreload();
+      }
+    }
+
+    function tryRestoreStartupCaches_() {
+      restoreCategoryDetailsCache_();
+      restoreMonthDashboardCache_();
+
+      const restored =
+        restoreLastDashboard_() ||
+        restoreCurrentMonthFromMonthCache_();
+
+      if (restored) {
+        continueAfterStartupRestore_();
+        return true;
+      }
+
+      return false;
+    }
+
+    function startNetworkDashboardOnce_() {
+      if (startupNetworkStarted_ || dashboardData) {
+        return;
+      }
+
+      startupNetworkStarted_ = true;
+      loadDashboard();
+    }
+
+    budgetDisk.migrateLocal();
+    const localRestored_ = tryRestoreStartupCaches_();
+    // Cache Storage is a local fallback, not a network dependency.
+    budgetDisk.restore().then(function() {
+      if (!localRestored_ && !dashboardData) tryRestoreStartupCaches_();
+    }).finally(function() {
+      if (!dashboardData) startNetworkDashboardOnce_();
+    });
+    // A slow/unavailable storage implementation must not block the first fetch.
+    setTimeout(function() { if (!dashboardData) startNetworkDashboardOnce_(); }, 800);
+    addEventListener('online', function() {
+      if (!dashboardData) { startupNetworkStarted_ = false; startNetworkDashboardOnce_(); }
+    });
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(function(reg) { reg.update().catch(function() {}); }).catch(function() {});
+    }
   </script>
+
+
 </body>
 </html>

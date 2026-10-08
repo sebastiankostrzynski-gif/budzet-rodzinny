@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v6-frame-bridge';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v10-local-ui';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -53,8 +53,7 @@ self.addEventListener('activate', event => {
     await Promise.all(
       keys
         .filter(key =>
-          key !== SHELL_CACHE &&
-          key !== RUNTIME_CACHE
+          key.startsWith('budzet-rodzinny-shell-') && key !== SHELL_CACHE
         )
         .map(key => caches.delete(key))
     );
@@ -130,28 +129,3 @@ self.addEventListener('fetch', event => {
   })());
 });
 
-// Odświeżenie powłoki jest wykonywane dopiero PO uruchomieniu aplikacji,
-// na wyraźne żądanie index.html. Nigdy nie znajduje się w ścieżce startowej.
-self.addEventListener('message', event => {
-  const message = event.data || {};
-  if (message.type !== 'BUDZET_REFRESH_SHELL') return;
-
-  event.waitUntil((async () => {
-    const cache = await caches.open(SHELL_CACHE);
-
-    await Promise.all(
-      APP_SHELL.map(async path => {
-        try {
-          const absoluteUrl = new URL(path, self.registration.scope).href;
-          const request = new Request(absoluteUrl, { cache: 'no-store' });
-          const response = await fetch(request);
-          if (response && response.ok) {
-            await cache.put(absoluteUrl, response.clone());
-          }
-        } catch (_) {
-          // Aktualizacja powłoki jest best-effort i nie wpływa na działanie aplikacji.
-        }
-      })
-    );
-  })());
-});
