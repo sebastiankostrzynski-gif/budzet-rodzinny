@@ -1492,6 +1492,30 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 @media(prefers-reduced-motion:no-preference){button,.category-card:not(.non-expandable){transition:transform 120ms ease,background-color 150ms ease,box-shadow 150ms ease}button:active:not(:disabled),.category-card:not(.non-expandable):active{transform:scale(.985)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
+.sav-sticky{top:0;padding-top:max(6px,env(safe-area-inset-top));margin:0 0 16px}.sav-wrap .sav-sticky h1{font-size:16px;line-height:1.25;margin:0;white-space:normal;overflow-wrap:anywhere}.sav-sticky .detail-sticky-month{font-size:12px;line-height:1.3;color:#526457}
+
+/* Savings has its own blue identity; budget retains its green palette. */
+.budget-tabs button[data-tab="savings"].selected{background:#244e88;color:#fff;box-shadow:0 2px 6px #18385e24}
+.savings-theme .budget-tabs{background:#e6ebf2}
+.sav-wrap{color:#202f46}
+.sav-hero{background:#203c65;color:#fff;box-shadow:0 8px 24px #203c6514}
+.sav-hero>span{color:#e4edfa}
+.sav-card{color:#202f46;border-color:#dce4ef}
+.sav-muted,.sav-status,.sav-item small{color:#52617a}
+.sav-month button,.sav-status button,.sav-month select,.sav-chart-readout select{color:#244e88;border-color:#cfdaea}
+.sav-range button{color:#405777;background:#eef2f8}
+.sav-range button[aria-pressed=true]{color:#fff;background:#244e88}
+.sav-current{background:#edf2fa}
+.sav-panel{border-color:#dce4ef}
+.sav-item{border-bottom-color:#e5ebf3}
+.sav-sticky{background:rgba(244,247,252,.98);border-bottom-color:#cdd9eb;box-shadow:0 5px 16px #203c6510}
+.sav-sticky .detail-sticky-title{color:#203c65}
+.sav-sticky .detail-sticky-month{color:#52617a}
+.sav-sticky .detail-sticky-back{color:#244e88;border-color:#cfdaea}
+.sav-wrap button:focus-visible,.sav-wrap select:focus-visible,.sav-wrap summary:focus-visible,.budget-tabs button[data-tab="savings"]:focus-visible{outline-color:#2e5fa8}
+.sav-hero>strong,.sav-item strong,.sav-card strong,.sav-table td:last-child{font-variant-numeric:tabular-nums}
+@media(hover:hover){.sav-card:hover{border-color:#9db4d6;box-shadow:0 4px 14px #203c6510}}
+
 </style>
 
 </head>
@@ -1682,7 +1706,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V12';
+    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V13';
 
     
     
@@ -5484,7 +5508,7 @@ function savingsRefresh_(){
   if(activeView_==='savings')renderSavings_();
  }).withFailureHandler(function(error){savingsBusy_=false;savingsError_=String(error&&error.message||'Nie udało się odświeżyć');if(activeView_==='savings')renderSavings_();}).getSavingsData();
 }
-function setBudgetTab_(tab){document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
+function setBudgetTab_(tab){document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
 function openSavings_(){
  cleanupDetailSticky_();activeView_='savings';activeCategory_=null;setBudgetTab_('savings');
  savingsRestore_();renderSavings_();savingsRefresh_();window.scrollTo(0,0);
@@ -5493,7 +5517,9 @@ function savingsMove_(delta){const at=savingsData_.periods.findIndex(p=>p.key===
 function savingsSelect_(key){if(savingsData_.periods.some(p=>p.key===key)){savingsPeriod_=key;renderSavings_();}}
 function savingsDetail_(group){if(!savingsMeta_[group])return;savingsGroup_=group;renderSavings_();window.scrollTo(0,0);}
 function savingsBack_(){savingsGroup_=null;renderSavings_();window.scrollTo(0,0);}
-function savingsDelta_(n){return n==null?'Brak wcześniejszego okresu':(n>0?'+':'')+formatPLN(n);}
+const savingsCurrency_=new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',useGrouping:true,minimumFractionDigits:0,maximumFractionDigits:0});
+function savingsPLN_(n){const rounded=Math.round(Number(n));return savingsCurrency_.format(rounded===0?0:rounded);}
+function savingsDelta_(n){return n==null?'Brak wcześniejszego okresu':(Math.round(n)>0?'+':'')+savingsPLN_(n);}
 function savingsValue_(p){return savingsGroup_?p.groups[savingsGroup_].value:p.total;}
 function savingsChart_(period){
  const rows=savingsData_.periods.filter(p=>savingsRange_==='all'||p.year===period.year);
@@ -5505,9 +5531,9 @@ function savingsChart_(period){
  const ticks=[min,min+span/2,max];
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
  return `<section class="sav-panel"><div class="sav-heading"><h2>Jak zmieniały się oszczędności</h2><div class="sav-range" aria-label="Zakres historii"><button id="sav-year" onclick="savingsRange_='year';renderSavings_()" aria-pressed="${savingsRange_==='year'}">${period.year}</button><button id="sav-all" onclick="savingsRange_='all';renderSavings_()" aria-pressed="${savingsRange_==='all'}">Cała historia</button></div></div>
- <svg viewBox="0 0 620 205" role="img" aria-label="Historia wartości. Wybierz okres poniżej, aby odczytać dokładną kwotę.">${ticks.map(v=>`<line x1="90" y1="${y(v)}" x2="580" y2="${y(v)}" stroke="#e2e9e5"/><text x="82" y="${y(v)+4}" text-anchor="end" fill="#465c50" font-size="14">${compact(v)}</text>`).join('')}<polyline points="${points}" fill="none" stroke="#287a53" stroke-width="3"/>${rows.map((p,i)=>`<circle cx="${x(i)}" cy="${y(vals[i])}" r="${p.key===savingsPeriod_?6:3}" fill="#287a53"><title>${savingsLabel_(p.key)}: ${formatPLN(vals[i])}</title></circle>`).join('')}<text x="90" y="185" fill="#465c50" font-size="14">${rows[0].key}</text><text x="580" y="185" text-anchor="end" fill="#465c50" font-size="14">${rows[rows.length-1].key}</text></svg>
- <div class="sav-chart-readout"><label for="sav-chart-period">Odczytaj wartość</label><select id="sav-chart-period" onchange="savingsSelect_(this.value)">${rows.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===savingsPeriod_?'selected':''}>${savingsLabel_(p.key)}</option>`).join('')}</select><strong>${formatPLN(savingsValue_(period))}</strong></div>
- <details data-sav-disclosure="history"><summary id="sav-history">Pokaż wszystkie kwoty</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">Wartość</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr ${p.key===savingsPeriod_?'class="sav-current"':''}><td>${savingsLabel_(p.key)}</td><td>${formatPLN(savingsValue_(p))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+ <svg viewBox="0 0 620 205" role="img" aria-label="Historia wartości. Wybierz okres poniżej, aby odczytać dokładną kwotę.">${ticks.map(v=>`<line x1="90" y1="${y(v)}" x2="580" y2="${y(v)}" stroke="#e0e7f0"/><text x="82" y="${y(v)+4}" text-anchor="end" fill="#4b5b73" font-size="14">${compact(v)}</text>`).join('')}<polyline points="${points}" fill="none" stroke="#2e5fa8" stroke-width="3"/>${rows.map((p,i)=>`<circle cx="${x(i)}" cy="${y(vals[i])}" r="${p.key===savingsPeriod_?6:3}" fill="#2e5fa8"><title>${savingsLabel_(p.key)}: ${savingsPLN_(vals[i])}</title></circle>`).join('')}<text x="90" y="185" fill="#4b5b73" font-size="14">${rows[0].key}</text><text x="580" y="185" text-anchor="end" fill="#4b5b73" font-size="14">${rows[rows.length-1].key}</text></svg>
+ <div class="sav-chart-readout"><label for="sav-chart-period">Odczytaj wartość</label><select id="sav-chart-period" onchange="savingsSelect_(this.value)">${rows.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===savingsPeriod_?'selected':''}>${savingsLabel_(p.key)}</option>`).join('')}</select><strong>${savingsPLN_(savingsValue_(period))}</strong></div>
+ <details data-sav-disclosure="history"><summary id="sav-history">Pokaż wszystkie kwoty</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">Wartość</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr ${p.key===savingsPeriod_?'class="sav-current"':''}><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(savingsValue_(p))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
 }
 function renderSavings_(){
  if(activeView_!=='savings')return;
@@ -5524,14 +5550,12 @@ function renderSavings_(){
  const comparison=prev?'Porównanie: '+savingsLabel_(prev.key):'Początek zapisanej historii';
  const title=savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności i inwestycje razem';
  let content='';
- if(savingsGroup_){content=`<section class="sav-panel"><h2>Co składa się na tę kwotę</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${formatPLN(item.value)}</strong></div>`;}).join('')}</section>`;}
- else {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${formatPLN(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
- const explanation=savingsGroup_==='cash'?'To pieniądze odłożone na oszczędności. Nie obejmują środków na bieżące wydatki.':savingsGroup_==='children'?'Te środki są przeznaczone dla dzieci. W łącznych oszczędnościach liczymy je tylko raz.':'Kwoty obejmują oszczędności i inwestycje, a nie tylko pieniądze dostępne do wydania. Uwzględniają potrącenia przyjęte w Twoich wyliczeniach — nie są gwarantowaną kwotą wypłaty.';
- app.innerHTML=`<div class="sav-wrap">${savingsGroup_?'<button class="back-button" onclick="savingsBack_()">← Wszystkie oszczędności</button>':'<h1>Oszczędności</h1>'}<div class="sav-month"><button id="sav-prev" aria-label="Poprzedni okres" onclick="savingsMove_(-1)" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="sav-period">Wybierz okres oszczędności</label><select id="sav-period" onchange="savingsSelect_(this.value)">${savingsData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="sav-next" aria-label="Następny okres" onclick="savingsMove_(1)" ${at===savingsData_.periods.length-1?'disabled':''}>›</button></div>
- <section class="sav-hero"><div>${title}</div><strong>${formatPLN(value)}</strong><span>${delta===0?'Bez zmian':savingsDelta_(delta)}</span><span class="sav-comparison">${comparison}</span></section>
+ if(savingsGroup_){content=`<section class="sav-panel"><h2>Co składa się na tę kwotę</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${savingsPLN_(item.value)}</strong></div>`;}).join('')}</section>`;}
+ else {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
+ app.innerHTML=`<div class="sav-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button id="sav-back" class="detail-sticky-back" onclick="${savingsGroup_?'savingsBack_()':'showMainDashboard()'}" aria-label="${savingsGroup_?'Wróć do wszystkich oszczędności':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności'}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="sav-prev" aria-label="Poprzedni okres" onclick="savingsMove_(-1)" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="sav-period">Wybierz okres oszczędności</label><select id="sav-period" onchange="savingsSelect_(this.value)">${savingsData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="sav-next" aria-label="Następny okres" onclick="savingsMove_(1)" ${at===savingsData_.periods.length-1?'disabled':''}>›</button></div>
+ <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':savingsDelta_(delta)}</span><span class="sav-comparison">${comparison}</span></section>
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
  ${content}${savingsChart_(p)}
- <details class="sav-panel sav-help" data-sav-disclosure="help"><summary id="sav-help">Jak czytać te kwoty?</summary><p>${explanation}</p><p>Zmiana wartości może wynikać z wpłat, wypłat oraz wzrostu lub spadku cen inwestycji. Nie oznacza wyłącznie zysku lub straty.</p><p>Kwoty dotyczą wybranego okresu. Data aktualizacji mówi, kiedy je pobraliśmy, a nie kiedy wyceniono każdą inwestycję.</p><p>Starsza historia zawiera zapisy roczne, a nowsza miesięczne. Strzałki przechodzą między dostępnymi zapisami.</p></details>
  ${(savingsData_.warnings||[]).length?`<details class="sav-panel" data-sav-disclosure="warnings"><summary id="sav-warnings">Niektóre dane wymagają sprawdzenia (${savingsData_.warnings.length})</summary>${savingsData_.warnings.map(x=>`<p>${escapeHtml(x)}</p>`).join('')}</details>`:''}</div>`;
  for(const el of app.querySelectorAll('details[data-sav-disclosure]'))el.open=disclosures.includes(el.dataset.savDisclosure);
  if(focused){const el=document.getElementById(focused);if(el&&!el.disabled)el.focus({preventScroll:true});}
