@@ -1526,12 +1526,20 @@ button:focus-visible,select:focus-visible,summary:focus-visible,.category-card:f
 .debt-wrap .sav-sticky{background:rgba(249,246,251,.98);border-color:#dfd7e7}.debt-wrap .sav-sticky .detail-sticky-title{color:#513565}.debt-wrap .sav-muted,.debt-wrap .sav-status,.debt-wrap .detail-sticky-month{color:#62566f}.debt-wrap .sav-month button,.debt-wrap .sav-month select,.debt-wrap .sav-status button,.debt-wrap .detail-sticky-back{color:#614080;border-color:#dfd7e7}.debt-wrap .sav-range button[aria-pressed=true]{background:#614080;color:#fff}.debt-wrap .sav-range button{color:#614080;background:#f0ebf5}.debt-wrap .sav-panel{border-color:#dfd7e7}.debt-wrap button:focus-visible,.debt-wrap select:focus-visible,.debt-wrap summary:focus-visible,.budget-tabs button[data-tab="debts"]:focus-visible{outline-color:#7352a2}
 @media(max-width:370px){.budget-tabs button{font-size:12px}.debt-breakdown b{font-size:18px}.debt-card{padding:16px}}@media(hover:hover){.debt-card:hover{border-color:#a88cbf;box-shadow:0 4px 14px #51356510}}
 
+
+.app-utilities{display:flex;justify-content:space-between;align-items:center;gap:10px;max-width:732px;margin:8px auto;padding:0 14px;color:#53616d;font-size:12px}.app-utilities button{min-height:44px;background:white;color:#354652;border:1px solid #d9e0e5;border-radius:12px;padding:8px 12px;font:600 14px system-ui;cursor:pointer}
+.sav-sticky [hidden]{display:none!important}.sav-sticky .detail-sticky-center{grid-column:2}.sav-sticky .detail-sticky-month{font-size:13px}.sav-sticky{min-height:62px}.disposition-card>summary{min-height:44px;cursor:pointer;font-size:17px;font-weight:650;padding:12px 0}.disposition-card .disposition-grid{margin-top:16px}
+.main-card,.sav-hero{border-radius:22px}.main-card-value,.sav-hero>strong{font-variant-numeric:tabular-nums}.dashboard-page-header .page-title{font-size:22px}.data-freshness{font-size:13px}.main-card-description{font-size:13px}.summary-label{color:#59636d;font-size:13px}.category-bottom{font-size:13px}.dashboard-month-sticky{z-index:60}
+body.amounts-hidden #app svg{visibility:hidden}body.amounts-hidden .progress-bar{visibility:hidden}
+@media(max-width:760px){body{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}.budget-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;width:100%;max-width:none;box-sizing:border-box;margin:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;background:#f4f6f8!important;border-top:1px solid #dce2e7;box-shadow:0 -4px 20px #203c6510;gap:6px}.budget-tabs button{min-height:52px;font-size:13px}.budget-tabs button[data-tab="budget"].selected{background:#287c54;color:white}.app-utilities{margin-top:4px}.sav-wrap{padding-top:4px}.dashboard-page-header{padding-top:4px}.sav-sticky{margin-bottom:10px}.sav-month{margin-top:4px}}
+
 </style>
 
 </head>
 
 
 <body>
+<div class="app-utilities"><span class="app-version">Budżet rodzinny · V15</span><button id="privacy-toggle" type="button" aria-pressed="false" onclick="toggleAmounts_()">Ukryj kwoty</button></div>
 <nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()">Budżet</button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()">Oszczędności</button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()">Zobowiązania</button></nav>
 
   <div id="app">
@@ -1716,7 +1724,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-DEBTS-V14';
+    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V15';
 
     
     
@@ -2363,8 +2371,8 @@ const budgetDisk = (() => {
         );
 
       return time
-        ? 'Aktualne · ' + time
-        : 'Aktualne';
+        ? 'Odświeżono · ' + time
+        : 'Odświeżono';
     }
 
     function updateFreshnessIndicator_(mode) {
@@ -3672,6 +3680,7 @@ function formatHistoryValue(value) {
         document.getElementById('app');
 
 
+      const dispositionWasOpen = !!app.querySelector('details.disposition-card[open]');
       const dochody =
         Number(data.dochody) || 0;
 
@@ -4096,74 +4105,19 @@ function formatHistoryValue(value) {
         </div>
 
 
-        <!-- PODSUMOWANIE MIESIĄCA -->
+        <!-- KATEGORIE -->
 
-        <div class="surplus-card balance-card">
-
-          <div class="section-title">
-            Podsumowanie miesiąca
-          </div>
-
-
-          <div class="surplus-row">
-
-            <div class="surplus-label">
-              Wpływy
-            </div>
-
-            <div class="surplus-value">
-              ${formatPLN(dochody)}
-            </div>
-
-          </div>
-
-
-          <div class="surplus-row">
-
-            <div class="surplus-label">
-              Wydatki
-            </div>
-
-            <div class="surplus-value">
-              ${formatPLN(wydatki)}
-            </div>
-
-          </div>
-
-
-          <div class="surplus-row is-total">
-
-            <div class="surplus-label">
-              ${isClosedMonth ? 'Wynik miesiąca' : 'Wolne środki'}
-            </div>
-
-            <div
-              class="surplus-value"
-              style="
-                color: ${
-                  (isClosedMonth ? monthlyResult : wolneSrodki) < 0
-                    ? '#e74c3c'
-                    : (isClosedMonth ? monthlyResult : wolneSrodki) > 0
-                      ? '#39aa6b'
-                      : '#777'
-                };
-              "
-            >
-              ${formatPLN(isClosedMonth ? monthlyResult : wolneSrodki)}
-            </div>
-
-          </div>
-
+        <div class="categories-title">
+          Wydatki według kategorii
         </div>
 
 
+        ${categoriesHtml}
         <!-- ROZLICZENIE MIESIĄCA -->
 
-        <div class="surplus-card disposition-card">
+        <details class="surplus-card disposition-card"><summary>Rozliczenie miesiąca</summary>
 
-          <div class="section-title">
-            Rozliczenie miesiąca
-          </div>
+          
 
           <div class="disposition-grid">
 
@@ -4223,22 +4177,15 @@ function formatHistoryValue(value) {
             </div>
           </div>
 
-        </div>
+        </details>
 
 
-        <!-- KATEGORIE -->
-
-        <div class="categories-title">
-          Wydatki według kategorii
-        </div>
-
-
-        ${categoriesHtml}
 
       `;
 
       // PWA zapisuje gotowy widok dashboardu poza iframe. Przy kolejnym
       // zimnym starcie może go pokazać natychmiast, zanim Apps Script się pobierze.
+      const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
       sendPwaDashboardSnapshot_(data);
       notifyPwaReady_('dashboard');
     }
@@ -5494,7 +5441,7 @@ function savingsAdopt_(x) {
 function savingsStatus_() {
  const el=document.getElementById('savings-status');if(!el)return;
  const timestamp=savingsData_ ? new Date(savingsData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
- el.textContent=savingsBusy_?'Odświeżanie…':savingsError_ ? (navigator.onLine?'Nie udało się odświeżyć. Pokazujemy zapisane dane.':'Bez internetu · pokazujemy zapisane dane')+(timestamp?' · '+timestamp:'') : timestamp ? 'Ostatnia aktualizacja: '+timestamp : 'Pierwsze pobranie danych';
+ el.textContent=savingsBusy_?'Odświeżanie…':savingsError_ ? (navigator.onLine?'Nie udało się odświeżyć. Pokazujemy zapisane dane.':'Bez internetu · pokazujemy zapisane dane')+(timestamp?' · '+timestamp:'') : timestamp ? 'Odświeżono · '+timestamp : 'Pierwsze pobranie danych';
  const button=document.getElementById('savings-refresh');if(button){button.disabled=savingsBusy_;button.setAttribute('aria-busy',String(savingsBusy_));}
 }
 function savingsLabel_(key){const [year,month]=key.split('-').map(Number);return new Date(year,month-1,1).toLocaleDateString('pl-PL',{month:'long',year:'numeric'});}
@@ -5562,7 +5509,7 @@ function renderSavings_(){
  let content='';
  if(savingsGroup_){content=`<section class="sav-panel"><h2>Co składa się na tę kwotę</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${savingsPLN_(item.value)}</strong></div>`;}).join('')}</section>`;}
  else {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
- app.innerHTML=`<div class="sav-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button id="sav-back" class="detail-sticky-back" onclick="${savingsGroup_?'savingsBack_()':'showMainDashboard()'}" aria-label="${savingsGroup_?'Wróć do wszystkich oszczędności':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności'}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="sav-prev" aria-label="Poprzedni okres" onclick="savingsMove_(-1)" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="sav-period">Wybierz okres oszczędności</label><select id="sav-period" onchange="savingsSelect_(this.value)">${savingsData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="sav-next" aria-label="Następny okres" onclick="savingsMove_(1)" ${at===savingsData_.periods.length-1?'disabled':''}>›</button></div>
+ app.innerHTML=`<div class="sav-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button ${savingsGroup_?'':'hidden'} id="sav-back" class="detail-sticky-back" onclick="${savingsGroup_?'savingsBack_()':'showMainDashboard()'}" aria-label="${savingsGroup_?'Wróć do wszystkich oszczędności':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności'}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="sav-prev" aria-label="Poprzedni okres" onclick="savingsMove_(-1)" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="sav-period">Wybierz okres oszczędności</label><select id="sav-period" onchange="savingsSelect_(this.value)">${savingsData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="sav-next" aria-label="Następny okres" onclick="savingsMove_(1)" ${at===savingsData_.periods.length-1?'disabled':''}>›</button></div>
  <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':savingsDelta_(delta)}</span><span class="sav-comparison">${comparison}</span></section>
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
  ${content}${savingsChart_(p)}
@@ -5589,7 +5536,7 @@ function debtRefresh_(){
  debtBusy_=true;debtError_=false;if(activeView_==='debts')debtStatus_();
  google.script.run.withSuccessHandler(data=>{debtBusy_=false;debtError_=!debtAdopt_(data);if(!debtError_){try{localStorage.setItem(debtKey_,JSON.stringify(data));}catch(_){}try{caches.open('budzet-rodzinny-runtime-v8').then(c=>c.put(debtURL_(),new Response(JSON.stringify(data)))).catch(()=>{});}catch(_){}}if(activeView_==='debts')renderDebts_();}).withFailureHandler(()=>{debtBusy_=false;debtError_=true;if(activeView_==='debts')renderDebts_();}).getDebtsData();
 }
-function debtStatus_(){const el=document.getElementById('debt-status'),btn=document.getElementById('debt-refresh');if(el)el.textContent=debtBusy_?'Odświeżanie…':debtError_?'Nie udało się odświeżyć · pokazujemy zapisane dane':'Pobrano: '+new Date(debtData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});if(btn){btn.disabled=debtBusy_;btn.setAttribute('aria-busy',String(debtBusy_));}}
+function debtStatus_(){const el=document.getElementById('debt-status'),btn=document.getElementById('debt-refresh');if(el)el.textContent=debtBusy_?'Odświeżanie…':debtError_?'Nie udało się odświeżyć · pokazujemy zapisane dane':'Odświeżono · '+new Date(debtData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});if(btn){btn.disabled=debtBusy_;btn.setAttribute('aria-busy',String(debtBusy_));}}
 function debtSelect_(key){if(debtData_.periods.some(p=>p.key===key)){debtPeriod_=key;renderDebts_();}}
 function debtMove_(d){const n=debtData_.periods.findIndex(p=>p.key===debtPeriod_)+d;if(debtData_.periods[n])debtSelect_(debtData_.periods[n].key);}
 function debtDetail_(id){debtId_=id;renderDebts_();window.scrollTo(0,0);}
@@ -5612,7 +5559,7 @@ function renderDebts_(){
  const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
  const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
  const change=p.inProgress?'Miesiąc w trakcie · kwoty według ostatnich wpisów':delta===null?'Początek dostępnej historii':Math.abs(delta)<.005?'Bez zmiany względem poprzedniego zapisu':`${delta<0?'Mniej':'Więcej'} o ${savingsPLN_(Math.abs(delta))} od ${savingsLabel_(prev.key)}`;
- app.innerHTML=`<div class="sav-wrap debt-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button id="debt-back" class="detail-sticky-back" onclick="${debtId_?'debtBack_()':'showMainDashboard()'}" aria-label="${debtId_?'Wróć do zobowiązań':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${escapeHtml(title)}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="debt-prev" onclick="debtMove_(-1)" aria-label="Poprzedni okres" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="debt-period">Okres zobowiązań</label><select id="debt-period" onchange="debtSelect_(this.value)">${debtData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="debt-next" onclick="debtMove_(1)" aria-label="Następny okres" ${at===debtData_.periods.length-1?'disabled':''}>›</button></div>
+ app.innerHTML=`<div class="sav-wrap debt-wrap"><header class="detail-sticky-bar is-visible sav-sticky"><button ${debtId_?'':'hidden'} id="debt-back" class="detail-sticky-back" onclick="${debtId_?'debtBack_()':'showMainDashboard()'}" aria-label="${debtId_?'Wróć do zobowiązań':'Wróć do budżetu'}">‹</button><div class="detail-sticky-center"><h1 class="detail-sticky-title">${escapeHtml(title)}</h1><div class="detail-sticky-month">${savingsLabel_(p.key)}</div></div><span class="detail-sticky-spacer" aria-hidden="true"></span></header><div class="sav-month"><button id="debt-prev" onclick="debtMove_(-1)" aria-label="Poprzedni okres" ${at===0?'disabled':''}>‹</button><label class="sr-only" for="debt-period">Okres zobowiązań</label><select id="debt-period" onchange="debtSelect_(this.value)">${debtData_.periods.slice().reverse().map(q=>`<option value="${q.key}" ${q.key===p.key?'selected':''}>${savingsLabel_(q.key)}</option>`).join('')}</select><button id="debt-next" onclick="debtMove_(1)" aria-label="Następny okres" ${at===debtData_.periods.length-1?'disabled':''}>›</button></div>
  ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span></section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
  ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?active.sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join(''):'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
@@ -5644,6 +5591,28 @@ document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&docu
  new MutationObserver(labelCards).observe(app,{childList:true});labelCards();
  app.addEventListener('keydown',e=>{const card=e.target.closest('.category-card[onclick]');if(card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();card.click();}});
 })();
+
+
+// Visual privacy only. This does NOT authenticate or encrypt stored data.
+let amountsHidden_=false;
+try{amountsHidden_=localStorage.getItem('budget-hide-amounts')==='1';}catch(_){}
+const amountOriginal_=new Map();
+function applyAmountPrivacy_(){
+ const app=document.getElementById('app'),button=document.getElementById('privacy-toggle');
+ document.body.classList.toggle('amounts-hidden',amountsHidden_);
+ button.textContent=amountsHidden_?'Pokaż kwoty':'Ukryj kwoty';button.setAttribute('aria-pressed',String(amountsHidden_));
+ for(const [node,original] of amountOriginal_){if(!node.isConnected){amountOriginal_.delete(node);continue;}if(!amountsHidden_){node.nodeValue=original;amountOriginal_.delete(node);}}
+ if(!amountsHidden_)return;
+ const walk=document.createTreeWalker(app,NodeFilter.SHOW_TEXT);let node;
+ const money=/[+−-]?\d[\d \u00a0\u202f.,]*\s*(?:zł|%|tys\.|k\b)/g;
+ while(node=walk.nextNode()){
+  if(node.parentElement&&node.parentElement.closest('script,style,select'))continue;
+  const value=node.nodeValue,replaced=value.replace(money,'••••');
+  if(replaced!==value){amountOriginal_.set(node,value);node.nodeValue=replaced;}
+ }
+}
+function toggleAmounts_(){amountsHidden_=!amountsHidden_;try{localStorage.setItem('budget-hide-amounts',amountsHidden_?'1':'0');}catch(_){}applyAmountPrivacy_();}
+(function(){const app=document.getElementById('app');new MutationObserver(applyAmountPrivacy_).observe(app,{childList:true,subtree:true,characterData:true});applyAmountPrivacy_();})();
 
 </script>
 
