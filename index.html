@@ -1657,6 +1657,16 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .entry-panel summary:focus-visible,.income-entry-button:focus-visible{outline:3px solid #4c9165;outline-offset:3px}
 @media(max-width:350px){.entry-group>summary{grid-template-columns:minmax(0,1fr) 12px}.entry-group>summary strong{grid-row:2}.entry-group>summary>span:last-child{grid-column:2;grid-row:1}.entry-row{grid-template-columns:minmax(0,1fr)}.entry-row strong{text-align:right}}
 
+
+.entry-subcategories{border:0;background:transparent;padding:0;margin:0}
+.entry-subdetails{margin-top:12px;border-top:1px solid #e3e9e5;padding-top:10px}
+.entry-subdetails>summary{display:flex;justify-content:space-between;align-items:center;min-height:44px;cursor:pointer;color:#417c59;font-size:14px;list-style:none}
+.entry-subdetails>summary::-webkit-details-marker{display:none}
+.entry-subdetails[open]>summary .entry-chevron{transform:rotate(180deg)}
+.entry-subdetails .entry-row{font-size:14px;padding:10px 0}
+.entry-subdetails .entry-row strong{white-space:nowrap}
+.entry-subdetails h3{font-size:13px;color:#68756d;margin:14px 0 2px;font-weight:500}
+.income-period{text-align:center;color:#617369;font-size:15px;padding:4px 0 12px}
 </style>
 
 </head>
@@ -1847,7 +1857,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-09-ENTRIES-V22';
+    const FRONTEND_BUILD_VERSION = '2026-10-09-ENTRIES-V23';
 
     
     
@@ -3469,7 +3479,7 @@ function formatHistoryValue(value) {
       const app =
         document.getElementById('app');
 
-      if (isInitialLoad && !['savings','debts'].includes(activeView_)) {
+      if (isInitialLoad && !['savings','debts','income'].includes(activeView_)) {
 
         app.innerHTML = `
 
@@ -4161,7 +4171,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
         </div>
 
 
-        ${entryPanelV22_('Wpływy')}
+        
 
         <!-- KATEGORIE -->
 
@@ -5075,7 +5085,7 @@ tripsHtml = `
 
 
         ${dailyBudgetHtml}
-        ${entryPanelV22_(data.category)}
+        
 
 
         <!-- PODKATEGORIE -->
@@ -5089,13 +5099,13 @@ tripsHtml = `
         </div>
 
 
-        ${subcategoriesHtml}
-
+        <section id="entry-panel" class="entry-panel entry-subcategories" data-category="${escapeHtml(data.category)}" data-year="${selectedYear}" data-month="${selectedMonth}">${subcategoriesHtml}</section>
 
         ${renderHistoryHtml(data)}
 
       `;
 
+      initSubEntriesV23_();
       initDetailSticky_();
       forceScrollToTop_();
       notifyPwaReady_('category');
@@ -5305,7 +5315,7 @@ function toggleHolidayTrips() {
     
 
     function showMainDashboard() {
-      const returning=activeView_==='category';
+      const returning=['category','income'].includes(activeView_);
       setBudgetTab_('budget');
       activeView_ = 'dashboard';
       activeCategory_ = null;
@@ -5331,7 +5341,7 @@ function toggleHolidayTrips() {
     
 
     function showError(message) {
-      if (['savings','debts'].includes(activeView_)) return;
+      if (['savings','debts','income'].includes(activeView_)) return;
 
       const app =
         document.getElementById('app');
@@ -5773,20 +5783,25 @@ function entryStateV22_(el){
  if(!state){state={open:false,data:null,busy:false,error:false,expanded:new Set(el.dataset.category==='Wpływy'?['0']:[]),requested:0};try{const saved=JSON.parse(localStorage.getItem('budget-entries-v22|'+key));if(entryValidV22_(saved,el))state.data=saved;}catch(_){}entryViewsV22_.set(key,state);}
  return state;
 }
-function openIncomeEntriesV22_(){const el=document.getElementById('entry-panel');if(!el||el.dataset.category!=='Wpływy')return;el.open=true;entryToggleV22_(el);el.querySelector('summary').focus({preventScroll:true});el.scrollIntoView({block:'nearest',behavior:'auto'});}
+function openIncomeEntriesV22_(){
+ budgetReturnY_=window.scrollY;cleanupDetailSticky_();activeView_='income';activeCategory_=null;
+ document.getElementById('app').innerHTML=`<header class="unified-header sav-sticky"><div class="unified-title-row"><button class="unified-back" onclick="showMainDashboard()" aria-label="Wróć do budżetu">‹</button><h1>Wpływy</h1>${privacyButton_()}</div><div class="income-period">${escapeHtml(getMonthLabel(selectedYear,selectedMonth))}</div></header><section id="entry-panel" class="entry-panel" data-category="Wpływy" data-year="${selectedYear}" data-month="${selectedMonth}"><div class="entry-content"></div></section>`;
+ const el=document.getElementById('entry-panel');el.open=true;const state=entryStateV22_(el);state.open=true;entryRenderV22_(el,state);entryFetchV22_(el,false);forceScrollToTop_();
+}
 function entryToggleV22_(el){const state=entryStateV22_(el);state.open=el.open;if(el.open){entryRenderV22_(el,state);entryFetchV22_(el,false);}}
 function entryGroupToggleV22_(el){const panel=el.closest('.entry-panel'),state=entryStateV22_(panel);if(el.open)state.expanded.add(el.dataset.entryGroup);else state.expanded.delete(el.dataset.entryGroup);}
 function entryRenderV22_(el,state){
+ if(el.dataset.category!=='Wpływy'){renderSubEntriesV23_(el,state);return;}
  const area=el.querySelector('.entry-content'),data=state.data;
  const money=n=>formatPLN(Number(n)||0);
- const row=i=>`<div class="entry-row"><div><span>${escapeHtml(i.name)}</span>${i.status?`<span class="entry-badge ${i.status==='Planowane'?'planned':''}">${escapeHtml(i.status)}</span>`:''}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${money(i.amount)}</strong></div>`;
+ const row=i=>`<div class="entry-row"><div><span>${escapeHtml(i.name)}</span>${i.status==='Planowane'?`<span class="entry-badge ${i.status==='Planowane'?'planned':''}">${escapeHtml(i.status)}</span>`:''}</div><strong>${money(i.amount)}</strong></div>`;
  const diff=n=>Math.abs(n||0)>=.005?`<p class="entry-difference">Różnica między sumą pokazanych pozycji a podsumowaniem: <strong>${money(n)}</strong>.</p>`:'';
  function group(g,index){
   const id=String(index),amount=g.amount==null?(g.items||[]).reduce((a,i)=>a+i.amount,0):g.amount;
   return `<details class="entry-group" data-entry-group="${id}" ${state.expanded.has(id)?'open':''} ontoggle="entryGroupToggleV22_(this)"><summary><span>${escapeHtml(g.name)}</span><strong>${money(amount)}</strong><span aria-hidden="true">⌄</span></summary>${g.items?(g.items.length?g.items.map(row).join(''):'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>'):(g.children||[]).map((child,j)=>`<div class="entry-subgroup">${child.name!=='Pozycje'?`<h3>${escapeHtml(child.name)}</h3>`:''}${child.items.map(row).join('')}</div>`).join('')}${g.children&&!g.children.some(c=>c.items.length)?'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>':''}${diff(g.difference)}</details>`;
  }
  const fresh=state.error?'Nie udało się odświeżyć.':!navigator.onLine?'Brak internetu.':state.busy?'Odświeżanie…':'';
- area.innerHTML=`${data?`<p class="entry-muted">${escapeHtml(data.notice)}</p><div class="entry-total"><span>Łącznie</span><strong>${money(data.total)}</strong></div>${data.groups.length?data.groups.map(group).join(''):'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>'}${diff(data.difference)}`:`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':navigator.onLine?'Pobieranie szczegółów…':'Połącz się z internetem, aby pobrać szczegóły po raz pierwszy.'}</p>`}<div class="entry-footer"><span role="status">${fresh}${data?' Zapisane: '+new Date(data.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</span><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)" ${state.busy?'disabled':''}>${state.error?'Spróbuj ponownie':'Odśwież'}</button></div>`;
+ area.innerHTML=`${data?`<div class="entry-total"><span>Łącznie</span><strong>${money(data.total)}</strong></div>${data.groups.length?data.groups.map(group).join(''):'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>'}${diff(data.difference)}`:`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':navigator.onLine?'Pobieranie szczegółów…':'Połącz się z internetem, aby pobrać szczegóły po raz pierwszy.'}</p>`}<div class="entry-footer"><span role="status">${fresh}${data?' Zapisane: '+new Date(data.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</span><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)" ${state.busy?'disabled':''}>${state.error?'Spróbuj ponownie':'Odśwież'}</button></div>`;
  if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
 }
 function entryFetchV22_(el,force){
@@ -5799,11 +5814,58 @@ function entryFetchV22_(el,force){
   state.busy=false;if(entryValidV22_(data,el)){state.data=data;state.error=false;try{localStorage.setItem('budget-entries-v22|'+key,JSON.stringify(data));}catch(_){}}else state.error=true;update();
  }).withFailureHandler(()=>{state.busy=false;state.error=true;update();}).getBudgetEntries(el.dataset.category,Number(el.dataset.year),Number(el.dataset.month));
 }
-(function(){
- const app=document.getElementById('app');
- function restore(){const el=document.getElementById('entry-panel');if(!el)return;const state=entryStateV22_(el);el.open=state.open;if(state.open){entryRenderV22_(el,state);entryFetchV22_(el,false);}}
- new MutationObserver(restore).observe(app,{childList:true});restore();
-})();
+function entryNormV23_(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[łŁ]/g,'l').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+function entryMatchesV23_(category,name,group){
+ const n=entryNormV23_(name),g=entryNormV23_(group),c=entryNormV23_(category);
+ const aliases={
+ 'Paliwo i dojazdy':['paliwo i dojazdy','wyjazd do domu'],
+ 'Samochody – utrzymanie':['samochody serwis i eksploatacja','myjnia i kosmetyka auta'],
+ 'Komunikacja i opłaty':['ubezpieczenia i oplaty','komunikacja'],
+ 'Wynajem samochodów':['wynajem'],
+ 'Zajęcia regularne':['zajecia regularne','prestige','egurrola','zajecia dodatkowe']
+ };
+ if(aliases[name])return aliases[name].some(a=>g.includes(a));
+ if(c.includes('ubrania')&&n.startsWith('ubrania '))return g.includes('ubrania')&&g.split(' ').includes(n.slice(8));
+ return g.includes(n)||n.startsWith(g)|| (n.startsWith('stale koszty mieszkania')&&g.startsWith('stale koszty mieszkania'));
+}
+function initSubEntriesV23_(){
+ const el=document.getElementById('entry-panel');if(!el)return;
+ if(el.dataset.category==='Wyżywienie i chemia'){el.removeAttribute('id');return;}
+ el.open=true;const state=entryStateV22_(el);state.open=true;
+ const cards=[...el.querySelectorAll('.subcategory-card')];
+ cards.forEach(card=>{
+ const name=card.querySelector('.subcategory-name')?.textContent.replace('⌄','').trim();if(!name||name==='Brak podkategorii')return;
+ card.removeAttribute('onclick');card.style.cursor='';card.querySelector('#holiday-trips-arrow')?.remove();card.querySelector('#holiday-trips')?.remove();
+ const d=document.createElement('details');d.className='entry-subdetails';d.dataset.subName=name;
+ d.innerHTML='<summary><span>Szczegóły wydatków</span><span class="entry-chevron" aria-hidden="true">⌄</span></summary><div class="entry-subcontent"></div>';
+ d.open=state.expanded.has('sub:'+name);d.ontoggle=()=>{if(d.open){state.expanded.add('sub:'+name);entryRenderV22_(el,state);entryFetchV22_(el,false);}else state.expanded.delete('sub:'+name);};card.append(d);
+ });
+ renderSubEntriesV23_(el,state);
+ if(!el.querySelector('.entry-subdetails')||el.querySelector('.entry-subdetails[open]'))entryFetchV22_(el,false);
+}
+function renderSubEntriesV23_(el,state){
+ const data=state.data;let details=[...el.querySelectorAll('.entry-subdetails')];
+ if(!details.length&&!data){el.innerHTML=`<p class="entry-muted">${state.error?'Nie udało się pobrać szczegółów.':'Pobieranie szczegółów…'}</p><button onclick="entryFetchV22_(this.closest('.entry-panel'),true)">Spróbuj ponownie</button>`;return;}
+ if(!details.length&&data){
+ el.innerHTML=data.groups.map((g,i)=>`<div class="subcategory-card"><div class="subcategory-top"><div class="subcategory-name">${escapeHtml(g.name)}</div><strong>${formatPLN(g.items.reduce((s,x)=>s+x.amount,0))}</strong></div><details class="entry-subdetails" data-direct-group="${i}"><summary><span>Szczegóły wydatków</span><span class="entry-chevron">⌄</span></summary><div class="entry-subcontent"></div></details></div>`).join('')||'<p class="entry-muted">Brak zapisanych wydatków.</p>';
+ details=[...el.querySelectorAll('.entry-subdetails')];details.forEach(d=>{d.ontoggle=()=>{if(d.open)renderSubEntriesV23_(el,state);};});
+ }
+ if(data&&details.some(d=>d.dataset.subName)){
+ const unmatched=data.groups.filter(g=>!details.some(d=>d.dataset.subName&&entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name)));
+ let extra=el.querySelector('.entry-unmatched');
+ if(unmatched.length){if(!extra){extra=document.createElement('div');extra.className='entry-unmatched';el.append(extra);}extra.innerHTML=unmatched.map(g=>`<details class="entry-group"><summary>${escapeHtml(g.name)} <span aria-hidden="true">⌄</span></summary>${g.items.map(i=>`<div class="entry-row"><span>${escapeHtml(i.name)}</span><strong>${formatPLN(i.amount)}</strong></div>`).join('')}</details>`).join('');}else extra?.remove();
+ }
+ let diff=el.querySelector('.entry-reconcile');
+ if(data&&Math.abs(data.difference||0)>=.005){if(!diff){diff=document.createElement('p');diff.className='entry-reconcile entry-muted';el.append(diff);}diff.textContent='Różnica między sumą pozycji a podsumowaniem: '+formatPLN(data.difference)+'.';}else diff?.remove();
+ for(const d of details){
+ const area=d.querySelector('.entry-subcontent');
+ if(!data){area.innerHTML=`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':!navigator.onLine?'Połącz się z internetem, aby pobrać szczegóły.':'Pobieranie szczegółów…'}</p><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)">Spróbuj ponownie</button>`;continue;}
+ const groups=d.dataset.directGroup!==undefined?[data.groups[Number(d.dataset.directGroup)]]:data.groups.filter(g=>entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name));
+ area.innerHTML=groups.map(g=>`${groups.length>1?`<h3>${escapeHtml(g.name.split(' / ').pop())}</h3>`:''}${(g.items||[]).map(i=>`<div class="entry-row"><div>${escapeHtml(i.name)}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${formatPLN(i.amount)}</strong></div>`).join('')}`).join('')||'<p class="entry-muted">Brak zapisanych pozycji w tej podkategorii.</p>';
+ if(state.error)area.innerHTML+='<p class="entry-muted">Nie udało się odświeżyć. Pokazujemy zapisane dane.</p>';
+ }
+ if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
+}
 
 </script>
 
