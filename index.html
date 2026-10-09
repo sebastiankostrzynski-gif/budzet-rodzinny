@@ -1581,6 +1581,63 @@ body.amounts-hidden #app svg:not(.privacy-eye svg){visibility:hidden}body.amount
 .detail-no-limit .detail-progress{display:none}
 body.amounts-hidden .history-chart{visibility:hidden}
 
+
+/* V20 savings readability; selectors do not restyle budget cards. */
+.savings-theme .savings-hero{gap:0;padding:22px 20px;background:#203c65;box-shadow:0 3px 10px #203c650b}
+.savings-theme .savings-hero>div{font-size:15px;line-height:1.4}
+.savings-theme .savings-hero>.savings-total{font-size:clamp(32px,8.4vw,36px);font-weight:650;line-height:1.2;letter-spacing:-.5px;margin:10px 0 8px;max-width:100%;overflow-wrap:anywhere}
+.savings-theme .savings-hero>.savings-total-long{font-size:clamp(24px,6.8vw,32px)}
+.savings-theme .savings-change{font-size:13px;line-height:1.5;color:#edf3fa}
+.savings-theme .sav-card{display:flex;gap:5px;padding:14px 16px;min-width:0;width:100%;box-sizing:border-box}
+.savings-theme .sav-card-heading{display:flex;align-items:center;gap:10px;width:100%;min-width:0}
+.savings-theme .sav-card-heading .sav-name{flex:1;min-width:0;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.savings-theme .sav-icon{display:flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;box-sizing:border-box;padding:4px;font-size:20px}
+.savings-theme .sav-chevron{flex:0 0 12px;text-align:right;color:#52617a}
+.savings-theme .sav-card>strong{margin-left:40px;max-width:calc(100% - 40px);font-size:23px;font-weight:650;white-space:normal;overflow-wrap:anywhere}
+.savings-theme .sav-card>.sav-muted{margin-left:40px;max-width:calc(100% - 40px);font-size:13px;line-height:1.4}
+.savings-theme .sav-item{padding:12px 0;align-items:flex-start;gap:14px}.savings-theme .sav-item>div{flex:1;min-width:0;line-height:1.4}.savings-theme .sav-item>strong{flex:0 1 auto;max-width:55%;white-space:normal;text-align:right;overflow-wrap:anywhere;line-height:1.4}
+.savings-theme .balance-history,.debts-theme .balance-history{margin-top:22px}
+@media(max-width:480px){.savings-theme .sav-grid{grid-template-columns:minmax(0,1fr);gap:10px}}
+
+
+/* V21: shared savings/debt hierarchy; all selectors scoped away from Budget. */
+.sav-wrap .sav-hero{gap:0;padding:22px 20px;border-radius:22px;box-shadow:0 3px 10px #203c650b}
+.sav-wrap .sav-hero>div:first-child{font-size:15px;line-height:1.4}
+.sav-wrap .sav-hero>.balance-total{font-size:clamp(32px,8.4vw,36px);font-weight:650;line-height:1.2;letter-spacing:-.5px;margin:10px 0 8px;max-width:100%;overflow-wrap:anywhere}
+.sav-wrap .sav-hero>.balance-total-long{font-size:clamp(24px,6.8vw,32px)}
+.sav-wrap .savings-change{display:flex;flex-wrap:wrap;column-gap:8px;row-gap:2px;font-size:13px;line-height:1.5;color:#f1f3fa}
+.change-amount{font-weight:600}.change-context{font-weight:400}
+.sav-wrap .balance-card{display:flex;align-items:stretch;gap:5px;padding:16px;min-width:0;width:100%;margin:0;border-radius:18px;box-sizing:border-box}
+.sav-wrap .balance-card .sav-card-heading{display:flex;align-items:center;gap:10px;min-width:0;width:100%}
+.sav-wrap .balance-card .sav-name{flex:1;min-width:0;font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.sav-wrap .balance-card .sav-icon{display:flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;box-sizing:border-box;padding:4px;font-size:20px;border-radius:10px}
+.debt-wrap .sav-icon{background:#f0ebf5}
+.sav-wrap .balance-card .sav-chevron{flex:0 0 12px;text-align:right}
+.sav-wrap .balance-card>strong{margin-left:40px;max-width:calc(100% - 40px);font-size:23px;font-weight:650;white-space:normal;overflow-wrap:anywhere}
+.sav-wrap .balance-card>.sav-muted{margin-left:40px;max-width:calc(100% - 40px);font-size:13px;line-height:1.45;display:flex;flex-wrap:wrap;column-gap:6px;row-gap:2px}
+.sav-wrap .balance-card .debt-breakdown{margin:7px 0 0 40px;padding-top:10px;gap:8px}
+.sav-wrap .debt-breakdown{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px;padding-top:12px}
+.sav-wrap .debt-breakdown span{min-width:0;gap:4px;font-size:13px}
+.sav-wrap .debt-breakdown b{font-size:clamp(17px,5vw,21px);font-weight:600;white-space:normal;overflow-wrap:anywhere}
+.sav-wrap .balance-card .debt-breakdown b{font-size:17px}
+.debt-composition{display:grid;gap:9px;border-top:1px solid #ffffff35;margin-top:14px;padding-top:12px;font-size:13px}
+.debt-composition>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:12px}
+.debt-composition strong{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere;max-width:100%}
+.sav-wrap .sav-hero .debt-progress{font-size:12px;margin-top:12px;color:#eee6f5}
+.sav-wrap .sav-panel{padding:18px}.sav-wrap .sav-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:14px;padding:12px 0;line-height:1.4}
+.sav-wrap .sav-item>strong{max-width:clamp(110px,42vw,300px);white-space:normal;overflow-wrap:anywhere;text-align:right;font-size:14px}
+.sav-wrap .sav-item:last-child{border-bottom:0;padding-bottom:0}
+.sav-wrap .balance-readout{flex-wrap:wrap;column-gap:12px;row-gap:4px;margin-top:8px;padding:12px 0;font-size:14px}
+.sav-wrap .balance-readout strong{margin-left:auto;font-size:17px;max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:right}
+.balance-scale-note{font-size:12px;line-height:1.4;color:#52617a;margin:4px 0 0}
+.sav-wrap .sav-table th,.sav-wrap .sav-table td{font-variant-numeric:tabular-nums;padding:12px 4px}
+.sav-wrap .sav-table th{font-size:13px}.sav-wrap .sav-table td{font-size:14px}
+.sav-wrap .sav-panel summary{font-weight:500}
+.sav-wrap .balance-card:active{background:#f8f9fb}
+@media(max-width:480px){.sav-wrap .sav-grid{grid-template-columns:minmax(0,1fr);gap:10px}}
+@media(max-width:350px){.sav-wrap .balance-card .debt-breakdown{margin-left:0}.debt-composition>div{grid-template-columns:minmax(0,1fr)}.debt-composition strong{text-align:left}}
+@media(prefers-reduced-motion:no-preference){.sav-wrap .balance-card,.sav-wrap .sav-range button{transition:background-color .15s ease,border-color .15s ease}.balance-dot{transition:r .15s ease}.balance-halo{transition:opacity .15s ease}}
+
 </style>
 
 </head>
@@ -1771,7 +1828,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-08-UX-V19';
+    const FRONTEND_BUILD_VERSION = '2026-10-09-UX-V21';
 
     
     
@@ -5459,20 +5516,49 @@ function savingsPLN_(n){const rounded=Math.round(Number(n));return savingsCurren
 function savingsDelta_(n){return n==null?'Brak wcześniejszego okresu':(Math.round(n)>0?'+':'')+savingsPLN_(n);}
 function savingsValue_(p){return savingsGroup_?p.groups[savingsGroup_].value:p.total;}
 
+function balanceChange_(value,previous,period,debt=false){
+ if(previous===null||previous===undefined||!period)return '<span class="change-context">Początek historii</span>';
+ const delta=value-previous,rounded=Math.round(delta);
+ const percent=previous>0&&rounded!==0?' ('+(debt?'':delta<0?'−':'+')+new Intl.NumberFormat('pl-PL',{maximumFractionDigits:1}).format(Math.abs(delta/previous*100))+'%)':'';
+ const amount=rounded===0?'Bez zmian':(debt?(rounded<0?'Mniej o ':'Więcej o ')+savingsPLN_(Math.abs(delta)):savingsDelta_(delta))+percent;
+ const context='względem '+new Date(period.year,period.month-1,1).toLocaleDateString('pl-PL',{month:'short',year:'numeric'});
+ return `<span class="change-amount"><span aria-hidden="true">${rounded===0?'':rounded>0?'↗':'↘'}</span> ${amount}</span><span class="change-context">${context}</span>`;
+}
+function balanceScale_(values){
+ const lo=Math.min(...values),hi=Math.max(...values),span=hi-lo;
+ // A minimum 20% window limits visual exaggeration; wide series retain zero.
+ if(lo>0&&span/hi<.5){
+  const padded=Math.max(span*1.25,hi*.2,2),mid=(lo+hi)/2;
+  const raw=padded/2,power=10**Math.floor(Math.log10(raw));
+  const step=[1,2,2.5,5,10].map(n=>n*power).find(n=>n>=raw)||power*10;
+  const min=Math.max(0,Math.floor((mid-padded/2)/step)*step);
+  return {min,max:Math.max(min+step*2,Math.ceil((hi+padded*.05)/step)*step)};
+ }
+ return {min:Math.min(0,lo),max:Math.max(1,hi)};
+}
+function balanceAxisLabel_(value,span){
+ if(Math.max(Math.abs(value),span)>=10000)return new Intl.NumberFormat('pl-PL',{maximumFractionDigits:span<1000?2:1}).format(value/1000)+' tys. zł';
+ return new Intl.NumberFormat('pl-PL',{maximumFractionDigits:span<2?2:0}).format(value)+' zł';
+}
+const historySelections_=new Map();
 function historyPick_(el){
  const panel=el.closest('.balance-history');
+ historySelections_.set(panel.dataset.scope,el.dataset.key);
  const readout=panel.querySelector('.balance-readout');readout.hidden=false;readout.querySelector('span').textContent=el.getAttribute('data-period');readout.querySelector('strong').textContent=el.getAttribute('data-value');
- panel.querySelectorAll('[data-label]').forEach(point=>{const active=point===el;point.setAttribute('aria-pressed',String(active));point.querySelector('.balance-dot').setAttribute('r',active?'6':'3');});
+ panel.querySelectorAll('[data-label]').forEach(point=>{const active=point===el;point.setAttribute('aria-pressed',String(active));point.querySelector('.balance-dot').setAttribute('r',active?'6':'3');point.querySelector('.balance-halo').setAttribute('opacity',active?'0.15':'0');});
 }
-function historyPlot_(rows,values,selected,color){
+function historyPlot_(rows,values,selected,color,scope){
  if(!rows.length)return '';
+ const remembered=historySelections_.get(scope);
+ const hasReadout=true;
+ if(remembered&&rows.some(p=>p.key===remembered))selected=remembered;
  const months=['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
- const annual=rows.every(p=>p.year===rows[0].year),w=400,left=67,right=385;
+ const annual=rows.every(p=>p.year===rows[0].year),w=400,left=92,right=385;
  const time=p=>Date.UTC(p.year,p.month-1,1),first=time(rows[0]),last=time(rows.at(-1));
  const x=i=>rows.length===1?226:left+(time(rows[i])-first)/Math.max(last-first,1)*(right-left);
- const min=Math.min(0,...values),max=Math.max(1,...values),y=v=>164-(v-min)/(max-min)*130;
- const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
- const selectedIndex=Math.max(0,rows.findIndex(p=>p.key===selected));
+ const scale=balanceScale_(values),min=scale.min,max=scale.max,y=v=>164-(v-min)/(max-min)*130;
+ const compact=v=>balanceAxisLabel_(v,max-min);
+ const found=rows.findIndex(p=>p.key===selected),selectedIndex=found<0?rows.length-1:found;
  const label=i=>savingsLabel_(rows[i].key)+' · '+savingsPLN_(values[i]);
  const axis=[];
  if(annual){rows.forEach((p,i)=>axis.push({x:x(i),label:months[p.month-1]}));}
@@ -5485,10 +5571,10 @@ function historyPlot_(rows,values,selected,color){
   if(!axis.includes(final)){if(axis.length&&final.x-axis.at(-1).x<34)axis.pop();axis.push(final);}
  }
 
- return `<div class="balance-history"><div class="balance-plot"><svg viewBox="0 0 ${w} 205" aria-label="Historia wartości. Wybierz punkt, aby odczytać kwotę.">
- ${[min,(min+max)/2,max].map(v=>`<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#e0e5ec"/><text x="60" y="${y(v)+5}" text-anchor="end" fill="#52617a" font-size="12">${compact(v)}</text>`).join('')}
+ return `<div class="balance-history" data-scope="${escapeHtml(scope||'')}"><div class="balance-plot"><svg viewBox="0 0 ${w} 205" aria-label="Historia wartości. Wybierz punkt, aby odczytać kwotę.">
+ ${[min,(min+max)/2,max].map(v=>`<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#e0e5ec"/><text x="84" y="${y(v)+5}" text-anchor="end" fill="#52617a" font-size="14">${compact(v)}</text>`).join('')}
  <polyline points="${values.map((v,i)=>x(i)+','+y(v)).join(' ')}" fill="none" stroke="${color}" stroke-width="3"/>
- ${rows.map((p,i)=>`<g role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="15" fill="transparent"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>`).join('')}${axis.map(t=>`<text class="balance-axis-label" x="${t.x}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${t.label}</text>`).join('')}</svg></div><p class="balance-readout" aria-live="polite" hidden><span></span><strong></strong></p></div>`;
+ ${rows.map((p,i)=>`<g id="balance-point-${p.key}" role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-key="${p.key}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="15" fill="transparent"/><circle class="balance-halo" cx="${x(i)}" cy="${y(values[i])}" r="11" fill="${color}" opacity="${i===selectedIndex?0.15:0}"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>`).join('')}${axis.map(t=>`<text class="balance-axis-label" x="${t.x}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${t.label}</text>`).join('')}</svg></div>${min!==0?'<p class="balance-scale-note">Skala osi nie zaczyna się od zera</p>':''}<p class="balance-readout" aria-live="polite" ${hasReadout?'':'hidden'}><span>${hasReadout?months[rows[selectedIndex].month-1]+' '+rows[selectedIndex].year:''}</span><strong>${hasReadout?savingsPLN_(values[selectedIndex]):''}</strong></p></div>`;
 }
 
 function savingsChart_(period){
@@ -5501,7 +5587,7 @@ function savingsChart_(period){
  const ticks=[min,min+span/2,max];
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
  return `<section class="sav-panel"><div class="sav-heading"><h2>Historia wartości</h2><div class="sav-range" aria-label="Zakres historii"><button id="sav-year" onclick="savingsRange_='year';renderSavings_()" aria-pressed="${savingsRange_==='year'}">${period.year}</button><button id="sav-all" onclick="savingsRange_='all';renderSavings_()" aria-pressed="${savingsRange_==='all'}">Cała historia</button></div></div>
- ${historyPlot_(rows,vals,savingsPeriod_,'#2e5fa8')}
+ ${historyPlot_(rows,vals,savingsPeriod_,'#2e5fa8','sav|'+(savingsGroup_||'all')+'|'+savingsPeriod_+'|'+savingsRange_)}
  <details data-sav-disclosure="history"><summary id="sav-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">Wartość</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr ${p.key===savingsPeriod_?'class="sav-current"':''}><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(savingsValue_(p))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
 }
 function renderSavings_(){
@@ -5518,12 +5604,14 @@ function renderSavings_(){
  const value=savingsValue_(p),delta=prev?value-savingsValue_(prev):null;
  const comparison=prev?'Porównanie: '+savingsLabel_(prev.key):'Początek zapisanej historii';
  const title=savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności i inwestycje razem';
+ const changeLine=balanceChange_(value,prev?savingsValue_(prev):null,prev);
+
  let content='';
- if(savingsGroup_ && p.groups[savingsGroup_].items.length>1){content=`<section class="sav-panel"><h2>Podział oszczędności</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${savingsPLN_(item.value)}</strong></div>`;}).join('')}</section>`;}
- else if(!savingsGroup_) {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card" onclick="savingsDetail_('${key}')"><span class="sav-card-top"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span aria-hidden="true">›</span></span><span class="sav-name">${meta.name}</span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${prev?'Zmiana: '+savingsDelta_(p.groups[key].value-prev.groups[key].value):'Początek historii'}</span></button>`).join('')}</div></section>`;}
+ if(savingsGroup_ && p.groups[savingsGroup_].items.length>0){content=`<section class="sav-panel"><h2>Podział oszczędności</h2><p class="sav-muted">${comparison}</p>${p.groups[savingsGroup_].items.map(item=>{const old=prev&&prev.groups[savingsGroup_].items.find(i=>i.name===item.name);return `<div class="sav-item"><div>${escapeHtml(item.name)}<small>${old?'Zmiana: '+savingsDelta_(item.value-old.value):'Brak porównania'}</small></div><strong>${savingsPLN_(item.value)}</strong></div>`;}).join('')}</section>`;}
+ else if(!savingsGroup_) {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card balance-card" onclick="savingsDetail_('${key}')"><span class="sav-card-heading"><span class="sav-icon" aria-hidden="true" style="background:${meta.color}18">${meta.icon}</span><span class="sav-name">${meta.name}</span><span class="sav-chevron" aria-hidden="true">›</span></span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${balanceChange_(p.groups[key].value,prev?prev.groups[key].value:null,prev)}</span></button>`).join('')}</div></section>`;}
  app.innerHTML=`<div class="sav-wrap">${unifiedHeader_('sav',savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności',savingsData_.periods,p.key,savingsGroup_?'savingsBack_()':null)}
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
- <section class="sav-hero"><div>${title}</div><strong>${savingsPLN_(value)}</strong><span>${delta===0?'Bez zmian':'Zmiana wartości: '+savingsDelta_(delta)}${prev && savingsValue_(prev)>0 && delta!==0?' ('+new Intl.NumberFormat('pl-PL',{maximumFractionDigits:1,signDisplay:'exceptZero'}).format(delta/savingsValue_(prev)*100)+'%)':''}</span><span class="sav-comparison">${comparison}</span></section>
+ <section class="sav-hero savings-hero"><div>${title}</div><strong class="savings-total ${savingsPLN_(value).length>15?'savings-total-long':''}">${savingsPLN_(value)}</strong><span class="savings-change">${changeLine}</span></section>
 
  ${content}${savingsChart_(p)}
  ${(savingsData_.warnings||[]).length?`<details class="sav-panel" data-sav-disclosure="warnings"><summary id="sav-warnings">Niektóre dane wymagają sprawdzenia (${savingsData_.warnings.length})</summary>${savingsData_.warnings.map(x=>`<p>${escapeHtml(x)}</p>`).join('')}</details>`:''}</div>`;
@@ -5555,12 +5643,21 @@ function debtMove_(d){const n=debtData_.periods.findIndex(p=>p.key===debtPeriod_
 function debtDetail_(id){if(!debtId_)debtReturnY_=window.scrollY;debtId_=id;renderDebts_();window.scrollTo(0,0);}
 function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,debtReturnY_);}
 function debtAmount_(p,metric){const item=debtId_?p.items.find(i=>i.id===debtId_):p;return item?item[metric]:null;}
-function debtCard_(i,period){return `<button class="debt-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="debt-card-title">${escapeHtml(i.name)} <span aria-hidden="true">›</span></span>${i.subtitle?`<span class="sav-muted">${escapeHtml(i.subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;}
+function debtCard_(i,period){
+ const at=debtData_.periods.findIndex(p=>p.key===period),prev=debtData_.periods[at-1],old=prev&&prev.items.find(j=>j.id===i.id);
+ const icon=i.id==='hipoteka'?'🏠':i.id==='sprzet'?'🧹':i.id==='samochody'?'🚗':'📄';
+ const subtitle=i.subtitle?i.subtitle.replace(/^Obecna pozycja:\s*/,''):'';
+ return `<button class="debt-card balance-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="sav-card-heading"><span class="sav-icon" aria-hidden="true">${icon}</span><span class="sav-name">${escapeHtml(i.name)}</span><span class="sav-chevron" aria-hidden="true">›</span></span>${subtitle?`<span class="sav-muted debt-subtitle">${escapeHtml(subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="sav-muted balance-card-change">${balanceChange_(i.total,old?old.total:null,prev,true)}</span><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;
+}
+function debtComposition_(items){
+ const mortgage=items.filter(i=>i.id==='hipoteka'),other=items.filter(i=>i.id!=='hipoteka');
+ return `<div class="debt-composition" aria-label="Podział zobowiązań">${[[mortgage,'Kredyt hipoteczny'],[other,'Pozostałe kredyty i raty']].filter(([group])=>group.length).map(([group,name])=>`<div><span>${name}</span><strong>${savingsPLN_(group.reduce((sum,i)=>sum+i.total,0))}</strong></div>`).join('')}</div>`;
+}
 function debtChart_(){
  const rows=debtData_.periods.filter(p=>debtAmount_(p,debtMetric_)!==null),values=rows.map(p=>debtAmount_(p,debtMetric_)),max=Math.max(...values,1);
  const time=p=>Date.UTC(p.year,p.month-1,1),first=time(rows[0]),last=time(rows.at(-1)),x=i=>90+(time(rows[i])-first)/Math.max(last-first,1)*490,y=v=>155-v/max*120;
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
- return `<section class="sav-panel"><div class="sav-heading"><h2>Historia zadłużenia</h2><div class="sav-range"><button id="debt-total" aria-pressed="${debtMetric_==='total'}" onclick="debtMetric_='total';renderDebts_()">Łącznie</button><button id="debt-capital" aria-pressed="${debtMetric_==='principal'}" onclick="debtMetric_='principal';renderDebts_()">Kapitał</button></div></div>${historyPlot_(rows,values,debtPeriod_,'#7352a2')}<details data-debt-open="history"><summary id="debt-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">${debtMetric_==='total'?'Łącznie':'Kapitał'}</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(debtAmount_(p,debtMetric_))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+ return `<section class="sav-panel"><div class="sav-heading"><h2>Historia zadłużenia</h2><div class="sav-range"><button id="debt-total" aria-pressed="${debtMetric_==='total'}" onclick="debtMetric_='total';renderDebts_()">Łącznie</button><button id="debt-capital" aria-pressed="${debtMetric_==='principal'}" onclick="debtMetric_='principal';renderDebts_()">Kapitał</button></div></div>${historyPlot_(rows,values,debtPeriod_,'#7352a2','debt|'+(debtId_||'all')+'|'+debtPeriod_+'|'+debtMetric_)}<details data-debt-open="history"><summary id="debt-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">${debtMetric_==='total'?'Łącznie':'Kapitał'}</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(debtAmount_(p,debtMetric_))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
 }
 function renderDebts_(){
  if(activeView_!=='debts')return;
@@ -5571,12 +5668,13 @@ function renderDebts_(){
  const title=debtId_?(item?item.name:'Zobowiązanie'):'Zobowiązania';
  const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
  const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
- const change=p.inProgress?'Miesiąc w trakcie · kwoty według ostatnich wpisów':delta===null?'Początek dostępnej historii':Math.abs(delta)<.005?'Bez zmiany względem poprzedniego zapisu':`${delta<0?'Mniej':'Więcej'} o ${savingsPLN_(Math.abs(delta))} od ${savingsLabel_(prev.key)}`;
+ const change=item?balanceChange_(item.total,last,prev,true):'';
+
  app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
- ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong>${savingsPLN_(item.total)}</strong><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div><span>${change}</span>${p.inProgress&&delta!==null?`<span>Zmiana salda: ${savingsDelta_(delta)}</span>`:''}</section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
+ ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${!debtId_?debtComposition_(active):''}${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
- ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?active.sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join(''):'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
+ ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?'<div class="sav-grid debt-grid">'+active.slice().sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join('')+'</div>':'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
  ${debtChart_()}
  ${!debtId_&&closed.length?`<details class="sav-panel" data-debt-open="closed"><summary id="debt-closed">Spłacone zobowiązania (${closed.length})</summary>${closed.map(i=>debtCard_(i,p.key)).join('')}</details>`:''}</div>`;
  for(const el of app.querySelectorAll('[data-debt-open]'))el.open=open.includes(el.dataset.debtOpen);
