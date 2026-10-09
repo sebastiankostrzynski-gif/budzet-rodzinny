@@ -1638,6 +1638,25 @@ body.amounts-hidden .history-chart{visibility:hidden}
 @media(max-width:350px){.sav-wrap .balance-card .debt-breakdown{margin-left:0}.debt-composition>div{grid-template-columns:minmax(0,1fr)}.debt-composition strong{text-align:left}}
 @media(prefers-reduced-motion:no-preference){.sav-wrap .balance-card,.sav-wrap .sav-range button{transition:background-color .15s ease,border-color .15s ease}.balance-dot{transition:r .15s ease}.balance-halo{transition:opacity .15s ease}}
 
+
+/* V22: expandable monthly entries, inside current view, with grosze. */
+.income-entry-button{font-family:inherit;text-align:left;cursor:pointer;width:100%;color:inherit}
+.income-entry-hint{display:flex;justify-content:space-between;gap:8px;margin-top:10px;font-size:12px;color:#427553}
+.entry-panel{background:#fff;border:1px solid #dce6df;border-radius:18px;padding:0 16px;margin:16px 0;color:#263b2e}
+.entry-panel>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;font-size:16px;font-weight:600;cursor:pointer;list-style:none}
+.entry-panel summary::-webkit-details-marker{display:none}.entry-panel[open] .entry-chevron{transform:rotate(180deg)}
+.entry-content{padding-bottom:12px}.entry-muted{font-size:13px;line-height:1.5;color:#56665a;margin:8px 0 14px}
+.entry-total{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:10px 0 18px;font-size:14px}.entry-total strong{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}
+.entry-group{border-top:1px solid #e5ece7}.entry-group>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;align-items:baseline;gap:10px;padding:14px 0;list-style:none;cursor:pointer;font-size:14px;line-height:1.4}
+.entry-group strong,.entry-row strong{font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;white-space:nowrap}
+.entry-group[open]>summary{color:#246b4b}.entry-subgroup h3{font-size:13px;line-height:1.4;font-weight:600;margin:14px 0 4px;color:#586b5d}
+.entry-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:1px solid #f0f3f1;font-size:14px;line-height:1.45}.entry-row>div{min-width:0;overflow-wrap:anywhere}
+.entry-row small{display:block;font-size:12px;color:#617066;line-height:1.5;margin-top:5px}.entry-badge{display:inline-block;margin:4px 0 0 6px;border-radius:6px;background:#edf4ef;padding:2px 6px;color:#3a6247;font-size:11px}.entry-badge.planned{background:#fff3dc;color:#785415}
+.entry-difference{padding:10px;border-radius:8px;background:#fff5e4;color:#72551c;font-size:12px;line-height:1.5}
+.entry-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:#607065;margin-top:12px}.entry-footer button{min-height:44px;border:1px solid #d7e4da;border-radius:10px;background:#fff;color:#246b4b;padding:8px 12px;font:inherit;cursor:pointer;flex-shrink:0}
+.entry-panel summary:focus-visible,.income-entry-button:focus-visible{outline:3px solid #4c9165;outline-offset:3px}
+@media(max-width:350px){.entry-group>summary{grid-template-columns:minmax(0,1fr) 12px}.entry-group>summary strong{grid-row:2}.entry-group>summary>span:last-child{grid-column:2;grid-row:1}.entry-row{grid-template-columns:minmax(0,1fr)}.entry-row strong{text-align:right}}
+
 </style>
 
 </head>
@@ -1667,7 +1686,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 // Local UI; Google is a background read-only data transport.
 const BUDGET_SERVER_URL = 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
 const budgetTransport = (() => {
-  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData']);
+  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
@@ -1828,7 +1847,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-09-UX-V21';
+    const FRONTEND_BUILD_VERSION = '2026-10-09-ENTRIES-V22';
 
     
     
@@ -4114,7 +4133,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
 
         <div class="summary-grid">
 
-          <div class="summary-card income">
+          <button type="button" class="summary-card income income-entry-button" onclick="openIncomeEntriesV22_()" aria-controls="entry-panel" aria-label="Pokaż źródła wpływów">
 
             <div class="summary-label">
               Wpływy w miesiącu
@@ -4124,7 +4143,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
               ${formatPLN(dochody)}
             </div>
 
-          </div>
+          <span class="income-entry-hint">Zobacz źródła <span aria-hidden="true">›</span></span></button>
 
 
           <div class="summary-card expense">
@@ -4141,6 +4160,8 @@ function categoryControls_(){return `<div class="category-controls"><label for="
 
         </div>
 
+
+        ${entryPanelV22_('Wpływy')}
 
         <!-- KATEGORIE -->
 
@@ -5054,6 +5075,7 @@ tripsHtml = `
 
 
         ${dailyBudgetHtml}
+        ${entryPanelV22_(data.category)}
 
 
         <!-- PODKATEGORIE -->
@@ -5737,6 +5759,51 @@ function unifiedHeader_(type,title,periods,key,back){
  const select=type==='budget'?'budgetSelectPeriod_':type==='sav'?'savingsSelect_':'debtSelect_';
  return `<header class="unified-header ${type==='budget'?'dashboard-month-sticky':'sav-sticky'}"><div class="unified-title-row">${back?`<button id="${type}-back" class="unified-back" onclick="${back}" aria-label="Wróć do podsumowania">‹</button>`:'<span class="unified-spacer" aria-hidden="true"></span>'}<h1>${escapeHtml(title)}</h1>${privacyButton_()}</div><div class="unified-period"><div class="month-nav-label"><label class="sr-only" for="${type}-period">Wybierz okres</label><select id="${type}-period" onchange="${select}(this.value)">${periods.slice().reverse().map(p=>`<option value="${p.key}" ${p.key===key?'selected':''}>${getMonthLabel(p.year,p.month)}</option>`).join('')}</select></div></div></header>`;
 }
+
+// V22: on-demand monthly entries; no extra requests during closed-panel startup.
+const entryViewsV22_=new Map();
+function entryPanelV22_(category){
+ if(category==='Wyżywienie i chemia')return '';
+ return `<details class="entry-panel" id="entry-panel" data-category="${escapeHtml(category)}" data-year="${selectedYear}" data-month="${selectedMonth}" ontoggle="entryToggleV22_(this)"><summary><span>${category==='Wpływy'?'Źródła wpływów':'Na co wydaliśmy'}</span><span class="entry-chevron" aria-hidden="true">⌄</span></summary><div class="entry-content"></div></details>`;
+}
+function entryKeyV22_(el){return [el.dataset.category,el.dataset.year,el.dataset.month].join('|');}
+function entryValidV22_(data,el){return data&&data.schema===1&&data.category===el.dataset.category&&data.year===Number(el.dataset.year)&&data.month===Number(el.dataset.month)&&Number.isFinite(data.total)&&Number.isFinite(data.fetchedAt)&&Array.isArray(data.groups);}
+function entryStateV22_(el){
+ const key=entryKeyV22_(el);let state=entryViewsV22_.get(key);
+ if(!state){state={open:false,data:null,busy:false,error:false,expanded:new Set(el.dataset.category==='Wpływy'?['0']:[]),requested:0};try{const saved=JSON.parse(localStorage.getItem('budget-entries-v22|'+key));if(entryValidV22_(saved,el))state.data=saved;}catch(_){}entryViewsV22_.set(key,state);}
+ return state;
+}
+function openIncomeEntriesV22_(){const el=document.getElementById('entry-panel');if(!el||el.dataset.category!=='Wpływy')return;el.open=true;entryToggleV22_(el);el.querySelector('summary').focus({preventScroll:true});el.scrollIntoView({block:'nearest',behavior:'auto'});}
+function entryToggleV22_(el){const state=entryStateV22_(el);state.open=el.open;if(el.open){entryRenderV22_(el,state);entryFetchV22_(el,false);}}
+function entryGroupToggleV22_(el){const panel=el.closest('.entry-panel'),state=entryStateV22_(panel);if(el.open)state.expanded.add(el.dataset.entryGroup);else state.expanded.delete(el.dataset.entryGroup);}
+function entryRenderV22_(el,state){
+ const area=el.querySelector('.entry-content'),data=state.data;
+ const money=n=>formatPLN(Number(n)||0);
+ const row=i=>`<div class="entry-row"><div><span>${escapeHtml(i.name)}</span>${i.status?`<span class="entry-badge ${i.status==='Planowane'?'planned':''}">${escapeHtml(i.status)}</span>`:''}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${money(i.amount)}</strong></div>`;
+ const diff=n=>Math.abs(n||0)>=.005?`<p class="entry-difference">Różnica między sumą pokazanych pozycji a podsumowaniem: <strong>${money(n)}</strong>.</p>`:'';
+ function group(g,index){
+  const id=String(index),amount=g.amount==null?(g.items||[]).reduce((a,i)=>a+i.amount,0):g.amount;
+  return `<details class="entry-group" data-entry-group="${id}" ${state.expanded.has(id)?'open':''} ontoggle="entryGroupToggleV22_(this)"><summary><span>${escapeHtml(g.name)}</span><strong>${money(amount)}</strong><span aria-hidden="true">⌄</span></summary>${g.items?(g.items.length?g.items.map(row).join(''):'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>'):(g.children||[]).map((child,j)=>`<div class="entry-subgroup">${child.name!=='Pozycje'?`<h3>${escapeHtml(child.name)}</h3>`:''}${child.items.map(row).join('')}</div>`).join('')}${g.children&&!g.children.some(c=>c.items.length)?'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>':''}${diff(g.difference)}</details>`;
+ }
+ const fresh=state.error?'Nie udało się odświeżyć.':!navigator.onLine?'Brak internetu.':state.busy?'Odświeżanie…':'';
+ area.innerHTML=`${data?`<p class="entry-muted">${escapeHtml(data.notice)}</p><div class="entry-total"><span>Łącznie</span><strong>${money(data.total)}</strong></div>${data.groups.length?data.groups.map(group).join(''):'<p class="entry-muted">Brak zapisanych pozycji w tym miesiącu.</p>'}${diff(data.difference)}`:`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':navigator.onLine?'Pobieranie szczegółów…':'Połącz się z internetem, aby pobrać szczegóły po raz pierwszy.'}</p>`}<div class="entry-footer"><span role="status">${fresh}${data?' Zapisane: '+new Date(data.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</span><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)" ${state.busy?'disabled':''}>${state.error?'Spróbuj ponownie':'Odśwież'}</button></div>`;
+ if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
+}
+function entryFetchV22_(el,force){
+ const state=entryStateV22_(el),key=entryKeyV22_(el);
+ if(state.busy||!navigator.onLine)return;
+ if(!force&&state.requested&&Date.now()-state.requested<60000)return;
+ state.busy=true;state.error=false;state.requested=Date.now();entryRenderV22_(el,state);
+ const update=()=>{const current=document.getElementById('entry-panel');if(current&&entryKeyV22_(current)===key&&current.open)entryRenderV22_(current,state);};
+ google.script.run.withSuccessHandler(data=>{
+  state.busy=false;if(entryValidV22_(data,el)){state.data=data;state.error=false;try{localStorage.setItem('budget-entries-v22|'+key,JSON.stringify(data));}catch(_){}}else state.error=true;update();
+ }).withFailureHandler(()=>{state.busy=false;state.error=true;update();}).getBudgetEntries(el.dataset.category,Number(el.dataset.year),Number(el.dataset.month));
+}
+(function(){
+ const app=document.getElementById('app');
+ function restore(){const el=document.getElementById('entry-panel');if(!el)return;const state=entryStateV22_(el);el.open=state.open;if(state.open){entryRenderV22_(el,state);entryFetchV22_(el,false);}}
+ new MutationObserver(restore).observe(app,{childList:true});restore();
+})();
 
 </script>
 
