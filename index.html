@@ -1667,6 +1667,37 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .entry-subdetails .entry-row strong{white-space:nowrap}
 .entry-subdetails h3{font-size:13px;color:#68756d;margin:14px 0 2px;font-weight:500}
 .income-period{text-align:center;color:#617369;font-size:15px;padding:4px 0 12px}
+
+/* V24 — scoped refinements for savings and liabilities */
+.debt-wrap>.debt-composition{margin:0 4px 22px;padding:12px 12px 0;border:0;color:#65556f;font-size:13px}
+.sav-table tr.sav-current{background:#edf3f9}.debts-theme .sav-table tr.sav-current{background:#eee8f5}
+.history-month-button{background:none;border:0;color:inherit;font:inherit;text-align:left;padding:8px 0;min-height:44px;cursor:pointer;width:100%}
+.history-month-button[aria-pressed=true]{font-weight:650}.history-month-button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.sav-wrap details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;min-height:44px;cursor:pointer}
+.sav-wrap details>summary::-webkit-details-marker{display:none}
+.sav-wrap details>summary::after{content:'';width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);flex:none;margin:0 5px 5px 0}
+.sav-wrap details[open]>summary::after{transform:rotate(225deg);margin-top:6px}
+.sav-item>div,.sav-name,.debt-card-title{min-width:0;overflow-wrap:anywhere}
+.sav-item>strong{flex-shrink:0;font-variant-numeric:tabular-nums;max-width:60%;overflow-wrap:anywhere}
+.balance-plot svg{touch-action:pan-y;overflow:visible}
+@media(max-width:350px){.sav-item{flex-wrap:wrap}.sav-item>strong{max-width:100%;margin-left:auto}.debt-breakdown{column-gap:8px}}
+
+/* V25 — Budget audit; retain existing layout and calculations. */
+.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.summary-card{min-width:0}.summary-value{font-size:clamp(19px,5.5vw,28px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums;line-height:1.2}
+.income-entry-button{cursor:pointer;border:1px solid #dce8df;text-align:left}
+.income-entry-button:focus-visible,.category-card:focus-visible{outline:3px solid #417c59;outline-offset:3px}
+.income-entry-hint{min-height:32px;align-items:center;font-weight:600}
+.daily-limit-note,.daily-limit-side,.daily-limit-meta,.daily-limit-status{font-size:13px;line-height:1.45;color:#64716a}
+.daily-limit-head{flex-wrap:wrap;gap:12px 20px}.daily-limit-head>div{min-width:0}
+.daily-limit-value{font-size:28px;line-height:1.2;overflow-wrap:anywhere}
+.daily-limit-meta{flex-wrap:wrap;row-gap:6px}.daily-limit-side{white-space:normal}
+.history-selected{display:flex;flex-direction:column;gap:5px;min-height:62px;font-size:14px}
+.history-selected strong{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.history-current-badge{max-width:60%;white-space:normal;text-align:right}
+.history-bar-wrap{min-width:0;touch-action:pan-y}.history-bar-wrap:focus-visible{outline:2px solid #417c59;outline-offset:2px}
+.annual-trips>summary{font-size:14px}
+@media(max-width:400px){.daily-limit-side{flex-basis:100%;text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}.daily-limit-status{margin-top:0}}
 </style>
 
 </head>
@@ -1857,7 +1888,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-09-ENTRIES-V23';
+    const FRONTEND_BUILD_VERSION = '2026-10-09-UX-V25';
 
     
     
@@ -3966,14 +3997,13 @@ function categoryControls_(){return `<div class="category-controls"><label for="
               : '#39aa6b';
 
 
-          const isNonExpandable =
-            category.name === 'Inne wydatki' ||
-            category.name === 'Jednorazowe wydatki';
+          const isNonExpandable = false;
 
 
           categoriesHtml += `
 
             <div
+              role="button" tabindex="0" aria-label="${escapeHtml(category.name)} — pokaż szczegóły" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}"
               class="category-card${
                 isNonExpandable
                   ? ' non-expandable'
@@ -4228,7 +4258,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
 
           <div class="disposition-total">
             <div class="disposition-total-label">
-              Bilans rozliczenia
+              Łącznie: nadpłaty, inwestycje i zmiana oszczędności
             </div>
             <div
               class="disposition-total-value"
@@ -4508,8 +4538,8 @@ function categoryControls_(){return `<div class="category-controls"><label for="
 
       const budgetExceeded = budget > 0 && execution > budget;
       const statusLabel = budget<=0?'Bez ustalonego budżetu':budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
-      const statusBackground = budgetExceeded ? '#fdeeee' : '#edf8f1';
-      const statusForeground = budgetExceeded ? '#d84a3d' : '#2f9560';
+      const statusBackground = budget<=0 ? '#eef0f2' : budgetExceeded ? '#fdeeee' : '#edf8f1';
+      const statusForeground = budget<=0 ? '#59636e' : budgetExceeded ? '#d84a3d' : '#2f9560';
 
       let dailyBudgetHtml = '';
 
@@ -5188,7 +5218,9 @@ function toggleHolidayTrips() {
         categoryStyle[data.category] ||
         { color: '#39aa6b' };
 
-      const currentHistoryIndex =
+      const historyScope=[data.category,selectedYear,selectedMonth].join('|');
+      const rememberedHistory=(window.budgetHistorySelections_||{})[historyScope];
+      const currentHistoryIndex = rememberedHistory!==undefined && rememberedHistory<months.length ? rememberedHistory :
         Number(selectedMonth) >= 1 && Number(selectedMonth) <= 12
           ? Number(selectedMonth) - 1
           : -1;
@@ -5220,10 +5252,10 @@ function toggleHolidayTrips() {
             role="button" tabindex="0" aria-label="${escapeHtml(item.month)}: ${formatPLN(value)}"
             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
             class="history-bar-wrap${isCurrent ? ' history-current' : ''}"
-            data-month="${escapeHtml(item.month)}"
+            data-month="${escapeHtml(item.month)}" data-index="${index}" aria-pressed="${isCurrent}"
             data-value="${value}"
             title="${escapeHtml(item.month)}: ${formatPLN(value)}"
-            onclick="showHistoryValue(this.dataset.month, this.dataset.value);this.parentElement.querySelectorAll('.history-bar-wrap').forEach(el=>el.classList.toggle('history-current',el===this))"
+            onclick="showHistoryValue(this.dataset.month, this.dataset.value)"
           >
 
             <div class="history-bar-value">
@@ -5254,7 +5286,7 @@ function toggleHolidayTrips() {
 
       return `
 
-        <div class="history-card">
+        <div class="history-card" data-history-scope="${escapeHtml(historyScope)}" data-history-year="${Number(history.year)||selectedYear}">
 
           <div class="history-title-row">
             <div class="history-title">
@@ -5278,7 +5310,7 @@ function toggleHolidayTrips() {
             id="history-selected"
             class="history-selected" aria-live="polite"
           >
-            Dotknij słupka, aby zobaczyć kwotę
+            ${currentMonth?`<span>${escapeHtml(currentMonth.month)} ${Number(history.year)||selectedYear}</span><strong>${formatPLN(currentMonth.value)}</strong>`:'Brak danych dla wybranego okresu'}
           </div>
 
           <div class="history-total">
@@ -5301,12 +5333,15 @@ function toggleHolidayTrips() {
         return;
       }
 
-      element.innerHTML =
-        '<strong>' +
-        escapeHtml(month) +
-        ': ' +
-        formatPLN(value) +
-        '</strong>';
+      const card=element.closest('.history-card');
+      element.innerHTML='<span>'+escapeHtml(month)+' '+card.dataset.historyYear+'</span><strong>'+formatPLN(value)+'</strong>';
+      const badge=card.querySelector('.history-current-badge');if(badge)badge.textContent='Wybrany: '+month;
+      card.querySelectorAll('.history-bar-wrap').forEach(bar=>{
+       const active=bar.dataset.month===month;bar.classList.toggle('history-current',active);bar.setAttribute('aria-pressed',String(active));
+       bar.querySelector('.history-month')?.classList.toggle('history-month-current',active);
+       if(active){window.budgetHistorySelections_ ||= {};window.budgetHistorySelections_[card.dataset.historyScope]=Number(bar.dataset.index);}
+      });
+      if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
     }
 
 
@@ -5576,6 +5611,7 @@ const historySelections_=new Map();
 function historyPick_(el){
  const panel=el.closest('.balance-history');
  historySelections_.set(panel.dataset.scope,el.dataset.key);
+ historyRowsV24_(panel,el.dataset.key);
  const readout=panel.querySelector('.balance-readout');readout.hidden=false;readout.querySelector('span').textContent=el.getAttribute('data-period');readout.querySelector('strong').textContent=el.getAttribute('data-value');
  panel.querySelectorAll('[data-label]').forEach(point=>{const active=point===el;point.setAttribute('aria-pressed',String(active));point.querySelector('.balance-dot').setAttribute('r',active?'6':'3');point.querySelector('.balance-halo').setAttribute('opacity',active?'0.15':'0');});
 }
@@ -5603,10 +5639,10 @@ function historyPlot_(rows,values,selected,color,scope){
   if(!axis.includes(final)){if(axis.length&&final.x-axis.at(-1).x<34)axis.pop();axis.push(final);}
  }
 
- return `<div class="balance-history" data-scope="${escapeHtml(scope||'')}"><div class="balance-plot"><svg viewBox="0 0 ${w} 205" aria-label="Historia wartości. Wybierz punkt, aby odczytać kwotę.">
- ${[min,(min+max)/2,max].map(v=>`<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#e0e5ec"/><text x="84" y="${y(v)+5}" text-anchor="end" fill="#52617a" font-size="14">${compact(v)}</text>`).join('')}
+ return `<div class="balance-history" data-scope="${escapeHtml(scope||'')}"><div class="balance-plot"><svg onclick="historyTouchV24_(event,this)" viewBox="0 0 ${w} 205" aria-label="Historia wartości. Wybierz punkt, aby odczytać kwotę.">
+ ${[min,(min+max)/2,max].map(v=>`<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#e0e5ec"/><text x="84" y="${y(v)+5}" text-anchor="end" fill="#43536b" font-size="16">${compact(v)}</text>`).join('')}
  <polyline points="${values.map((v,i)=>x(i)+','+y(v)).join(' ')}" fill="none" stroke="${color}" stroke-width="3"/>
- ${rows.map((p,i)=>`<g id="balance-point-${p.key}" role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-key="${p.key}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="15" fill="transparent"/><circle class="balance-halo" cx="${x(i)}" cy="${y(values[i])}" r="11" fill="${color}" opacity="${i===selectedIndex?0.15:0}"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>`).join('')}${axis.map(t=>`<text class="balance-axis-label" x="${t.x}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${t.label}</text>`).join('')}</svg></div>${min!==0?'<p class="balance-scale-note">Skala osi nie zaczyna się od zera</p>':''}<p class="balance-readout" aria-live="polite" ${hasReadout?'':'hidden'}><span>${hasReadout?months[rows[selectedIndex].month-1]+' '+rows[selectedIndex].year:''}</span><strong>${hasReadout?savingsPLN_(values[selectedIndex]):''}</strong></p></div>`;
+ ${rows.map((p,i)=>`<g id="balance-point-${p.key}" role="button" tabindex="0" aria-label="${escapeHtml(label(i))}" aria-pressed="${i===selectedIndex}" data-key="${p.key}" data-label="${escapeHtml(label(i))}" data-period="${months[p.month-1]} ${p.year}" data-value="${escapeHtml(savingsPLN_(values[i]))}" onclick="historyPick_(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();historyPick_(this)}"><circle cx="${x(i)}" cy="${y(values[i])}" r="24" fill="transparent"/><circle class="balance-halo" cx="${x(i)}" cy="${y(values[i])}" r="11" fill="${color}" opacity="${i===selectedIndex?0.15:0}"/><circle class="balance-dot" cx="${x(i)}" cy="${y(values[i])}" r="${i===selectedIndex?6:3}" fill="${color}"/></g>`).join('')}${axis.map(t=>`<text class="balance-axis-label" x="${t.x}" y="192" text-anchor="middle" fill="#52617a" font-size="12">${t.label}</text>`).join('')}</svg></div>${min!==0?'<p class="balance-scale-note">Skala osi nie zaczyna się od zera</p>':''}<p class="balance-readout" aria-live="polite" ${hasReadout?'':'hidden'}><span>${hasReadout?months[rows[selectedIndex].month-1]+' '+rows[selectedIndex].year:''}</span><strong>${hasReadout?savingsPLN_(values[selectedIndex]):''}</strong></p></div>`;
 }
 
 function savingsChart_(period){
@@ -5620,9 +5656,9 @@ function savingsChart_(period){
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
  return `<section class="sav-panel"><div class="sav-heading"><h2>Historia wartości</h2><div class="sav-range" aria-label="Zakres historii"><button id="sav-year" onclick="savingsRange_='year';renderSavings_()" aria-pressed="${savingsRange_==='year'}">${period.year}</button><button id="sav-all" onclick="savingsRange_='all';renderSavings_()" aria-pressed="${savingsRange_==='all'}">Cała historia</button></div></div>
  ${historyPlot_(rows,vals,savingsPeriod_,'#2e5fa8','sav|'+(savingsGroup_||'all')+'|'+savingsPeriod_+'|'+savingsRange_)}
- <details data-sav-disclosure="history"><summary id="sav-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">Wartość</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr ${p.key===savingsPeriod_?'class="sav-current"':''}><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(savingsValue_(p))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+ <details data-sav-disclosure="history"><summary id="sav-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">Wartość</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr data-history-key="${p.key}" ${p.key===savingsPeriod_?'class="sav-current"':''}><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(savingsValue_(p))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
 }
-function renderSavings_(){
+function renderSavingsContentV24_(){
  if(activeView_!=='savings')return;
  const app=document.getElementById('app');
  const key=(savingsGroup_||'overview');
@@ -5689,9 +5725,9 @@ function debtChart_(){
  const rows=debtData_.periods.filter(p=>debtAmount_(p,debtMetric_)!==null),values=rows.map(p=>debtAmount_(p,debtMetric_)),max=Math.max(...values,1);
  const time=p=>Date.UTC(p.year,p.month-1,1),first=time(rows[0]),last=time(rows.at(-1)),x=i=>90+(time(rows[i])-first)/Math.max(last-first,1)*490,y=v=>155-v/max*120;
  const compact=v=>new Intl.NumberFormat('pl-PL',{notation:'compact',maximumFractionDigits:1}).format(v)+' zł';
- return `<section class="sav-panel"><div class="sav-heading"><h2>Historia zadłużenia</h2><div class="sav-range"><button id="debt-total" aria-pressed="${debtMetric_==='total'}" onclick="debtMetric_='total';renderDebts_()">Łącznie</button><button id="debt-capital" aria-pressed="${debtMetric_==='principal'}" onclick="debtMetric_='principal';renderDebts_()">Kapitał</button></div></div>${historyPlot_(rows,values,debtPeriod_,'#7352a2','debt|'+(debtId_||'all')+'|'+debtPeriod_+'|'+debtMetric_)}<details data-debt-open="history"><summary id="debt-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">${debtMetric_==='total'?'Łącznie':'Kapitał'}</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(debtAmount_(p,debtMetric_))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+ return `<section class="sav-panel"><div class="sav-heading"><h2>Historia zadłużenia</h2><div class="sav-range"><button id="debt-total" aria-pressed="${debtMetric_==='total'}" onclick="debtMetric_='total';renderDebts_()">Łącznie</button><button id="debt-capital" aria-pressed="${debtMetric_==='principal'}" onclick="debtMetric_='principal';renderDebts_()">Kapitał</button></div></div>${historyPlot_(rows,values,debtPeriod_,'#7352a2','debt|'+(debtId_||'all')+'|'+debtPeriod_+'|'+debtMetric_)}<details data-debt-open="history"><summary id="debt-history">Historia miesięczna</summary><div class="sav-table"><table><thead><tr><th scope="col">Okres</th><th scope="col">${debtMetric_==='total'?'Łącznie':'Kapitał'}</th></tr></thead><tbody>${rows.slice().reverse().map(p=>`<tr data-history-key="${p.key}"><td>${savingsLabel_(p.key)}</td><td>${savingsPLN_(debtAmount_(p,debtMetric_))}</td></tr>`).join('')}</tbody></table></div></details></section>`;
 }
-function renderDebts_(){
+function renderDebtsContentV24_(){
  if(activeView_!=='debts')return;
  const app=document.getElementById('app'),same=app.dataset.debtView===(debtId_||'all'),open=same?Array.from(app.querySelectorAll('details[open][data-debt-open]'),el=>el.dataset.debtOpen):[],focus=same&&app.contains(document.activeElement)?document.activeElement.id:'',scroll=window.scrollY;
  app.dataset.debtView=debtId_||'all';
@@ -5704,7 +5740,7 @@ function renderDebts_(){
 
  app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
- ${item?`<section class="sav-hero debt-hero"><div>Pozostało do spłaty łącznie</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${!debtId_?debtComposition_(active):''}${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section><p class="sav-muted debt-note">Odsetki według obecnych wyliczeń.${item.asOf&&item.asOf<p.key?' Ostatni zapis: '+savingsLabel_(item.asOf)+'.':''}</p>`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
+ ${item?`<section class="sav-hero debt-hero"><div>${debtId_?'Pozostało do spłaty':'Pozostało do spłaty łącznie'}</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section>${!debtId_?debtComposition_(active):''}${item.asOf&&item.asOf<p.key?'<p class="sav-muted debt-note">Ostatni zapis: '+savingsLabel_(item.asOf)+'.</p>':''}`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
  ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?'<div class="sav-grid debt-grid">'+active.slice().sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join('')+'</div>':'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
  ${debtChart_()}
@@ -5832,10 +5868,23 @@ function initSubEntriesV23_(){
  const el=document.getElementById('entry-panel');if(!el)return;
  if(el.dataset.category==='Wyżywienie i chemia'){el.removeAttribute('id');return;}
  el.open=true;const state=entryStateV22_(el);state.open=true;
+ if(['Inne wydatki','Jednorazowe wydatki'].includes(el.dataset.category)){
+  const heading=el.previousElementSibling;if(heading?.classList.contains('subcategories-title'))heading.remove();
+  el.innerHTML='<div class="subcategory-card"><details class="entry-subdetails" data-all-entries="true"><summary><span>Z czego składa się kwota</span><span class="entry-chevron" aria-hidden="true">⌄</span></summary><div class="entry-subcontent"></div></details></div>';
+  const d=el.querySelector('details');d.open=state.expanded.has('all-entries');
+  d.ontoggle=()=>{if(d.open){state.expanded.add('all-entries');entryRenderV22_(el,state);entryFetchV22_(el,false);}else state.expanded.delete('all-entries');};
+  renderSubEntriesV23_(el,state);if(d.open)entryFetchV22_(el,false);return;
+ }
  const cards=[...el.querySelectorAll('.subcategory-card')];
  cards.forEach(card=>{
  const name=card.querySelector('.subcategory-name')?.textContent.replace('⌄','').trim();if(!name||name==='Brak podkategorii')return;
- card.removeAttribute('onclick');card.style.cursor='';card.querySelector('#holiday-trips-arrow')?.remove();card.querySelector('#holiday-trips')?.remove();
+ card.removeAttribute('onclick');card.style.cursor='';card.querySelector('#holiday-trips-arrow')?.remove();const trips=card.querySelector('#holiday-trips');
+ if(trips){
+ const annual=document.createElement('details');annual.className='entry-subdetails annual-trips';
+ annual.innerHTML='<summary><span>Wyjazdy w roku</span><span class="entry-chevron" aria-hidden="true">⌄</span></summary>';
+ trips.style.display='block';trips.style.marginTop='0';trips.style.borderTop='0';annual.append(trips);card.append(annual);
+ annual.open=state.expanded.has('annual-trips');annual.ontoggle=()=>{if(annual.open)state.expanded.add('annual-trips');else state.expanded.delete('annual-trips');};
+ }
  const d=document.createElement('details');d.className='entry-subdetails';d.dataset.subName=name;
  d.innerHTML='<summary><span>Szczegóły wydatków</span><span class="entry-chevron" aria-hidden="true">⌄</span></summary><div class="entry-subcontent"></div>';
  d.open=state.expanded.has('sub:'+name);d.ontoggle=()=>{if(d.open){state.expanded.add('sub:'+name);entryRenderV22_(el,state);entryFetchV22_(el,false);}else state.expanded.delete('sub:'+name);};card.append(d);
@@ -5844,11 +5893,11 @@ function initSubEntriesV23_(){
  if(!el.querySelector('.entry-subdetails')||el.querySelector('.entry-subdetails[open]'))entryFetchV22_(el,false);
 }
 function renderSubEntriesV23_(el,state){
- const data=state.data;let details=[...el.querySelectorAll('.entry-subdetails')];
+ const data=state.data;let details=[...el.querySelectorAll('.entry-subdetails:not(.annual-trips)')];
  if(!details.length&&!data){el.innerHTML=`<p class="entry-muted">${state.error?'Nie udało się pobrać szczegółów.':'Pobieranie szczegółów…'}</p><button onclick="entryFetchV22_(this.closest('.entry-panel'),true)">Spróbuj ponownie</button>`;return;}
  if(!details.length&&data){
  el.innerHTML=data.groups.map((g,i)=>`<div class="subcategory-card"><div class="subcategory-top"><div class="subcategory-name">${escapeHtml(g.name)}</div><strong>${formatPLN(g.items.reduce((s,x)=>s+x.amount,0))}</strong></div><details class="entry-subdetails" data-direct-group="${i}"><summary><span>Szczegóły wydatków</span><span class="entry-chevron">⌄</span></summary><div class="entry-subcontent"></div></details></div>`).join('')||'<p class="entry-muted">Brak zapisanych wydatków.</p>';
- details=[...el.querySelectorAll('.entry-subdetails')];details.forEach(d=>{d.ontoggle=()=>{if(d.open)renderSubEntriesV23_(el,state);};});
+ details=[...el.querySelectorAll('.entry-subdetails:not(.annual-trips)')];details.forEach(d=>{d.ontoggle=()=>{if(d.open)renderSubEntriesV23_(el,state);};});
  }
  if(data&&details.some(d=>d.dataset.subName)){
  const unmatched=data.groups.filter(g=>!details.some(d=>d.dataset.subName&&entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name)));
@@ -5860,11 +5909,48 @@ function renderSubEntriesV23_(el,state){
  for(const d of details){
  const area=d.querySelector('.entry-subcontent');
  if(!data){area.innerHTML=`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':!navigator.onLine?'Połącz się z internetem, aby pobrać szczegóły.':'Pobieranie szczegółów…'}</p><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)">Spróbuj ponownie</button>`;continue;}
- const groups=d.dataset.directGroup!==undefined?[data.groups[Number(d.dataset.directGroup)]]:data.groups.filter(g=>entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name));
+ const groups=d.dataset.allEntries?data.groups:d.dataset.directGroup!==undefined?[data.groups[Number(d.dataset.directGroup)]]:data.groups.filter(g=>entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name));
  area.innerHTML=groups.map(g=>`${groups.length>1?`<h3>${escapeHtml(g.name.split(' / ').pop())}</h3>`:''}${(g.items||[]).map(i=>`<div class="entry-row"><div>${escapeHtml(i.name)}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${formatPLN(i.amount)}</strong></div>`).join('')}`).join('')||'<p class="entry-muted">Brak zapisanych pozycji w tej podkategorii.</p>';
  if(state.error)area.innerHTML+='<p class="entry-muted">Nie udało się odświeżyć. Pokazujemy zapisane dane.</p>';
  }
  if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
+}
+// Retain the DOM, focus and disclosure state when only the fetch timestamp changed.
+function balanceSignatureV24_(data,view){return JSON.stringify([view,data],(key,value)=>key==='fetchedAt'?undefined:value);}
+function renderSavings_(){
+ if(activeView_!=='savings')return;
+ const app=document.getElementById('app'),sig=balanceSignatureV24_(savingsData_,[savingsGroup_,savingsPeriod_,savingsRange_]);
+ if(savingsData_&&app.querySelector('#savings-status')&&app.dataset.balanceSignature===sig){savingsStatus_();return;}
+ renderSavingsContentV24_();app.dataset.balanceSignature=sig;historyInitV24_();
+}
+function renderDebts_(){
+ if(activeView_!=='debts')return;
+ const app=document.getElementById('app'),sig=balanceSignatureV24_(debtData_,[debtId_,debtPeriod_,debtMetric_]);
+ if(debtData_&&app.querySelector('#debt-status')&&app.dataset.balanceSignature===sig){debtStatus_();return;}
+ renderDebtsContentV24_();app.dataset.balanceSignature=sig;historyInitV24_();
+}
+function historyRowsV24_(panel,key){
+ panel.closest('.sav-panel')?.querySelectorAll('tr[data-history-key]').forEach(row=>{const chosen=row.dataset.historyKey===key;row.classList.toggle('sav-current',chosen);row.querySelector('button')?.setAttribute('aria-pressed',String(chosen));});
+}
+function historyInitV24_(){
+ document.querySelectorAll('.balance-history').forEach(panel=>{
+ const section=panel.closest('.sav-panel');
+ section?.querySelectorAll('tr[data-history-key]').forEach(row=>{
+ const cell=row.firstElementChild,button=document.createElement('button');button.type='button';button.className='history-month-button';button.textContent=cell.textContent;
+ button.setAttribute('aria-label','Wybierz '+cell.textContent);button.onclick=()=>{const point=[...panel.querySelectorAll('[data-key]')].find(p=>p.dataset.key===row.dataset.historyKey);if(point)historyPick_(point);};cell.replaceChildren(button);
+ });
+ historyRowsV24_(panel,panel.querySelector('[aria-pressed=true]')?.dataset.key);
+ });
+}
+function historyTouchV24_(event,svg){
+ // Picking the nearest date across the plot avoids tiny touch targets. Scrolling remains native.
+ if(event.detail===0)return;
+ const box=svg.getBoundingClientRect();if(!box.width)return;
+ const x=(event.clientX-box.left)*400/box.width;
+ if(x<92||x>400)return;
+ const points=[...svg.querySelectorAll('[data-key]')];
+ const nearest=points.reduce((best,p)=>!best||Math.abs(Number(p.querySelector('.balance-dot').getAttribute('cx'))-x)<Math.abs(Number(best.querySelector('.balance-dot').getAttribute('cx'))-x)?p:best,null);
+ if(nearest)historyPick_(nearest);
 }
 
 </script>
