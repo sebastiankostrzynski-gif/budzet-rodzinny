@@ -5902,7 +5902,7 @@ function renderSubEntriesV23_(el,state){
  if(data&&details.some(d=>d.dataset.subName)){
  const unmatched=data.groups.filter(g=>!details.some(d=>d.dataset.subName&&entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name)));
  let extra=el.querySelector('.entry-unmatched');
- if(unmatched.length){if(!extra){extra=document.createElement('div');extra.className='entry-unmatched';el.append(extra);}extra.innerHTML=unmatched.map(g=>`<details class="entry-group"><summary>${escapeHtml(g.name)} <span aria-hidden="true">⌄</span></summary>${g.items.map(i=>`<div class="entry-row"><span>${escapeHtml(i.name)}</span><strong>${formatPLN(i.amount)}</strong></div>`).join('')}</details>`).join('');}else extra?.remove();
+ if(unmatched.length){if(!extra){extra=document.createElement('div');extra.className='entry-unmatched';el.append(extra);}extra.innerHTML=unmatched.map(g=>`<details class="entry-group"><summary>${escapeHtml(g.name)} <span aria-hidden="true">⌄</span></summary>${[...(g.items||[])].sort((a,b)=>(Number(b.amount)||0)-(Number(a.amount)||0)).map(i=>`<div class="entry-row"><span>${escapeHtml(i.name)}</span><strong>${formatPLN(i.amount)}</strong></div>`).join('')}</details>`).join('');}else extra?.remove();
  }
  let diff=el.querySelector('.entry-reconcile');
  if(data&&Math.abs(data.difference||0)>=.005){if(!diff){diff=document.createElement('p');diff.className='entry-reconcile entry-muted';el.append(diff);}diff.textContent='Różnica między sumą pozycji a podsumowaniem: '+formatPLN(data.difference)+'.';}else diff?.remove();
