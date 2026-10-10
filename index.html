@@ -5910,7 +5910,7 @@ function renderSubEntriesV23_(el,state){
  const area=d.querySelector('.entry-subcontent');
  if(!data){area.innerHTML=`<p class="entry-muted" role="status">${state.error?'Nie udało się pobrać szczegółów.':!navigator.onLine?'Połącz się z internetem, aby pobrać szczegóły.':'Pobieranie szczegółów…'}</p><button type="button" onclick="entryFetchV22_(this.closest('.entry-panel'),true)">Spróbuj ponownie</button>`;continue;}
  const groups=d.dataset.allEntries?data.groups:d.dataset.directGroup!==undefined?[data.groups[Number(d.dataset.directGroup)]]:data.groups.filter(g=>entryMatchesV23_(el.dataset.category,d.dataset.subName,g.name));
- area.innerHTML=groups.map(g=>`${groups.length>1?`<h3>${escapeHtml(g.name.split(' / ').pop())}</h3>`:''}${(g.items||[]).map(i=>`<div class="entry-row"><div>${escapeHtml(i.name)}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${formatPLN(i.amount)}</strong></div>`).join('')}`).join('')||'<p class="entry-muted">Brak zapisanych pozycji w tej podkategorii.</p>';
+ area.innerHTML=groups.map(g=>`${groups.length>1?`<h3>${escapeHtml(g.name.split(' / ').pop())}</h3>`:''}${[...(g.items||[])].sort((a,b)=>(Number(b.amount)||0)-(Number(a.amount)||0)).map(i=>`<div class="entry-row"><div>${escapeHtml(i.name)}${i.note?`<small>${escapeHtml(i.note)}</small>`:''}</div><strong>${formatPLN(i.amount)}</strong></div>`).join('')}`).join('')||'<p class="entry-muted">Brak zapisanych pozycji w tej podkategorii.</p>';
  if(state.error)area.innerHTML+='<p class="entry-muted">Nie udało się odświeżyć. Pokazujemy zapisane dane.</p>';
  }
  if(typeof applyAmountPrivacy_==='function')applyAmountPrivacy_();
