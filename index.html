@@ -1824,9 +1824,19 @@ const alerty24Transport = (() => {
   let frame, client, origin, connected = false, sequence = 0;
 
   function trusted(event) {
-    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
-    try { return event.source === frame.contentWindow; } catch (_) { return false; }
-  }
+  if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
+
+  try {
+    let w = event.source;
+    for (let n = 0; w && n < 8; n++) {
+      if (w === frame.contentWindow) return true;
+      if (w === w.parent) break;
+      w = w.parent;
+    }
+  } catch (_) {}
+
+  return false;
+}
 
   function send(item) {
     if (!connected || item.sent) return;
