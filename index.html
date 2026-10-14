@@ -1698,6 +1698,14 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .history-bar-wrap{min-width:0;touch-action:pan-y}.history-bar-wrap:focus-visible{outline:2px solid #417c59;outline-offset:2px}
 .annual-trips>summary{font-size:14px}
 @media(max-width:400px){.daily-limit-side{flex-basis:100%;text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}.daily-limit-status{margin-top:0}}
+
+/* Alerty24 DEV — tylko bieżący limit karty, bez zapisu do budżetu. */
+.alerty24-card{margin:14px 0 18px;padding:16px;border:1px solid #d9e7dd;border-radius:18px;background:#fff;box-shadow:0 3px 14px rgba(20,64,39,.06)}
+.alerty24-card.is-over{border-color:#f2c7c1;background:#fffafa}.alerty24-card.is-loading{color:#64716a}
+.alerty24-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.alerty24-title{font-size:15px;font-weight:750;color:#253b2d}.alerty24-caption{margin-top:3px;font-size:12px;color:#6b7870}
+.alerty24-amount{text-align:right}.alerty24-amount strong{display:block;font-size:23px;line-height:1.12;font-variant-numeric:tabular-nums;color:#23774b}.alerty24-card.is-over .alerty24-amount strong{color:#c43f33}.alerty24-amount span{display:block;margin-top:3px;color:#64716a;font-size:12px}
+.alerty24-progress{height:8px;margin:14px 0 9px;border-radius:999px;background:#e8efe9;overflow:hidden}.alerty24-progress>span{display:block;height:100%;border-radius:inherit;background:#39aa6b}.alerty24-card.is-over .alerty24-progress>span{background:#d76659}
+.alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
 </style>
 
 </head>
@@ -1806,6 +1814,75 @@ const budgetTransport = (() => {
   return {runner,start};
 })();
 const google = {script:{run:budgetTransport.runner()}};
+
+// Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
+// It is intentionally opt-in: production is unchanged until the query parameter is supplied.
+const ALERTY24_BACKEND_URL = new URLSearchParams(location.search).get('alerty24Backend') || '';
+const alerty24Transport = (() => {
+  const pending = new Map();
+  const channel = crypto.randomUUID();
+  let frame, client, origin, connected = false, sequence = 0;
+
+  function trusted(event) {
+    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
+    try { return event.source === frame.contentWindow; } catch (_) { return false; }
+  }
+
+  function send(item) {
+    if (!connected || item.sent) return;
+    item.sent = true;
+    client.postMessage({protocol:'budget-alerty24-rpc-v1',type:'call',channel,id:item.id,method:'getAlerty24DashboardDataV1',args:[]},origin);
+  }
+
+  function start() {
+    if (frame || !ALERTY24_BACKEND_URL || !navigator.onLine) return;
+    frame = document.createElement('iframe');
+    frame.title = 'Synchronizacja Alerty24';
+    frame.setAttribute('aria-hidden','true');
+    frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;left:-10000px;top:0';
+    frame.src = ALERTY24_BACKEND_URL;
+    document.body.appendChild(frame);
+  }
+
+  function finish(id, ok, value) {
+    const item = pending.get(id);
+    if (!item) return;
+    pending.delete(id);
+    clearTimeout(item.timer);
+    (ok ? item.success : item.failure)(ok ? value : new Error(String(value || 'Nie udało się odświeżyć Alerty24.')));
+  }
+
+  addEventListener('message', event => {
+    const message = event.data;
+    if (!message || message.protocol !== 'budget-alerty24-rpc-v1' || !trusted(event)) return;
+    if (message.type === 'ready') {
+      client = event.source;
+      origin = event.origin;
+      client.postMessage({protocol:'budget-alerty24-rpc-v1',type:'connect',channel},origin);
+      return;
+    }
+    if (event.source !== client || event.origin !== origin || message.channel !== channel) return;
+    if (message.type === 'connected') {
+      connected = true;
+      pending.forEach(send);
+    } else if (message.type === 'result') {
+      finish(message.id, message.ok, message.ok ? message.data : message.error);
+    }
+  });
+
+  function call(success, failure) {
+    if (!ALERTY24_BACKEND_URL) { failure(new Error('Brak adresu mostu Alerty24 DEV.')); return; }
+    if (!navigator.onLine) { failure(new Error('Brak internetu.')); return; }
+    const id = ++sequence;
+    const item = {id,success,failure,sent:false};
+    item.timer = setTimeout(() => finish(id,false,'Nie udało się połączyć z Alerty24.'),30000);
+    pending.set(id,item);
+    start(); send(item);
+  }
+
+  addEventListener('online', start);
+  return {call,start};
+})();
 
 // Keep the old origin's V9 data and a second persistent copy.
 const budgetDisk = (() => {
@@ -3866,6 +3943,87 @@ function setCategorySort_(value){categorySort_=value;try{localStorage.setItem('b
 function pinCategory_(name){categoryPins_=categoryPins_.includes(name)?categoryPins_.filter(x=>x!==name):[...categoryPins_,name];try{localStorage.setItem('budget-category-pins',JSON.stringify(categoryPins_));}catch(_){}const y=window.scrollY;renderDashboard(dashboardData);window.scrollTo(0,y);}
 function categoryControls_(){return `<div class="category-controls"><label for="category-sort">Kolejność</label><select id="category-sort" onchange="setCategorySort_(this.value)">${[['spending','Największe wydatki'],['over','Największe przekroczenia'],['percent','% budżetu'],['alphabet','Alfabetycznie']].map(([v,l])=>`<option value="${v}" ${categorySort_===v?'selected':''}>${l}</option>`).join('')}</select></div><details class="category-pins"><summary>Przypięte kategorie${categoryPins_.length?' · '+categoryPins_.length:''}</summary><div>${dashboardData.categories.map(c=>`<button type="button" data-category="${escapeHtml(c.name)}" onclick="pinCategory_(this.dataset.category)" aria-pressed="${categoryPins_.includes(c.name)}">${escapeHtml(c.name)}</button>`).join('')}</div></details>`;}
 
+// Alerty24 DEV: cache is local only. The bridge itself has no write method.
+const ALERTY24_CACHE_KEY = 'budzet-alerty24-card-dev-v1';
+let alerty24Data_ = null;
+let alerty24Busy_ = false;
+let alerty24Error_ = '';
+let alerty24LastRequestAt_ = 0;
+
+function alerty24Valid_(data) {
+  return data && data.schema === 1 && data.dailyLimit &&
+    Number.isFinite(Number(data.dailyLimit.limitCents)) &&
+    Number.isFinite(Number(data.dailyLimit.spentCents)) &&
+    Number.isFinite(Number(data.dailyLimit.remainingCents)) &&
+    typeof data.dayKey === 'string';
+}
+function alerty24Money_(cents) { return formatPLN((Number(cents) || 0) / 100); }
+function alerty24Time_(iso) {
+  if (!iso) return 'brak';
+  try { return new Date(iso).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}); } catch (_) { return 'brak'; }
+}
+function alerty24Restore_() {
+  if (alerty24Data_) return;
+  try {
+    const stored = JSON.parse(localStorage.getItem(ALERTY24_CACHE_KEY));
+    if (alerty24Valid_(stored)) alerty24Data_ = stored;
+  } catch (_) {}
+}
+function alerty24RenderSlot_() {
+  const slot = document.getElementById('alerty24-card-slot');
+  if (slot) slot.outerHTML = alerty24CardHtml_();
+  if (typeof applyAmountPrivacy_ === 'function') applyAmountPrivacy_();
+}
+function alerty24CardHtml_() {
+  if (!ALERTY24_BACKEND_URL && !alerty24Data_) return '<div id="alerty24-card-slot"></div>';
+  if (!alerty24Data_) {
+    return `<div id="alerty24-card-slot"><section class="alerty24-card is-loading" aria-live="polite">Pobieranie bieżących płatności kartą…</section></div>`;
+  }
+  const daily = alerty24Data_.dailyLimit;
+  const spent = Number(daily.spentCents) || 0;
+  const limit = Math.max(0, Number(daily.limitCents) || 0);
+  const remaining = Number(daily.remainingCents) || 0;
+  const over = remaining < 0;
+  const percent = limit ? Math.min(100, Math.max(0, spent / limit * 100)) : 0;
+  const session = alerty24Data_.bankSession || {};
+  const sessionText = session.status === 'PILNE' ? 'Sesja bankowa wygasa za ok. ' + session.hoursLeft + ' h — odnów zgodę.' :
+    session.status === 'WYGASLA' ? 'Sesja bankowa wygasła — odnów zgodę.' :
+    session.status === 'UWAGA' ? 'Sesja bankowa wygasa za ok. ' + session.hoursLeft + ' h.' : '';
+  const lastImport = alerty24Data_.source && alerty24Data_.source.lastImportAt;
+  return `<div id="alerty24-card-slot"><section class="alerty24-card ${over ? 'is-over' : ''}" aria-label="Dzisiejszy limit karty">
+    <div class="alerty24-top"><div><div class="alerty24-title">Karta — dzisiejsze wydatki</div><div class="alerty24-caption">Alerty24 · autoryzacje, także oczekujące</div></div>
+    <div class="alerty24-amount"><strong>${escapeHtml(alerty24Money_(spent))}</strong><span>z ${escapeHtml(alerty24Money_(limit))}</span></div></div>
+    <div class="alerty24-progress" aria-hidden="true"><span style="width:${percent}%"></span></div>
+    <div class="alerty24-meta"><span>${over ? 'Przekroczono o ' + alerty24Money_(Math.abs(remaining)) : 'Pozostało ' + alerty24Money_(remaining)}</span><span>${Number(daily.itemCount) || 0} płatności</span><span>ostatni alert: ${escapeHtml(alerty24Time_(lastImport))}</span><button class="alerty24-refresh" type="button" onclick="alerty24Refresh_(true)" ${alerty24Busy_ ? 'disabled' : ''}>${alerty24Busy_ ? 'Odświeżanie…' : 'Odśwież'}</button></div>
+    ${sessionText ? `<div class="alerty24-session ${session.status === 'WYGASLA' ? 'is-expired' : ''}">${escapeHtml(sessionText)}</div>` : ''}
+    ${alerty24Error_ ? `<div class="alerty24-session is-expired">Pokazujemy ostatnie zapisane dane: ${escapeHtml(alerty24Error_)}</div>` : ''}
+  </section></div>`;
+}
+function alerty24Refresh_(force) {
+  if (!ALERTY24_BACKEND_URL || alerty24Busy_) return;
+  if (!force && Date.now() - alerty24LastRequestAt_ < 60000) return;
+  alerty24Busy_ = true; alerty24Error_ = ''; alerty24LastRequestAt_ = Date.now();
+  alerty24RenderSlot_();
+  alerty24Transport.call(function(data) {
+    alerty24Busy_ = false;
+    if (alerty24Valid_(data)) {
+      alerty24Data_ = data;
+      try { localStorage.setItem(ALERTY24_CACHE_KEY, JSON.stringify(data)); } catch (_) {}
+    } else {
+      alerty24Error_ = 'nieprawidłowa odpowiedź';
+    }
+    alerty24RenderSlot_();
+  }, function(error) {
+    alerty24Busy_ = false;
+    alerty24Error_ = String((error && error.message) || 'brak połączenia');
+    alerty24RenderSlot_();
+  });
+}
+function alerty24Start_() {
+  alerty24Restore_();
+  if (ALERTY24_BACKEND_URL) alerty24Refresh_(false);
+}
+
     function renderDashboard(data) {
       if (activeView_ !== 'dashboard') return;
 
@@ -4145,6 +4303,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
 
         ${unifiedHeader_('budget','Budżet',budgetPeriods_(),selectedYear+'-'+String(selectedMonth).padStart(2,'0'),null)}
         <div class="sav-status budget-status"><div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div><button id="budget-refresh" onclick="refreshDashboardSilently_()" aria-label="Odśwież budżet">↻</button></div>
+        ${alerty24CardHtml_()}
 
         <!-- WOLNE ŚRODKI -->
 
@@ -4310,6 +4469,7 @@ function categoryControls_(){return `<div class="category-controls"><label for="
       const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
       const pinsNode=app.querySelector('details.category-pins');if(pinsNode)pinsNode.open=pinsWasOpen;
       if(dashboardWasVisible){if(savedDashboardFocus){const el=document.getElementById(savedDashboardFocus);if(el)el.focus({preventScroll:true});}window.scrollTo(0,savedDashboardY);}
+      alerty24Start_();
       sendPwaDashboardSnapshot_(data);
       notifyPwaReady_('dashboard');
     }
