@@ -1725,7 +1725,9 @@ body.amounts-hidden .history-chart{visibility:hidden}
 
   <script>
 // Local UI; Google is a background read-only data transport.
-const BUDGET_SERVER_URL = 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
+const DEV_BACKEND_URL = new URLSearchParams(location.search).get('devBackend') || '';
+const BUDGET_SERVER_URL = DEV_BACKEND_URL;
+if (!DEV_BACKEND_URL) console.warn('DEV dashboard: add ?devBackend=YOUR_DEV_WEB_APP_URL to test the copy.');
 const budgetTransport = (() => {
   const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
@@ -1888,7 +1890,7 @@ const budgetDisk = (() => {
     const monthInflight = {};
 
     const MONTH_CACHE_TTL_MS = 5 * 60 * 1000;
-    const FRONTEND_BUILD_VERSION = '2026-10-09-UX-V25';
+    const FRONTEND_BUILD_VERSION = '2026-10-14-PERFORMANCE-DEV-V23';
 
     
     
@@ -2209,6 +2211,26 @@ const budgetDisk = (() => {
       }
     });
 
+    let dashboardSnapshotAt = 0;
+
+    function snapshotTimestamp_(data, fallback) {
+      const sync = data && data.sync;
+      const value = sync && Number(sync.generatedAt) || Number(data && data.fetchedAt) || Number(fallback) || 0;
+      return value > 0 ? value : Date.now();
+    }
+
+    function adoptSnapshotMetadata_(data, fallback) {
+      dashboardSnapshotAt = snapshotTimestamp_(data, fallback);
+      if (data && data.sync) {
+        refreshState = {
+          dayKey: data.sync.dayKey,
+          sourceUpdatedMs: data.sync.sourceUpdatedMs,
+          buildVersion: data.sync.buildVersion
+        };
+        lastRefreshSuccessAt = Number(data.sync.checkedAt) || dashboardSnapshotAt;
+      }
+    }
+
     function persistCurrentDashboard_(data) {
       if (
         !data ||
@@ -2220,7 +2242,7 @@ const budgetDisk = (() => {
       }
 
       const payload = {
-        timestamp: Date.now(),
+        timestamp: snapshotTimestamp_(data),
         data: data
       };
 
@@ -2292,7 +2314,7 @@ const budgetDisk = (() => {
         maxYear = Number(data.maxYear);
         maxMonth = Number(data.maxMonth);
 
-        setCachedMonth(data);
+        setCachedMonth(data, payload.timestamp);
 
         const refreshRaw =
           readLocalStorage_(
@@ -2308,6 +2330,7 @@ const budgetDisk = (() => {
           }
         }
 
+        adoptSnapshotMetadata_(data, payload.timestamp);
         renderDashboard(data);
         return true;
 
@@ -2325,6 +2348,7 @@ const budgetDisk = (() => {
       }
 
       const data = cached.data;
+      adoptSnapshotMetadata_(data, cached.timestamp);
       dashboardData = data;
       selectedYear = Number(data.year);
       selectedMonth = Number(data.monthNumber);
@@ -2340,6 +2364,7 @@ const budgetDisk = (() => {
         }
       }
 
+      adoptSnapshotMetadata_(data, cached.timestamp);
       renderDashboard(data);
       return true;
     }
@@ -2525,8 +2550,13 @@ const budgetDisk = (() => {
     }
 
     function getFreshnessLabel_() {
+      const snapshot = formatRefreshClock_(dashboardSnapshotAt);
+      const prefix = snapshot ? 'Dane z ' + snapshot + ' · ' : 'Dane zapisane · ';
+      if (dashboardSnapshotAt && Date.now() - dashboardSnapshotAt > MONTH_CACHE_TTL_MS) {
+        return prefix + 'wymaga odświeżenia';
+      }
       if (!lastRefreshSuccessAt) {
-        return 'Zapisane dane · aktualizowanie…';
+        return prefix + 'sprawdzam aktualność…';
       }
 
       const time =
@@ -2655,11 +2685,12 @@ const budgetDisk = (() => {
 
       return {
         data: entry.data,
-        isFresh: (Date.now() - entry.timestamp) < MONTH_CACHE_TTL_MS
+        timestamp: entry.timestamp,
+        isFresh: entry.stale !== true && (Date.now() - entry.timestamp) < MONTH_CACHE_TTL_MS
       };
     }
 
-    function setCachedMonth(data) {
+    function setCachedMonth(data, timestamp, stale) {
       if (!data || !data.year || !data.monthNumber) {
         return;
       }
@@ -2671,7 +2702,8 @@ const budgetDisk = (() => {
         )
       ] = {
         data: data,
-        timestamp: Date.now()
+        timestamp: snapshotTimestamp_(data, timestamp),
+        stale: stale === true
       };
 
       
@@ -2699,6 +2731,7 @@ const budgetDisk = (() => {
 
       google.script.run
         .withSuccessHandler(function(data) {
+          adoptSnapshotMetadata_(data);
           setCachedMonth(data);
 
           const callbacks =
@@ -2730,25 +2763,9 @@ const budgetDisk = (() => {
     
     
     function fetchMonthDataFresh_(year, month, success, failure) {
-
-      const key = monthCacheKey(year, month);
-
-      google.script.run
-        .withSuccessHandler(function(data) {
-          setCachedMonth(data);
-
-          if (typeof success === 'function') {
-            success(data);
-          }
-        })
-        .withFailureHandler(function(error) {
-          if (typeof failure === 'function') {
-            failure(error);
-          }
-        })
-        .getBudgetData(year, month);
+      // The regular request always calls the server; the queue prevents duplicate calls.
+      fetchMonthData(year, month, success, failure);
     }
-
 
     function preloadMonth(year, month) {
       if (!year || !month) {
@@ -3497,8 +3514,11 @@ function formatHistoryValue(value) {
     
     
 
+    let dashboardRequestToken_ = 0;
+
     function loadDashboard(year, month, options) {
 
+      const requestToken = ++dashboardRequestToken_;
       const isInitialLoad = !dashboardData;
       const opts = options || {};
 
@@ -3551,6 +3571,7 @@ function formatHistoryValue(value) {
         selectedYear,
         selectedMonth,
         function(data) {
+          if (requestToken !== dashboardRequestToken_) return;
           if (!selectedYear || !selectedMonth) {
             selectedYear = Number(data.year);
             selectedMonth = Number(data.monthNumber);
@@ -3566,17 +3587,19 @@ function formatHistoryValue(value) {
           renderDashboard(data);
           persistCurrentDashboard_(data);
 
-          // Najpierw kończymy render i oddajemy sterowanie przeglądarce.
-          // Sprawdzenie źródła oraz preloading nie mogą blokować pierwszego obrazu.
-          setTimeout(function() {
-            checkRefreshState_(true);
-          }, 150);
+          // V23 odpowiedź zawiera już revision/day/build. Nie wykonuj drugiego RPC przy starcie.
+          if (!data.sync) {
+            setTimeout(function() { checkRefreshState_(true); }, 150);
+          } else {
+            updateFreshnessIndicator_('ok');
+          }
 
           if (!opts.silent) {
             startInitialBackgroundPreload();
           }
         },
         function(error) {
+          if (requestToken !== dashboardRequestToken_) return;
           isMonthLoading = false;
           app.classList.remove('month-refreshing');
 
