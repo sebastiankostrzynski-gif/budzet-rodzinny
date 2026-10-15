@@ -12,7 +12,10 @@ function setup() {
     ebDevAssertIsolation_:()=>{}, EbApprovalQueueDevV1:queue, console:{log:()=>{}},
     LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>released++})},
     PropertiesService:{getScriptProperties:()=>({getProperty:k=>{reads++;return stored[k];},getProperties:()=>({...stored}),setProperty:(k,v)=>{if(writes >= failAfter) throw Error("SIMULATED_WRITE_FAILURE");writes++;stored[k]=v;}})},
-    Utilities:{newBlob:v=>({getBytes:()=>v,getDataAsString:()=>v}),gzip:v=>v,ungzip:v=>v,
+    Utilities:{newBlob:(v,type)=>({getBytes:()=>v,getDataAsString:()=>v,contentType:type}),gzip:v=>v,ungzip:v=>{
+      if(v.contentType !== 'application/x-gzip') throw Error('GZIP_CONTENT_TYPE_REQUIRED');
+      return v;
+    },
       base64Encode:v=>Buffer.from(v).toString('base64'),base64Decode:v=>Buffer.from(v,'base64').toString(),getUuid:()=> 'r2'},
     // Any accidental import or sheet scan on page read/decision fails this test.
     eb78ManualBudgetRowsV1_:()=>{throw Error('UNEXPECTED_SHEET_SCAN');},
