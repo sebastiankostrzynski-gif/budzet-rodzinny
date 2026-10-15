@@ -82,3 +82,14 @@ test('missing counterparty falls back to remittance and missing both never shows
  delete s.state.rows[0].transaction.remittance; s.context.ebQueueWrite_(s.state);
  assert.equal(s.context.ebQueueListDev().rows[0].description,'Wydatek bez opisu');
 });
+
+test('saved weak matches are presented as budget review rather than new purchases',()=>{
+ const s=setup(); s.state.rows[0].status='REVIEW'; s.state.rows[0].reason='WEAK_MATCH';
+ s.context.ebQueueWrite_(s.state);
+ assert.equal(s.context.ebQueueListDev().rows[0].queueGroup,'REVIEW_BUDGET');
+});
+test('no candidate means unmatched, without asserting that purchase is new',()=>{
+ const s=setup(); s.state.rows[0].allowedManualKeys=[];
+ s.context.ebQueueWrite_(s.state);
+ assert.equal(s.context.ebQueueListDev().rows[0].queueGroup,'NO_MATCH');
+});
