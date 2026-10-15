@@ -1929,8 +1929,13 @@ const alerty24Transport = (() => {
     pending.set(id,item);
     try { start(); send(item); } catch(error) { finish(id,false,error.message); }
   }
-  addEventListener('online',start);
-  return {call,start,connect};
+  function ensureConnection() {
+    // Called synchronously from the user's tab click so Google can open without a second click.
+    if (connected && client && (!popup || !popup.closed)) return;
+    if (popup && !popup.closed) return;
+    connect();
+  }
+  return {call,start,connect,ensureConnection};
 })();
 
 // Keep the old origin's V9 data and a second persistent copy.
@@ -4088,7 +4093,19 @@ function openAlerty24_() {
   alerty24Restore_();
   document.getElementById('app').innerHTML = '<div class="sav-wrap"><header class="unified-header"><div class="unified-title-row"><span class="unified-spacer" aria-hidden="true"></span><h1>Moja karta</h1>' + privacyButton_() + '</div></header>' + alerty24CardHtml_() + '</div>';
   applyAmountPrivacy_();
-  alerty24Refresh_(false);
+  if (navigator.onLine) {
+    try {
+      alerty24Transport.ensureConnection();
+      alerty24Refresh_(false);
+    } catch (error) {
+      alerty24Busy_ = false;
+      alerty24Error_ = String(error.message || error);
+      alerty24RenderSlot_();
+    }
+  } else {
+    alerty24Error_ = 'Brak internetu.';
+    alerty24RenderSlot_();
+  }
   window.scrollTo(0,0);
 }
 
