@@ -3,6 +3,16 @@
 <head>
 
   <meta charset="utf-8">
+  <meta name="budget-dev-build" content="2026-10-15-cache-isolation-v1">
+  <script>
+    // Separate DEV scope; never unregister or clear the production worker/cache.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js', {scope:'./',updateViaCache:'none'})
+        .then(reg => console.info('[DEV] shell scope: ' + reg.scope))
+        .catch(error => console.warn('[DEV] shell registration failed: ' + error.message));
+    }
+  </script>
+
   <link rel="manifest" href="../manifest.webmanifest">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <meta name="theme-color" content="#39a96b">
@@ -5749,7 +5759,7 @@ function toggleHolidayTrips() {
     addEventListener('online', function() {
       if (!dashboardData) { startupNetworkStarted_ = false; startNetworkDashboardOnce_(); }
     });
-    // DEV route intentionally does not register the production service worker.
+    // DEV shell is registered separately in the document head.
 
 // Savings data is fetched on entering this tab, never on the budget startup path.
 const savingsMeta_ = {
