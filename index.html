@@ -1831,7 +1831,18 @@ const alerty24Transport = (() => {
 
   function trusted(event) {
     if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
-    try { return event.source === frame.contentWindow; } catch (_) { return false; }
+    // Apps Script HTML Service runs in a nested googleusercontent frame. Its
+    // postMessage source is a child of the iframe we created, so accept only
+    // that child/ancestor chain, bounded to prevent unrelated windows.
+    try {
+      let source = event.source;
+      for (let depth = 0; source && depth < 8; depth++) {
+        if (source === frame.contentWindow) return true;
+        if (source === source.parent) break;
+        source = source.parent;
+      }
+    } catch (_) {}
+    return false;
   }
 
   function send(item) {
