@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0}button,select{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>
+<style>body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0;overflow-wrap:anywhere}button,select{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>
 <body><main><h1>Do akceptacji <small>Środowisko DEV</small></h1><p>Decyzje zapisujesz wyłącznie testowo. Budżet pozostaje bez zmian.</p><button id="reload">Odśwież zapisane wyniki</button><p id="message" role="status"></p><section id="rows"></section></main>
 <script>
 'use strict';
@@ -34,7 +34,8 @@ function render() {
   const pending = state.rows.filter(r => !r.decision);
   if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));
   pending.forEach(row => {
-    const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small',row.date));
+    const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small', [row.date,row.sourceLabel,row.accountLabel].filter(Boolean).join(' · ')));
+    if(row.detail) card.append(node('p',row.detail));
     const category = node('select'); category.setAttribute('aria-label','Kategoria dla ' + row.description);
     category.append(new Option('Wybierz kategorię',''));
     state.categories.forEach(c => category.append(new Option(c,c)));
