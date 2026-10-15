@@ -68,11 +68,20 @@ function ebDev02PrzygotujKolejke() {
     return result;
   });
 }
+function ebQueueText_(value) {
+  if (Array.isArray(value)) return value.map(ebQueueText_).filter(Boolean).join(' · ');
+  return typeof value === 'string' ? value.trim() : '';
+}
 function ebQueueView_(state, started) {
   return {revision: state.revision, createdAt: state.createdAt, categories: state.categories,
     rows: state.rows.map(function (row) {
       var item = row.transaction;
-      return {key: row.key, description: item.description || item.merchant || item.key,
+      var name = ebQueueText_(item.counterpartyName);
+      var detail = ebQueueText_(item.remittance);
+      var title = name || detail || 'Wydatek bez opisu';
+      return {key: row.key, description: title, detail: name && detail !== name ? detail : '',
+        sourceLabel: item.source === 'ALERTY24_EMAIL' ? 'Alerty24' : 'Bank',
+        accountLabel: ebQueueText_(item.accountLabel),
         amount: Number(item.amountCents) / 100, currency: item.currency || 'PLN', date: item.effectiveDate || item.bookingDate || '',
         reason: row.reason, decision: row.decision,
         candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0; })
