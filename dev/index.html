@@ -1733,6 +1733,10 @@ body.amounts-hidden .history-chart{visibility:hidden}
 
   <script>
 // Local UI; Google is a background read-only data transport.
+let amountsHidden_=false;
+try{amountsHidden_=localStorage.getItem('budget-hide-amounts')==='1';}catch(_){}
+const amountOriginal_=new Map();
+const amountAttributes_=new Map();
 const devBackendParam_ = new URLSearchParams(location.search).get('devBackend') || '';
 // DEV UI reads the unchanged, existing budget deployment. Alerty24 uses its private DEV bridge.
 const DEV_BACKEND_URL = !devBackendParam_ || devBackendParam_ === '/dev'
@@ -6001,10 +6005,7 @@ document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&docu
 
 
 // Visual privacy only. This does NOT authenticate or encrypt stored data.
-let amountsHidden_=false;
-try{amountsHidden_=localStorage.getItem('budget-hide-amounts')==='1';}catch(_){}
-const amountOriginal_=new Map();
-const amountAttributes_=new Map();
+// Privacy state is initialized before cached dashboard startup.
 function applyAmountPrivacy_(){
  const app=document.getElementById('app'),button=document.getElementById('privacy-toggle');
  document.body.classList.toggle('amounts-hidden',amountsHidden_);
