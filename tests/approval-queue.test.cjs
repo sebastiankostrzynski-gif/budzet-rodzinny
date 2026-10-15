@@ -38,3 +38,32 @@ test('defer is recorded without budget mutation', () => {
   assert.deepEqual(queue.decide(fixture(),req({action:'DEFER'}),'r2','now').rows[0].decision,
     {action:'DEFER',at:'now'});
 });
+function expenseFixture() {
+  const s=fixture(); s.manualRows[0].sheetName='T12 Ubrania i prezenty';
+  s.manualRows[0].label='Odzież'; return s;
+}
+test('new row records own description and server-validated sheet, preserving original transaction',()=>{
+ const s=expenseFixture(), before=JSON.stringify(s);
+ const next=queue.decide(s,req({action:'NEW_ROW',sheetName:'T12 Ubrania i prezenty',description:'  Buty Julki  ',amount:999}),'r2','now');
+ assert.equal(next.rows[0].decision.description,'Buty Julki');
+ assert.equal(next.rows[0].decision.sheetName,'T12 Ubrania i prezenty');
+ assert.equal(next.rows[0].transaction.amount,10); assert.equal(JSON.stringify(s),before);
+});
+test('new row requires description, known expense sheet, and bounded text',()=>{
+ for(const change of [{description:''},{sheetName:'T1 Dochody'},{sheetName:'unknown'},{description:'x'.repeat(201)},{description:'a\nb'}]) {
+  assert.throws(()=>queue.decide(expenseFixture(),req({action:'NEW_ROW',sheetName:'T12 Ubrania i prezenty',description:'Parasol',...change}),'r2','now'));
+ }
+});
+test('several purchases can add to the same total without claiming an already booked expense',()=>{
+ const s=queue.decide(expenseFixture(),req({action:'EXISTING_ROW',targetManualKey:'m',description:'Zakupy'}),'r2','now');
+ const next=queue.decide(s,req({revision:'r2',key:'b',action:'EXISTING_ROW',targetManualKey:'m'}),'r3','now');
+ assert.equal(next.rows[1].decision.targetManualKey,'m');
+ assert.equal(next.rows[1].decision.manualKey,undefined);
+ assert.equal(next.rows[0].decision.description,'Zakupy');
+});
+test('existing target must be server-known and earlier decisions survive new-row decision',()=>{
+ assert.throws(()=>queue.decide(expenseFixture(),req({action:'EXISTING_ROW',targetManualKey:'fake'}),'r2','now'),/UNKNOWN/);
+ const s=queue.decide(expenseFixture(),req(),'r2','first');
+ const next=queue.decide(s,req({revision:'r2',key:'b',action:'NEW_ROW',sheetName:'T12 Ubrania i prezenty',description:'Parasol'}),'r3','now');
+ assert.deepEqual(next.rows[0].decision,s.rows[0].decision);
+});
