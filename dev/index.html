@@ -1798,10 +1798,11 @@ const budgetTransport = (() => {
     if (!navigator.onLine) { failure(new Error('Brak internetu. Pokazuję zapisane dane.')); return; }
     const id = ++sequence;
     const item = {id,method,args,success,failure,sent:false};
+    const timeoutMs = method === 'getBudgetData' || method === 'getRefreshState' ? 8000 : 60000;
     item.timer = setTimeout(() => {
-      finish(id,false,'Google nie odpowiedział w ciągu 8 s. Zapisane dane pozostają dostępne.');
+      finish(id,false,'Google nie odpowiedział w ciągu ' + (timeoutMs/1000) + ' s. Zapisane dane pozostają dostępne.');
       if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
-    },8000);
+    },timeoutMs);
     pending.set(id,item);
     start(); send(item);
   }
