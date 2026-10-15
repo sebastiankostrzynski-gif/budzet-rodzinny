@@ -1,7 +1,4 @@
-/* ADD AS A NEW FILE ONLY IN THE EXISTING ISOLATED DEV PROJECT.
- * Do not also install the separate approval-queue files.
- * Leaves Kod.gs and appsscript.json unchanged. No imports or budget writes.
- */
+/* NEW FILE IN ISOLATED DEV ONLY. Replace the previous KolejkaDEV file, not Kod.gs. */
 /* Pure DEV queue. Persist its returned state ONLY in the isolated DEV project.
  * No services, imports, budget writes, or automatic category learning.
  */
@@ -71,15 +68,43 @@ function ebQueueLock_(action) {
   try { return action(); } finally { lock.releaseLock(); }
 }
 function ebQueueRead_() {
-  var value = PropertiesService.getScriptProperties().getProperty('EB_APPROVAL_QUEUE_DEV_V1');
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var root = 'EB_APPROVAL_QUEUE_DEV_V1';
+  var value = props[root];
   if (!value) throw new Error('Kolejka nie została jeszcze przygotowana w DEV.');
+  if (value.charAt(0) === '{') {
+    var meta = JSON.parse(value);
+    if (meta.format !== 2 || ['A', 'B'].indexOf(meta.bank) < 0 ||
+        !Number.isInteger(meta.parts) || meta.parts < 1 || meta.parts > 20) {
+      throw new Error('Nieprawidłowy nagłówek kolejki DEV.');
+    }
+    value = '';
+    for (var i = 0; i < meta.parts; i++) {
+      var part = props[root + '_' + meta.bank + '_' + i];
+      if (typeof part !== 'string' || !part.length) throw new Error('Brakuje części kolejki DEV.');
+      value += part;
+    }
+    if (value.length !== meta.length) throw new Error('Niepełny zapis kolejki DEV.');
+  }
   return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(value))).getDataAsString('UTF-8'));
 }
 function ebQueueWrite_(state) {
+  var started = Date.now();
   var value = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(state), 'application/json')).getBytes());
-  // One atomic property write; do not leave a partially saved queue.
-  if (value.length > 8500) throw new Error('Kolejka przekracza limit zapisu DEV. Poprzedni zapis pozostaje bez zmian.');
-  PropertiesService.getScriptProperties().setProperty('EB_APPROVAL_QUEUE_DEV_V1', value);
+  var root = 'EB_APPROVAL_QUEUE_DEV_V1', props = PropertiesService.getScriptProperties();
+  var previous = props.getProperty(root), bank = 'A';
+  if (previous && previous.charAt(0) === '{') {
+    var old = JSON.parse(previous);
+    if (old.format !== 2 || ['A', 'B'].indexOf(old.bank) < 0) throw new Error('Nieprawidłowy nagłówek kolejki DEV.');
+    bank = old.bank === 'A' ? 'B' : 'A';
+  }
+  var size = 7000, parts = Math.ceil(value.length / size);
+  if (parts > 20) throw new Error('Kolejka przekracza całkowity limit DEV. Poprzedni zapis pozostaje bez zmian.');
+  // Write the inactive bank first. Publish its pointer only after all parts succeed.
+  // Two reusable banks bound storage growth; no inbox properties are changed/deleted.
+  for (var i = 0; i < parts; i++) props.setProperty(root + '_' + bank + '_' + i, value.slice(i * size, (i + 1) * size));
+  props.setProperty(root, JSON.stringify({format: 2, bank: bank, parts: parts, length: value.length}));
+  console.log(JSON.stringify({stage: 'QUEUE_SAVE', parts: parts, encodedBytes: value.length, elapsedMs: Date.now() - started}));
 }
 // Explicit editor action; never called by doGet, list, or decision endpoints.
 function ebDev02PrzygotujKolejke() {
@@ -128,6 +153,16 @@ function ebQueueDecideDev(request) {
 function doGet() {
   ebDevAssertIsolation_();
   return HtmlService.createHtmlOutput(ebQueueHtmlDev_()).setTitle('Budżet DEV — Do akceptacji');
+}
+
+// Fast editor diagnostic: no transaction descriptions or financial values in logs.
+function ebDev03SprawdzSzybkiOdczytKolejki() {
+  var started = Date.now(), view = ebQueueListDev();
+  var result = {stage: 'QUEUE_READ', rows: view.rows.length,
+    pending: view.rows.filter(function (r) { return !r.decision; }).length,
+    elapsedMs: Date.now() - started};
+  console.log(JSON.stringify(result));
+  return result;
 }
 
 function ebQueueHtmlDev_() { return "<!doctype html>\n<html lang=\"pl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<style>body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0}button,select{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>\n<body><main><h1>Do akceptacji <small>Środowisko DEV</small></h1><p>Decyzje zapisujesz wyłącznie testowo. Budżet pozostaje bez zmian.</p><button id=\"reload\">Odśwież zapisane wyniki</button><p id=\"message\" role=\"status\"></p><section id=\"rows\"></section></main>\n<script>\n'use strict';\nlet state, active = 0, busy = false;\nconst message = document.getElementById('message'), rows = document.getElementById('rows');\nfunction node(tag, text) { const e = document.createElement(tag); if(text !== undefined) e.textContent = String(text); return e; }\nfunction controls(disabled) { document.querySelectorAll('button,select').forEach(e => e.disabled = disabled); }\nfunction rpc(method, request) {\n  if (busy) return;\n  busy = true; controls(true); message.textContent = 'Odczyt zapisanej kolejki…';\n  const token = ++active, start = Date.now();\n  const timer = setTimeout(() => {\n    if (token !== active) return;\n    // A write may still finish server-side. Read state before allowing another decision.\n    active++; busy = false; rows.replaceChildren(); document.getElementById('reload').disabled = false;\n    message.textContent = 'Przekroczono 15 sekund. Kliknij „Odśwież zapisane wyniki”, aby sprawdzić stan zapisu.';\n  }, 15000);\n  function done(error, result) {\n    if (token !== active) return;\n    clearTimeout(timer); busy = false;\n    if(error) { rows.replaceChildren(); message.textContent = 'Nie udało się odczytać lub zapisać: ' + error.message; }\n    else { state = result; render(); message.textContent = 'Odczyt: ' + ((Date.now()-start)/1000).toFixed(2) + ' s; backend: ' + result.elapsedMs + ' ms. Migawka: ' + result.createdAt; }\n    controls(false);\n  }\n  const runner = google.script.run.withSuccessHandler(r => done(null,r)).withFailureHandler(e => done(e));\n  if(method === 'list') runner.ebQueueListDev(); else runner.ebQueueDecideDev(request);\n}\nfunction decide(row, action, extra) { rpc('decide', Object.assign({revision:state.revision,key:row.key,action},extra)); }\nfunction render() {\n  rows.replaceChildren();\n  const pending = state.rows.filter(r => !r.decision);\n  if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));\n  pending.forEach(row => {\n    const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small',row.date));\n    const category = node('select'); category.setAttribute('aria-label','Kategoria dla ' + row.description);\n    category.append(new Option('Wybierz kategorię',''));\n    state.categories.forEach(c => category.append(new Option(c,c)));\n    const approve = node('button','Zapisz kategorię w DEV'); approve.onclick = () => { if(category.value) decide(row,'CATEGORY',{category:category.value}); };\n    card.append(category,approve);\n    if(row.candidates.length) {\n      const manual = node('select'); manual.setAttribute('aria-label','Istniejący wpis dla ' + row.description); manual.append(new Option('Wybierz istniejący wpis',''));\n      row.candidates.forEach(c => manual.append(new Option([c.label,c.amount,c.sheet].filter(v=>v!==undefined).join(' · '),c.key)));\n      const link = node('button','Potwierdź: już w budżecie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };\n      card.append(node('p','Możliwe powiązania — wymagają Twojego potwierdzenia:'),manual,link);\n    }\n    const defer = node('button','Odłóż w DEV'); defer.onclick = () => decide(row,'DEFER'); card.append(defer); rows.append(card);\n  });\n}\ndocument.getElementById('reload').onclick = () => rpc('list');\nrpc('list');\n</script></body></html>\n"; }
