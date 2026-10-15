@@ -90,6 +90,7 @@ function ebQueueView_(state, started) {
         accountLabel: ebQueueText_(item.accountLabel),
         amount: Number(item.amountCents) / 100, currency: item.currency || 'PLN', date: item.effectiveDate || item.bookingDate || '',
         reason: row.reason, decision: row.decision,
+        queueGroup: row.status === 'REVIEW' || row.status === 'MATCH' || row.allowedManualKeys.length ? 'REVIEW_BUDGET' : 'NO_MATCH',
         candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0; })
           .map(function (m) { return {key: m.manualKey, label: m.label, amount: Number(m.amountCents) / 100, sheet: m.sheetName}; })};
     }), elapsedMs: Date.now() - started};
