@@ -8,15 +8,43 @@ function ebQueueLock_(action) {
   try { return action(); } finally { lock.releaseLock(); }
 }
 function ebQueueRead_() {
-  var value = PropertiesService.getScriptProperties().getProperty('EB_APPROVAL_QUEUE_DEV_V1');
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var root = 'EB_APPROVAL_QUEUE_DEV_V1';
+  var value = props[root];
   if (!value) throw new Error('Kolejka nie została jeszcze przygotowana w DEV.');
+  if (value.charAt(0) === '{') {
+    var meta = JSON.parse(value);
+    if (meta.format !== 2 || ['A', 'B'].indexOf(meta.bank) < 0 ||
+        !Number.isInteger(meta.parts) || meta.parts < 1 || meta.parts > 20) {
+      throw new Error('Nieprawidłowy nagłówek kolejki DEV.');
+    }
+    value = '';
+    for (var i = 0; i < meta.parts; i++) {
+      var part = props[root + '_' + meta.bank + '_' + i];
+      if (typeof part !== 'string' || !part.length) throw new Error('Brakuje części kolejki DEV.');
+      value += part;
+    }
+    if (value.length !== meta.length) throw new Error('Niepełny zapis kolejki DEV.');
+  }
   return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(value))).getDataAsString('UTF-8'));
 }
 function ebQueueWrite_(state) {
+  var started = Date.now();
   var value = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(state), 'application/json')).getBytes());
-  // One atomic property write; do not leave a partially saved queue.
-  if (value.length > 8500) throw new Error('Kolejka przekracza limit zapisu DEV. Poprzedni zapis pozostaje bez zmian.');
-  PropertiesService.getScriptProperties().setProperty('EB_APPROVAL_QUEUE_DEV_V1', value);
+  var root = 'EB_APPROVAL_QUEUE_DEV_V1', props = PropertiesService.getScriptProperties();
+  var previous = props.getProperty(root), bank = 'A';
+  if (previous && previous.charAt(0) === '{') {
+    var old = JSON.parse(previous);
+    if (old.format !== 2 || ['A', 'B'].indexOf(old.bank) < 0) throw new Error('Nieprawidłowy nagłówek kolejki DEV.');
+    bank = old.bank === 'A' ? 'B' : 'A';
+  }
+  var size = 7000, parts = Math.ceil(value.length / size);
+  if (parts > 20) throw new Error('Kolejka przekracza całkowity limit DEV. Poprzedni zapis pozostaje bez zmian.');
+  // Write the inactive bank first. Publish its pointer only after all parts succeed.
+  // Two reusable banks bound storage growth; no inbox properties are changed/deleted.
+  for (var i = 0; i < parts; i++) props.setProperty(root + '_' + bank + '_' + i, value.slice(i * size, (i + 1) * size));
+  props.setProperty(root, JSON.stringify({format: 2, bank: bank, parts: parts, length: value.length}));
+  console.log(JSON.stringify({stage: 'QUEUE_SAVE', parts: parts, encodedBytes: value.length, elapsedMs: Date.now() - started}));
 }
 // Explicit editor action; never called by doGet, list, or decision endpoints.
 function ebDev02PrzygotujKolejke() {
@@ -65,4 +93,14 @@ function ebQueueDecideDev(request) {
 function doGet() {
   ebDevAssertIsolation_();
   return HtmlService.createHtmlOutputFromFile('ApprovalQueue').setTitle('Budżet DEV — Do akceptacji');
+}
+
+// Fast editor diagnostic: no transaction descriptions or financial values in logs.
+function ebDev03SprawdzSzybkiOdczytKolejki() {
+  var started = Date.now(), view = ebQueueListDev();
+  var result = {stage: 'QUEUE_READ', rows: view.rows.length,
+    pending: view.rows.filter(function (r) { return !r.decision; }).length,
+    elapsedMs: Date.now() - started};
+  console.log(JSON.stringify(result));
+  return result;
 }
