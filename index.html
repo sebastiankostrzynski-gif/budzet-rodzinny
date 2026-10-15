@@ -1817,15 +1817,17 @@ const google = {script:{run:budgetTransport.runner()}};
 
 // Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
 // It is intentionally opt-in: production is unchanged until the query parameter is supplied.
-const ALERTY24_BACKEND_URL = new URLSearchParams(location.search).get('alerty24Backend') || '';
-// V2: Alerty24 korzysta z TEGO SAMEGO uwierzytelnionego mostu co dashboard.
-// Nie otwieramy drugiego projektu Apps Script w ukrytej ramce, bo w incognito
-// Chrome odcina jego sesję Google jako pliki cookie podmiotu trzeciego.
-const ALERTY24_DIRECT_ENABLED = new URLSearchParams(location.search).get('alerty24Main') === '1';
+const alerty24Params_ = new URLSearchParams(location.search);
+const ALERTY24_DIRECT_ENABLED = alerty24Params_.get('alerty24Main') === '1';
+const ALERTY24_BACKEND_URL = alerty24Params_.get('alerty24Backend') || (ALERTY24_DIRECT_ENABLED
+  ? 'https://script.google.com/macros/s/AKfycby5N3Lhf57mOujHC33C2rK91GyCkuQO0sJ0m8bTKUn8/dev?view=alerty24-bridge-v1'
+  : '');
+// Oddzielny most RPC w DEV. Odczytuje zapisane wyniki z EB_TRANSACTION_INBOX_V1.
 const alerty24Transport = (() => {
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
+  let bridgeStartedAt = 0;
 
   function trusted(event) {
     if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
@@ -1835,15 +1837,23 @@ const alerty24Transport = (() => {
   function send(item) {
     if (!connected || item.sent) return;
     item.sent = true;
+    item.sentAt = performance.now();
     client.postMessage({protocol:'budget-alerty24-rpc-v1',type:'call',channel,id:item.id,method:'getAlerty24DashboardDataV1',args:[]},origin);
   }
 
   function start() {
     if (frame || !ALERTY24_BACKEND_URL || !navigator.onLine) return;
+    bridgeStartedAt = performance.now();
     frame = document.createElement('iframe');
     frame.title = 'Synchronizacja Alerty24';
     frame.setAttribute('aria-hidden','true');
     frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;left:-10000px;top:0';
+    frame.addEventListener('load', () => console.info('[Alerty24] bridge iframe loaded', {elapsedMs:Math.round(performance.now() - bridgeStartedAt)}), {once:true});
+    frame.addEventListener('error', () => {
+      console.error('[Alerty24] iframe load error');
+      frame.remove(); frame = null; client = null; origin = null; connected = false;
+      pending.forEach(item => finish(item.id,false,'Nie udało się załadować mostu Alerty24 DEV.'));
+    }, {once:true});
     frame.src = ALERTY24_BACKEND_URL;
     document.body.appendChild(frame);
   }
@@ -1860,6 +1870,7 @@ const alerty24Transport = (() => {
     const message = event.data;
     if (!message || message.protocol !== 'budget-alerty24-rpc-v1' || !trusted(event)) return;
     if (message.type === 'ready') {
+      console.info('[Alerty24] bridge ready', {elapsedMs:Math.round(performance.now() - bridgeStartedAt)});
       client = event.source;
       origin = event.origin;
       client.postMessage({protocol:'budget-alerty24-rpc-v1',type:'connect',channel},origin);
@@ -1870,6 +1881,12 @@ const alerty24Transport = (() => {
       connected = true;
       pending.forEach(send);
     } else if (message.type === 'result') {
+      const item = pending.get(message.id);
+      if (item) console.info('[Alerty24] backend response', {
+        bridgeWaitMs:item.sentAt ? Math.round(item.sentAt - item.startedAt) : null,
+        backendResponseMs:item.sentAt ? Math.round(performance.now() - item.sentAt) : null,
+        totalMs:Math.round(performance.now() - item.startedAt),ok:!!message.ok
+      });
       finish(message.id, message.ok, message.ok ? message.data : message.error);
     }
   });
@@ -1878,10 +1895,16 @@ const alerty24Transport = (() => {
     if (!ALERTY24_BACKEND_URL) { failure(new Error('Brak adresu mostu Alerty24 DEV.')); return; }
     if (!navigator.onLine) { failure(new Error('Brak internetu.')); return; }
     const id = ++sequence;
-    const item = {id,success,failure,sent:false};
-    item.timer = setTimeout(() => finish(id,false,'Nie udało się połączyć z Alerty24.'),30000);
+    const item = {id,success,failure,sent:false,startedAt:performance.now()};
+    item.timer = setTimeout(() => {
+      const stage = connected ? 'rpc' : 'bridge-handshake';
+      console.error('[Alerty24] timeout', {elapsedMs:Math.round(performance.now() - item.startedAt),stage});
+      if (!connected && frame) { frame.remove(); frame = null; client = null; origin = null; }
+      finish(id,false,connected ? 'Przekroczono limit 15 s oczekiwania na odpowiedź Alerty24.' : 'Most Alerty24 DEV nie odpowiedział w ciągu 15 s.');
+    },15000);
     pending.set(id,item);
-    start(); send(item);
+    try { start(); send(item); }
+    catch (error) { finish(id,false,error && error.message || 'Nie udało się uruchomić połączenia Alerty24.'); }
   }
 
   addEventListener('online', start);
@@ -4010,21 +4033,29 @@ function alerty24Refresh_(force) {
   if (!ALERTY24_DIRECT_ENABLED || alerty24Busy_) return;
   if (!force && Date.now() - alerty24LastRequestAt_ < 60000) return;
   alerty24Busy_ = true; alerty24Error_ = ''; alerty24LastRequestAt_ = Date.now();
-  alerty24RenderSlot_();
-  google.script.run.withSuccessHandler(function(data) {
+  const requestStartedAt = performance.now();
+  let settled = false;
+  function settle_(ok, value) {
+    if (settled) return;
+    settled = true;
     alerty24Busy_ = false;
-    if (alerty24Valid_(data)) {
-      alerty24Data_ = data;
-      try { localStorage.setItem(ALERTY24_CACHE_KEY, JSON.stringify(data)); } catch (_) {}
-    } else {
+    if (ok && alerty24Valid_(value)) {
+      alerty24Data_ = value;
+      try { localStorage.setItem(ALERTY24_CACHE_KEY, JSON.stringify(value)); } catch (_) {}
+    } else if (ok) {
       alerty24Error_ = 'nieprawidłowa odpowiedź';
+    } else {
+      alerty24Error_ = String((value && value.message) || 'brak połączenia');
     }
+    console.info('[Alerty24] ui settled', {elapsedMs:Math.round(performance.now() - requestStartedAt),ok:!!ok});
     alerty24RenderSlot_();
-  }).withFailureHandler(function(error) {
-    alerty24Busy_ = false;
-    alerty24Error_ = String((error && error.message) || 'brak połączenia');
+  }
+  try {
     alerty24RenderSlot_();
-  }).getAlerty24DashboardDataV1();
+    alerty24Transport.call(data => settle_(true,data), error => settle_(false,error));
+  } catch (error) {
+    settle_(false,error);
+  }
 }
 function alerty24Start_() {
   alerty24Restore_();
