@@ -17,3 +17,8 @@ Implemented decisions: category proposal in DEV; explicit confirmation of an eli
 Validation: `node --test tests/*.test.cjs` — 45 passing tests, including reopening saved state, stale decisions, write-size failure and zero sheet/inbox reads on list/decision. Live Google latency, Google authorization/deployment and mobile/browser behavior are not yet verified. The client displays end-to-end seconds and backend milliseconds; do not substitute local test duration for live request latency.
 
 After preparation, run `ebDev03SprawdzSzybkiOdczytKolejki` to log row counts and elapsed time without scanning Sheets. QUEUE_SAVE logs only encoded size, chunk count and elapsed time.
+
+## Row intent and custom descriptions
+The preview now records EXISTING_ROW (add a purchase to a known existing total) or NEW_ROW (a new described row in a known expense sheet). Both are DEV intents only; no spreadsheet write occurs. Multiple purchases may target one running total. This is distinct from ALREADY_IN_BUDGET, which claims a single existing purchase and prevents reuse. Earlier CATEGORY decisions remain intact. User descriptions are plain text (maximum 200 characters); NEW_ROW requires a nonempty description. Sheet options come from the saved manual index, so sheets without any indexed entry are not available yet. Opening and deciding do not rescan Sheets.
+
+51 tests pass. Browser interaction for these new controls still needs verification after deploying the updated isolated DEV version. Do not prepare the queue again; existing snapshot and decisions are compatible.
