@@ -33,7 +33,16 @@ function render() {
   rows.replaceChildren();
   const pending = state.rows.filter(r => !r.decision);
   if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));
+  pending.sort((a,b) => Number(b.queueGroup === 'REVIEW_BUDGET') - Number(a.queueGroup === 'REVIEW_BUDGET'));
+  let group;
   pending.forEach(row => {
+    if(group !== row.queueGroup) {
+      group=row.queueGroup;
+      rows.append(node('h2',group === 'REVIEW_BUDGET' ? 'Sprawdź powiązanie z budżetem' : 'Nie znaleziono dopasowania'));
+      rows.append(node('p',group === 'REVIEW_BUDGET' ?
+        'Te wydatki mogą już być wpisane. Potwierdź istniejący wpis, zamiast dodawać zakup ponownie.' :
+        'Brak dopasowania nie oznacza pewności, że zakupu nie ma w budżecie. Sprawdź przed dodaniem.'));
+    }
     const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small', [row.date,row.sourceLabel,row.accountLabel].filter(Boolean).join(' · ')));
     if(row.detail) card.append(node('p',row.detail));
     const mode = node('select'); mode.setAttribute('aria-label','Sposób zapisania ' + row.description);
@@ -61,13 +70,19 @@ function render() {
       decide(row,mode.value,{description:description.value, sheetName: mode.value === 'NEW_ROW' ? target.value : undefined,
         targetManualKey:mode.value === 'EXISTING_ROW' ? target.value : undefined});
     };
-    card.append(node('p','Jak zapisać ten wydatek?'),mode,target,description,preview,approve);
+    const edit = node('details');
+    edit.append(node('summary',row.queueGroup === 'REVIEW_BUDGET' ? 'To inny wydatek — wybierz miejsce zapisu' : 'Opisz wydatek i wybierz miejsce zapisu'));
+    edit.append(node('p','Jak zapisać ten wydatek?'),mode,target,description,preview,approve);
+    if(row.queueGroup !== 'REVIEW_BUDGET') edit.open=true;
+    card.append(edit);
     if(row.candidates.length) {
+      row.candidates.forEach(c => card.append(node('p','Możliwy wpis: ' + c.sheet + ' · ' + c.label + ' · ' + c.amount + ' PLN')));
       const manual = node('select'); manual.setAttribute('aria-label','Istniejący wpis dla ' + row.description); manual.append(new Option('Wybierz istniejący wpis',''));
       row.candidates.forEach(c => manual.append(new Option([c.label,c.amount,c.sheet].filter(v=>v!==undefined).join(' · '),c.key)));
-      const link = node('button','Potwierdź: już w budżecie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };
+      const link = node('button','Już w budżecie — nie dodawaj ponownie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };
       card.append(node('p','Możliwe powiązania — wymagają Twojego potwierdzenia:'),manual,link);
     }
+    if(row.queueGroup === 'REVIEW_BUDGET' && !row.candidates.length) card.append(node('p','Brak wolnego wpisu do potwierdzenia. Odłóż tę pozycję do sprawdzenia.'));
     const defer = node('button','Odłóż w DEV'); defer.onclick = () => decide(row,'DEFER'); card.append(defer); rows.append(card);
   });
 }
