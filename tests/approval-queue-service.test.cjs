@@ -67,3 +67,18 @@ test('missing chunk fails explicitly without returning partial data',()=>{
  const s=setup(); delete s.stored.EB_APPROVAL_QUEUE_DEV_V1_A_0;
  assert.throws(()=>s.context.ebQueueRead_(),/Brakuje/);
 });
+
+test('real inbox field names show counterparty and remittance without exposing technical keys',()=>{
+ const s=setup(); s.state.rows[0].transaction.counterpartyName='Sklep testowy';
+ s.state.rows[0].transaction.remittance=['Zakup kartą','Opis testowy'];
+ s.state.rows[0].transaction.source='ALERTY24_EMAIL'; s.context.ebQueueWrite_(s.state);
+ const row=s.context.ebQueueListDev().rows[0];
+ assert.equal(row.description,'Sklep testowy'); assert.equal(row.detail,'Zakup kartą · Opis testowy');
+ assert.equal(row.sourceLabel,'Alerty24'); assert.equal(row.key,'a');
+});
+test('missing counterparty falls back to remittance and missing both never shows ID',()=>{
+ const s=setup(); s.state.rows[0].transaction.remittance='Płatność w sklepie';
+ s.context.ebQueueWrite_(s.state); assert.equal(s.context.ebQueueListDev().rows[0].description,'Płatność w sklepie');
+ delete s.state.rows[0].transaction.remittance; s.context.ebQueueWrite_(s.state);
+ assert.equal(s.context.ebQueueListDev().rows[0].description,'Wydatek bez opisu');
+});
