@@ -1818,25 +1818,19 @@ const google = {script:{run:budgetTransport.runner()}};
 // Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
 // It is intentionally opt-in: production is unchanged until the query parameter is supplied.
 const ALERTY24_BACKEND_URL = new URLSearchParams(location.search).get('alerty24Backend') || '';
+// V2: Alerty24 korzysta z TEGO SAMEGO uwierzytelnionego mostu co dashboard.
+// Nie otwieramy drugiego projektu Apps Script w ukrytej ramce, bo w incognito
+// Chrome odcina jego sesję Google jako pliki cookie podmiotu trzeciego.
+const ALERTY24_DIRECT_ENABLED = new URLSearchParams(location.search).get('alerty24Main') === '1';
 const alerty24Transport = (() => {
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
 
   function trusted(event) {
-  if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
-
-  try {
-    let w = event.source;
-    for (let n = 0; w && n < 8; n++) {
-      if (w === frame.contentWindow) return true;
-      if (w === w.parent) break;
-      w = w.parent;
-    }
-  } catch (_) {}
-
-  return false;
-}
+    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(event.origin)) return false;
+    try { return event.source === frame.contentWindow; } catch (_) { return false; }
+  }
 
   function send(item) {
     if (!connected || item.sent) return;
@@ -3985,8 +3979,11 @@ function alerty24RenderSlot_() {
   if (typeof applyAmountPrivacy_ === 'function') applyAmountPrivacy_();
 }
 function alerty24CardHtml_() {
-  if (!ALERTY24_BACKEND_URL && !alerty24Data_) return '<div id="alerty24-card-slot"></div>';
+  if (!ALERTY24_DIRECT_ENABLED && !alerty24Data_) return '<div id="alerty24-card-slot"></div>';
   if (!alerty24Data_) {
+    if (alerty24Error_) {
+      return `<div id="alerty24-card-slot"><section class="alerty24-card is-loading" aria-live="polite">Nie udało się pobrać bieżących płatności kartą: ${escapeHtml(alerty24Error_)} <button class="alerty24-refresh" type="button" onclick="alerty24Refresh_(true)">Spróbuj ponownie</button></section></div>`;
+    }
     return `<div id="alerty24-card-slot"><section class="alerty24-card is-loading" aria-live="polite">Pobieranie bieżących płatności kartą…</section></div>`;
   }
   const daily = alerty24Data_.dailyLimit;
@@ -4010,11 +4007,11 @@ function alerty24CardHtml_() {
   </section></div>`;
 }
 function alerty24Refresh_(force) {
-  if (!ALERTY24_BACKEND_URL || alerty24Busy_) return;
+  if (!ALERTY24_DIRECT_ENABLED || alerty24Busy_) return;
   if (!force && Date.now() - alerty24LastRequestAt_ < 60000) return;
   alerty24Busy_ = true; alerty24Error_ = ''; alerty24LastRequestAt_ = Date.now();
   alerty24RenderSlot_();
-  alerty24Transport.call(function(data) {
+  google.script.run.withSuccessHandler(function(data) {
     alerty24Busy_ = false;
     if (alerty24Valid_(data)) {
       alerty24Data_ = data;
@@ -4023,15 +4020,15 @@ function alerty24Refresh_(force) {
       alerty24Error_ = 'nieprawidłowa odpowiedź';
     }
     alerty24RenderSlot_();
-  }, function(error) {
+  }).withFailureHandler(function(error) {
     alerty24Busy_ = false;
     alerty24Error_ = String((error && error.message) || 'brak połączenia');
     alerty24RenderSlot_();
-  });
+  }).getAlerty24DashboardDataV1();
 }
 function alerty24Start_() {
   alerty24Restore_();
-  if (ALERTY24_BACKEND_URL) alerty24Refresh_(false);
+  if (ALERTY24_DIRECT_ENABLED) alerty24Refresh_(false);
 }
 
     function renderDashboard(data) {
