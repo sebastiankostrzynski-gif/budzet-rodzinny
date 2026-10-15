@@ -1,0 +1,133 @@
+/* ADD AS A NEW FILE ONLY IN THE EXISTING ISOLATED DEV PROJECT.
+ * Do not also install the separate approval-queue files.
+ * Leaves Kod.gs and appsscript.json unchanged. No imports or budget writes.
+ */
+/* Pure DEV queue. Persist its returned state ONLY in the isolated DEV project.
+ * No services, imports, budget writes, or automatic category learning.
+ */
+var EbApprovalQueueDevV1 = (function () {
+  'use strict';
+  function copy(value) { return JSON.parse(JSON.stringify(value)); }
+  function prepare(plan, manualRows, categories, revision, createdAt, eligible, reservedKeys) {
+    if (!revision || !createdAt) throw new Error('Missing snapshot identity.');
+    if (typeof eligible !== 'function' || !Array.isArray(reservedKeys)) throw new Error('Missing eligibility/reservations.');
+    var keys = new Set(), targets = new Map();
+    manualRows.forEach(function (target) {
+      if (!target.manualKey || targets.has(target.manualKey)) throw new Error('Invalid manual key.');
+      targets.set(target.manualKey, target);
+    });
+    var rows = plan.map(function (entry) {
+      var item = entry.item;
+      if (!item.key || keys.has(item.key)) throw new Error('Invalid transaction key.');
+      keys.add(item.key);
+      return { key: item.key, transaction: copy(item), status: entry.status,
+        reason: entry.reason || '', suggestedManualKey: entry.target ? entry.target.manualKey : null,
+        allowedManualKeys: manualRows.filter(function (target) {
+          return reservedKeys.indexOf(target.manualKey) < 0 && eligible(item, target);
+        }).map(function (target) { return target.manualKey; }),
+        decision: null };
+    });
+    return { version: 1, revision: revision, createdAt: createdAt,
+      categories: Array.from(new Set(categories.filter(function (x) { return typeof x === 'string' && x.trim(); }))),
+      manualRows: copy(manualRows), rows: rows };
+  }
+  // Caller must hold ScriptLock across read -> decide -> persistent write.
+  // A new revision from the server makes retries/stale browser tabs fail safely.
+  function decide(state, request, nextRevision, decidedAt) {
+    if (!request || request.revision !== state.revision) throw new Error('STALE_REVISION');
+    if (!nextRevision || nextRevision === state.revision || !decidedAt) throw new Error('Invalid next revision.');
+    var next = copy(state), row = next.rows.find(function (r) { return r.key === request.key; });
+    if (!row) throw new Error('UNKNOWN_TRANSACTION');
+    if (row.decision) throw new Error('ALREADY_DECIDED');
+    var decision = { action: request.action, at: decidedAt };
+    if (request.action === 'CATEGORY') {
+      if (next.categories.indexOf(request.category) < 0) throw new Error('INVALID_CATEGORY');
+      decision.category = request.category;
+    } else if (request.action === 'ALREADY_IN_BUDGET') {
+      var target = next.manualRows.find(function (r) { return r.manualKey === request.manualKey; });
+      if (!target) throw new Error('UNKNOWN_MANUAL_ENTRY');
+      if (row.allowedManualKeys.indexOf(target.manualKey) < 0) throw new Error('INELIGIBLE_MANUAL_ENTRY');
+      if (next.rows.some(function (r) { return r.decision && r.decision.manualKey === target.manualKey; })) {
+        throw new Error('MANUAL_ENTRY_ALREADY_CLAIMED');
+      }
+      decision.manualKey = target.manualKey;
+    } else if (request.action !== 'DEFER') {
+      throw new Error('INVALID_ACTION');
+    }
+    row.decision = decision;
+    next.revision = nextRevision;
+    return next;
+  }
+  return { prepare: prepare, decide: decide };
+})();
+
+/* Isolated DEV only. Requires ebDevAssertIsolation_ from the private project.
+ * Deploy ONLY as an owner-only test web app; never add to the original backend.
+ */
+function ebQueueLock_(action) {
+  ebDevAssertIsolation_();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) throw new Error('Kolejka jest zajęta. Spróbuj ponownie.');
+  try { return action(); } finally { lock.releaseLock(); }
+}
+function ebQueueRead_() {
+  var value = PropertiesService.getScriptProperties().getProperty('EB_APPROVAL_QUEUE_DEV_V1');
+  if (!value) throw new Error('Kolejka nie została jeszcze przygotowana w DEV.');
+  return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(value))).getDataAsString('UTF-8'));
+}
+function ebQueueWrite_(state) {
+  var value = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(state), 'application/json')).getBytes());
+  // One atomic property write; do not leave a partially saved queue.
+  if (value.length > 8500) throw new Error('Kolejka przekracza limit zapisu DEV. Poprzedni zapis pozostaje bez zmian.');
+  PropertiesService.getScriptProperties().setProperty('EB_APPROVAL_QUEUE_DEV_V1', value);
+}
+// Explicit editor action; never called by doGet, list, or decision endpoints.
+function ebDev02PrzygotujKolejke() {
+  return ebQueueLock_(function () {
+    if (PropertiesService.getScriptProperties().getProperty('EB_APPROVAL_QUEUE_DEV_V1')) {
+      throw new Error('Kolejka już istnieje. Nie nadpisuję zapisanych decyzji.');
+    }
+    var started = Date.now();
+    var inbox = ebInboxReadV1_(PropertiesService.getScriptProperties());
+    var manual = eb78ManualBudgetRowsV1_();
+    var plan = EbReconciliationGuardsV1.planManual(inbox.items || [], manual,
+      eb78IsManualCandidateV1_, eb78ManualMatchScoreV1_, function (item) {
+        return ebV5IsTechnicalClass_(ebV5ClassifyWealthRule_(item));
+      });
+    var state = EbApprovalQueueDevV1.prepare(plan, manual,
+      manual.map(function (r) { return r.label; }), Utilities.getUuid(), new Date().toISOString(),
+      function (item, target) { return (item.currency || 'PLN') === 'PLN' && eb78IsManualCandidateV1_(item, target); }, Array.from(EbReconciliationGuardsV1.claimedKeys(inbox.items || [], 'manualBudgetMatchedKey')));
+    ebQueueWrite_(state);
+    var result = {stage: 'QUEUE_PREPARE', rows: state.rows.length, elapsedMs: Date.now() - started};
+    console.log(JSON.stringify(result));
+    return result;
+  });
+}
+function ebQueueView_(state, started) {
+  return {revision: state.revision, createdAt: state.createdAt, categories: state.categories,
+    rows: state.rows.map(function (row) {
+      var item = row.transaction;
+      return {key: row.key, description: item.description || item.merchant || item.key,
+        amount: Number(item.amountCents) / 100, currency: item.currency || 'PLN', date: item.effectiveDate || item.bookingDate || '',
+        reason: row.reason, decision: row.decision,
+        candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0; })
+          .map(function (m) { return {key: m.manualKey, label: m.label, amount: Number(m.amountCents) / 100, sheet: m.sheetName}; })};
+    }), elapsedMs: Date.now() - started};
+}
+function ebQueueListDev() {
+  return ebQueueLock_(function () { var started = Date.now(); return ebQueueView_(ebQueueRead_(), started); });
+}
+function ebQueueDecideDev(request) {
+  return ebQueueLock_(function () {
+    var started = Date.now();
+    var next = EbApprovalQueueDevV1.decide(ebQueueRead_(), request, Utilities.getUuid(), new Date().toISOString());
+    ebQueueWrite_(next);
+    return ebQueueView_(next, started);
+  });
+}
+function doGet() {
+  ebDevAssertIsolation_();
+  return HtmlService.createHtmlOutput(ebQueueHtmlDev_()).setTitle('Budżet DEV — Do akceptacji');
+}
+
+function ebQueueHtmlDev_() { return "<!doctype html>\n<html lang=\"pl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<style>body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0}button,select{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>\n<body><main><h1>Do akceptacji <small>Środowisko DEV</small></h1><p>Decyzje zapisujesz wyłącznie testowo. Budżet pozostaje bez zmian.</p><button id=\"reload\">Odśwież zapisane wyniki</button><p id=\"message\" role=\"status\"></p><section id=\"rows\"></section></main>\n<script>\n'use strict';\nlet state, active = 0, busy = false;\nconst message = document.getElementById('message'), rows = document.getElementById('rows');\nfunction node(tag, text) { const e = document.createElement(tag); if(text !== undefined) e.textContent = String(text); return e; }\nfunction controls(disabled) { document.querySelectorAll('button,select').forEach(e => e.disabled = disabled); }\nfunction rpc(method, request) {\n  if (busy) return;\n  busy = true; controls(true); message.textContent = 'Odczyt zapisanej kolejki…';\n  const token = ++active, start = Date.now();\n  const timer = setTimeout(() => {\n    if (token !== active) return;\n    // A write may still finish server-side. Read state before allowing another decision.\n    active++; busy = false; rows.replaceChildren(); document.getElementById('reload').disabled = false;\n    message.textContent = 'Przekroczono 15 sekund. Kliknij „Odśwież zapisane wyniki”, aby sprawdzić stan zapisu.';\n  }, 15000);\n  function done(error, result) {\n    if (token !== active) return;\n    clearTimeout(timer); busy = false;\n    if(error) { rows.replaceChildren(); message.textContent = 'Nie udało się odczytać lub zapisać: ' + error.message; }\n    else { state = result; render(); message.textContent = 'Odczyt: ' + ((Date.now()-start)/1000).toFixed(2) + ' s; backend: ' + result.elapsedMs + ' ms. Migawka: ' + result.createdAt; }\n    controls(false);\n  }\n  const runner = google.script.run.withSuccessHandler(r => done(null,r)).withFailureHandler(e => done(e));\n  if(method === 'list') runner.ebQueueListDev(); else runner.ebQueueDecideDev(request);\n}\nfunction decide(row, action, extra) { rpc('decide', Object.assign({revision:state.revision,key:row.key,action},extra)); }\nfunction render() {\n  rows.replaceChildren();\n  const pending = state.rows.filter(r => !r.decision);\n  if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));\n  pending.forEach(row => {\n    const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small',row.date));\n    const category = node('select'); category.setAttribute('aria-label','Kategoria dla ' + row.description);\n    category.append(new Option('Wybierz kategorię',''));\n    state.categories.forEach(c => category.append(new Option(c,c)));\n    const approve = node('button','Zapisz kategorię w DEV'); approve.onclick = () => { if(category.value) decide(row,'CATEGORY',{category:category.value}); };\n    card.append(category,approve);\n    if(row.candidates.length) {\n      const manual = node('select'); manual.setAttribute('aria-label','Istniejący wpis dla ' + row.description); manual.append(new Option('Wybierz istniejący wpis',''));\n      row.candidates.forEach(c => manual.append(new Option([c.label,c.amount,c.sheet].filter(v=>v!==undefined).join(' · '),c.key)));\n      const link = node('button','Potwierdź: już w budżecie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };\n      card.append(node('p','Możliwe powiązania — wymagają Twojego potwierdzenia:'),manual,link);\n    }\n    const defer = node('button','Odłóż w DEV'); defer.onclick = () => decide(row,'DEFER'); card.append(defer); rows.append(card);\n  });\n}\ndocument.getElementById('reload').onclick = () => rpc('list');\nrpc('list');\n</script></body></html>\n"; }
