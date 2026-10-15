@@ -26,7 +26,7 @@ function ebQueueRead_() {
     }
     if (value.length !== meta.length) throw new Error('Niepełny zapis kolejki DEV.');
   }
-  return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(value))).getDataAsString('UTF-8'));
+  return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(value), 'application/x-gzip', 'queue.json.gz')).getDataAsString('UTF-8'));
 }
 function ebQueueWrite_(state) {
   var started = Date.now();
