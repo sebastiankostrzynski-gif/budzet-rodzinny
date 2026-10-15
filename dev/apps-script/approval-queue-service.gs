@@ -74,6 +74,12 @@ function ebQueueText_(value) {
 }
 function ebQueueView_(state, started) {
   return {revision: state.revision, createdAt: state.createdAt, categories: state.categories,
+    expenseSheets: Array.from(new Set(state.manualRows.map(function (m) { return m.sheetName; }).filter(function (name) {
+      return typeof name === 'string' && /^T(?:[5-9]|[1-9][0-9]+)\b/i.test(name);
+    }))),
+    existingRows: state.manualRows.map(function (m) {
+      return {key: m.manualKey, label: m.label, sheet: m.sheetName, month: m.monthKey};
+    }),
     rows: state.rows.map(function (row) {
       var item = row.transaction;
       var name = ebQueueText_(item.counterpartyName);
