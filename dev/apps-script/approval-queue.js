@@ -36,7 +36,25 @@ var EbApprovalQueueDevV1 = (function () {
     if (!row) throw new Error('UNKNOWN_TRANSACTION');
     if (row.decision) throw new Error('ALREADY_DECIDED');
     var decision = { action: request.action, at: decidedAt };
-    if (request.action === 'CATEGORY') {
+    if (request.action === 'NEW_ROW' || request.action === 'EXISTING_ROW') {
+      var description = typeof request.description === 'string' ? request.description.trim() : '';
+      if (description.length > 200 || /[\x00-\x1f]/.test(description)) throw new Error('INVALID_DESCRIPTION');
+      decision.description = description;
+      if (request.action === 'NEW_ROW') {
+        if (!description) throw new Error('DESCRIPTION_REQUIRED');
+        var sheet = next.manualRows.find(function (r) { return r.sheetName === request.sheetName; });
+        if (!sheet || !/^T(?:[5-9]|[1-9][0-9]+)\b/i.test(sheet.sheetName)) throw new Error('INVALID_EXPENSE_SHEET');
+        decision.sheetName = sheet.sheetName;
+      } else {
+        var existing = next.manualRows.find(function (r) { return r.manualKey === request.targetManualKey; });
+        if (!existing) throw new Error('UNKNOWN_MANUAL_ENTRY');
+        // Addition to a running total is distinct from claiming an already booked purchase.
+        // Several purchases may target the same existing row.
+        decision.targetManualKey = existing.manualKey;
+        decision.category = existing.label;
+        decision.sheetName = existing.sheetName;
+      }
+    } else if (request.action === 'CATEGORY') {
       if (next.categories.indexOf(request.category) < 0) throw new Error('INVALID_CATEGORY');
       decision.category = request.category;
     } else if (request.action === 'ALREADY_IN_BUDGET') {
