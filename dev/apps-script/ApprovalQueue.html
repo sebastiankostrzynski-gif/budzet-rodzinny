@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>[hidden]{display:none!important}body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0;overflow-wrap:anywhere}button,select,input{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}label{display:block;margin-top:12px}label>select,label>input{display:block;width:100%;box-sizing:border-box}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>
+<body><main><h1>Do akceptacji <small>Środowisko DEV</small></h1><p>Decyzje zapisujesz wyłącznie testowo. Budżet pozostaje bez zmian.</p><button id="reload">Odśwież zapisane wyniki</button><p id="message" role="status"></p><section id="rows"></section></main>
+<script>
+'use strict';
+let state, active = 0, busy = false;
+const message = document.getElementById('message'), rows = document.getElementById('rows');
+function node(tag, text) { const e = document.createElement(tag); if(text !== undefined) e.textContent = String(text); return e; }
+function controls(disabled) { document.querySelectorAll('button,select,input').forEach(e => e.disabled = disabled); }
+function rpc(method, request) {
+  if (busy) return;
+  busy = true; controls(true); message.textContent = 'Odczyt zapisanej kolejki…';
+  const token = ++active, start = Date.now();
+  const timer = setTimeout(() => {
+    if (token !== active) return;
+    // A write may still finish server-side. Read state before allowing another decision.
+    active++; busy = false; rows.replaceChildren(); document.getElementById('reload').disabled = false;
+    message.textContent = 'Przekroczono 15 sekund. Kliknij „Odśwież zapisane wyniki”, aby sprawdzić stan zapisu.';
+  }, 15000);
+  function done(error, result) {
+    if (token !== active) return;
+    clearTimeout(timer); busy = false;
+    if(error) { rows.replaceChildren(); message.textContent = 'Nie udało się odczytać lub zapisać: ' + error.message; }
+    else { state = result; render(); message.textContent = 'Odczyt: ' + ((Date.now()-start)/1000).toFixed(2) + ' s; backend: ' + result.elapsedMs + ' ms. Migawka: ' + result.createdAt; }
+    controls(false);
+  }
+  const runner = google.script.run.withSuccessHandler(r => done(null,r)).withFailureHandler(e => done(e));
+  if(method === 'list') runner.ebQueueListDev(); else runner.ebQueueDecideDev(request);
+}
+function decide(row, action, extra) { rpc('decide', Object.assign({revision:state.revision,key:row.key,action},extra)); }
+function render() {
+  rows.replaceChildren();
+  const pending = state.rows.filter(r => !r.decision);
+  if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));
+  pending.sort((a,b) => Number(b.queueGroup === 'REVIEW_BUDGET') - Number(a.queueGroup === 'REVIEW_BUDGET'));
+  let group;
+  pending.forEach(row => {
+    if(group !== row.queueGroup) {
+      group=row.queueGroup;
+      rows.append(node('h2',group === 'REVIEW_BUDGET' ? 'Sprawdź powiązanie z budżetem' : 'Nie znaleziono dopasowania'));
+      rows.append(node('p',group === 'REVIEW_BUDGET' ?
+        'Te wydatki mogą już być wpisane. Potwierdź istniejący wpis, zamiast dodawać zakup ponownie.' :
+        'Brak dopasowania nie oznacza pewności, że zakupu nie ma w budżecie. Sprawdź przed dodaniem.'));
+    }
+    const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small', [row.date,row.sourceLabel,row.accountLabel].filter(Boolean).join(' · ')));
+    if(row.detail) card.append(node('p',row.detail));
+    const mode = node('select'); mode.setAttribute('aria-label','Sposób zapisania ' + row.description);
+    mode.append(new Option('Dodaj do istniejącej pozycji','EXISTING_ROW'),new Option('Zapisz jako osobny zakup','NEW_ROW'));
+    const department = node('select'); department.setAttribute('aria-label','Dział budżetu dla ' + row.description);
+    department.append(new Option('Wybierz kategorię',''));
+    state.expenseSheets.forEach(s => department.append(new Option(s,s)));
+    const target = node('select'); target.setAttribute('aria-label','Pozycja w wybranym dziale dla ' + row.description);
+    function field(text, control) { const label=node('label',text); label.append(control); return label; }
+    const targetField=field('Do której pozycji dodać kwotę?',target);
+    const modeField=field('Jak zapisać ten zakup?',mode);
+    const description = node('input'); description.type='text'; description.maxLength=200;
+    description.placeholder='Np. Buty Julki lub Parasolka'; description.setAttribute('aria-label','Własny opis dla ' + row.description);
+    const descriptionField=field('Co kupiłeś?',description);
+    const person=node('select'); person.setAttribute('aria-label','Dla kogo zakup ' + row.description);
+    person.append(new Option('Wybierz osobę',''));
+    ['Ewa','Julka','Olek','Seba'].forEach(name=>person.append(new Option(name,name)));
+    const personField=field('Dla kogo?',person);
+    function needsPerson() { return mode.value === 'NEW_ROW' && /^T12\b/i.test(department.value); }
+    const preview = node('p');
+    function updatePreview() {
+      const isNew=mode.value === 'NEW_ROW', option=target.options[target.selectedIndex];
+      const ready=department.value && (isNew || target.value);
+      preview.textContent = ready ? 'Plan w DEV: ' + department.value + ' · ' +
+        (isNew ? 'nowy wiersz' : 'dodanie do pozycji „' + option.textContent + '”') +
+        (needsPerson() && person.value ? ' · dla: ' + person.value : '') +
+        (isNew && description.value.trim() ? ' · opis: ' + description.value.trim() : '') +
+        ' · ' + row.amount + ' ' + row.currency + '. Arkusz nie zostanie zmieniony.' : 'Wybierz kategorię zakupu.';
+    }
+    function updateTargets() {
+      const isNew=mode.value === 'NEW_ROW', previous=target.value;
+      targetField.hidden=isNew || !department.value;
+      descriptionField.hidden=!isNew || !department.value;
+      personField.hidden=!needsPerson();
+      modeField.hidden=!department.value;
+      const matches=state.existingRows.filter(r => r.sheet === department.value);
+      target.replaceChildren(new Option(matches.length ? 'Wybierz pozycję' : 'Brak pozycji — wybierz zapis jako osobny zakup',''));
+      matches.forEach(r => target.append(new Option([r.label,r.month].filter(Boolean).join(' · '),r.key)));
+      if(matches.some(r=>r.key === previous)) target.value=previous;
+      updatePreview();
+    }
+    department.onchange=()=>{ target.value=''; person.value=''; updateTargets(); };
+    mode.onchange=()=>{ target.value=''; updateTargets(); };
+    target.onchange=updatePreview; description.oninput=updatePreview; person.onchange=updatePreview; updateTargets();
+    const approve = node('button','Zapisz decyzję w DEV'); approve.onclick = () => {
+      if(!department.value || (mode.value === 'EXISTING_ROW' && !target.value)) { preview.textContent='Wybierz dział i pozycję w tym dziale.'; return; }
+      if(mode.value === 'NEW_ROW' && !description.value.trim()) { preview.textContent='Wpisz opis nowego wiersza.'; description.focus(); return; }
+      if(needsPerson() && !person.value) { preview.textContent='Wybierz, dla kogo jest zakup: Ewa, Julka, Olek lub Seba.'; person.focus(); return; }
+      decide(row,mode.value,{person:needsPerson() ? person.value : undefined, description:mode.value === 'NEW_ROW' ? description.value : '', sheetName: mode.value === 'NEW_ROW' ? department.value : undefined,
+        targetManualKey:mode.value === 'EXISTING_ROW' ? target.value : undefined});
+    };
+    const edit = node('div');
+    edit.append(field('Kategoria',department),modeField,targetField,personField,descriptionField,preview,approve);
+    card.append(edit);
+    if(row.candidates.length) {
+      row.candidates.forEach(c => card.append(node('p','Możliwy wpis: ' + c.sheet + ' · ' + c.label + ' · ' + c.amount + ' PLN')));
+      const manual = node('select'); manual.setAttribute('aria-label','Istniejący wpis dla ' + row.description); manual.append(new Option('Wybierz istniejący wpis',''));
+      row.candidates.forEach(c => manual.append(new Option([c.label,c.amount,c.sheet].filter(v=>v!==undefined).join(' · '),c.key)));
+      const link = node('button','Już w budżecie — nie dodawaj ponownie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };
+      card.append(node('p','Możliwe powiązania — wymagają Twojego potwierdzenia:'),manual,link);
+    }
+    if(row.queueGroup === 'REVIEW_BUDGET' && !row.candidates.length) card.append(node('p','Nie znaleziono wiarygodnego powiązania z istniejącym wpisem. Podobna kwota nie wystarcza do uznania zakupu za duplikat.'));
+    const defer = node('button','Odłóż w DEV'); defer.onclick = () => decide(row,'DEFER'); card.append(defer); rows.append(card);
+  });
+}
+document.getElementById('reload').onclick = () => rpc('list');
+rpc('list');
+</script></body></html>
