@@ -19,7 +19,7 @@ function setup() {
    google:{script:{run:runner}},setTimeout:()=>1,clearTimeout:()=>{}};
  vm.createContext(context); const html=fs.readFileSync('dev/apps-script/ApprovalQueue.html','utf8');
  vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
- success({revision:'r1',createdAt:'today',elapsedMs:1,expenseSheets:['T7 Wyżywienie','T9 Dzieci'],
+ success({revision:'r1',createdAt:'today',elapsedMs:1,expenseSheets:['T7 Wyżywienie','T9 Dzieci','T12 Ubrania i prezenty'],
  existingRows:[{key:'food',sheet:'T7 Wyżywienie',label:'Żywność'},{key:'clean',sheet:'T7 Wyżywienie',label:'Chemia'},{key:'school',sheet:'T9 Dzieci',label:'Szkoła'}],
  rows:[{key:'a',description:'Sklep',amount:10,currency:'PLN',queueGroup:'NO_MATCH',candidates:[]}]});
  function all(e=ids.rows) { return [e,...e.children.flatMap(all)]; }
@@ -46,4 +46,13 @@ test('new row needs only department and custom description and sends no existing
  dep.value='T9 Dzieci';dep.onchange();mode.value='NEW_ROW';mode.onchange();desc.value='Parasolka';
  s.button('Zapisz decyzję w DEV').onclick();
  assert.equal(s.request().action,'NEW_ROW');assert.equal(s.request().sheetName,'T9 Dzieci');assert.equal(s.request().description,'Parasolka');assert.equal(s.request().targetManualKey,undefined);
+});
+
+test('clothing purchase cannot submit without person; person is absent in other categories',()=>{
+ const s=setup(),dep=s.find('Dział budżetu dla Sklep'),mode=s.find('Sposób zapisania Sklep'),desc=s.find('Własny opis dla Sklep'),person=s.find('Dla kogo zakup Sklep');
+ assert.equal(s.parent(person).hidden,true);
+ dep.value='T12 Ubrania i prezenty';dep.onchange();mode.value='NEW_ROW';mode.onchange();desc.value='Buty';
+ assert.equal(s.parent(person).hidden,false);s.button('Zapisz decyzję w DEV').onclick();assert.equal(s.request(),undefined);
+ person.value='Julka';person.onchange();s.button('Zapisz decyzję w DEV').onclick();assert.equal(s.request().person,'Julka');
+ dep.value='T7 Wyżywienie';dep.onchange();assert.equal(person.value,'');assert.equal(s.parent(person).hidden,true);
 });
