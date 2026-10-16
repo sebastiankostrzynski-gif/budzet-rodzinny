@@ -86,9 +86,9 @@ function render() {
         targetManualKey:mode.value === 'EXISTING_ROW' ? target.value : undefined});
     };
     const edit = node('details');
-    edit.append(node('summary',row.queueGroup === 'REVIEW_BUDGET' ? 'To inny wydatek — wybierz miejsce zapisu' : 'Opisz wydatek i wybierz miejsce zapisu'));
+    edit.append(node('summary',row.queueGroup === 'REVIEW_BUDGET' ? 'Wybierz właściwy dział i pozycję' : 'Opisz wydatek i wybierz miejsce zapisu'));
     edit.append(field('Sposób zapisu',mode),field('1. Dział budżetu',department),searchField,targetField,field('Własny opis zakupu',description),preview,approve);
-    if(row.queueGroup !== 'REVIEW_BUDGET') edit.open=true;
+    edit.open=true;
     card.append(edit);
     if(row.candidates.length) {
       row.candidates.forEach(c => card.append(node('p','Możliwy wpis: ' + c.sheet + ' · ' + c.label + ' · ' + c.amount + ' PLN')));
@@ -97,7 +97,7 @@ function render() {
       const link = node('button','Już w budżecie — nie dodawaj ponownie'); link.onclick = () => { if(manual.value) decide(row,'ALREADY_IN_BUDGET',{manualKey:manual.value}); };
       card.append(node('p','Możliwe powiązania — wymagają Twojego potwierdzenia:'),manual,link);
     }
-    if(row.queueGroup === 'REVIEW_BUDGET' && !row.candidates.length) card.append(node('p','Brak wolnego wpisu do potwierdzenia. Odłóż tę pozycję do sprawdzenia.'));
+    if(row.queueGroup === 'REVIEW_BUDGET' && !row.candidates.length) card.append(node('p','Nie znaleziono wiarygodnego powiązania z istniejącym wpisem. Podobna kwota nie wystarcza do uznania zakupu za duplikat.'));
     const defer = node('button','Odłóż w DEV'); defer.onclick = () => decide(row,'DEFER'); card.append(defer); rows.append(card);
   });
 }
