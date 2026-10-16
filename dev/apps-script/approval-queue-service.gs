@@ -91,7 +91,8 @@ function ebQueueView_(state, started) {
         amount: Number(item.amountCents) / 100, currency: item.currency || 'PLN', date: item.effectiveDate || item.bookingDate || '',
         reason: row.reason, decision: row.decision,
         queueGroup: row.status === 'REVIEW' || row.status === 'MATCH' || row.allowedManualKeys.length ? 'REVIEW_BUDGET' : 'NO_MATCH',
-        candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0; })
+        candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0 &&
+          typeof eb78ManualMatchScoreV1_ === 'function' && Number(eb78ManualMatchScoreV1_(item, m)) >= 8; })
           .map(function (m) { return {key: m.manualKey, label: m.label, amount: Number(m.amountCents) / 100, sheet: m.sheetName}; })};
     }), elapsedMs: Date.now() - started};
 }
@@ -101,7 +102,15 @@ function ebQueueListDev() {
 function ebQueueDecideDev(request) {
   return ebQueueLock_(function () {
     var started = Date.now();
-    var next = EbApprovalQueueDevV1.decide(ebQueueRead_(), request, Utilities.getUuid(), new Date().toISOString());
+    var saved = ebQueueRead_();
+    if (request && request.action === 'ALREADY_IN_BUDGET') {
+      var view = ebQueueView_(saved, started);
+      var source = view.rows.find(function (r) { return r.key === request.key; });
+      if (!source || !source.candidates.some(function (m) { return m.key === request.manualKey; })) {
+        throw new Error('Ten wpis nie jest wiarygodnym dopasowaniem. Wybierz właściwy dział i pozycję.');
+      }
+    }
+    var next = EbApprovalQueueDevV1.decide(saved, request, Utilities.getUuid(), new Date().toISOString());
     ebQueueWrite_(next);
     return ebQueueView_(next, started);
   });
