@@ -23,7 +23,7 @@ function setup() {
  existingRows:[{key:'food',sheet:'T7 Wyżywienie',label:'Żywność'},{key:'clean',sheet:'T7 Wyżywienie',label:'Chemia'},{key:'school',sheet:'T9 Dzieci',label:'Szkoła'}],
  rows:[{key:'a',description:'Sklep',amount:10,currency:'PLN',queueGroup:'NO_MATCH',candidates:[]}]});
  function all(e=ids.rows) { return [e,...e.children.flatMap(all)]; }
- return {find:label=>all().find(e=>e.attrs['aria-label']===label),button:text=>all().find(e=>e.tag==='button'&&e.textContent===text),request:()=>request};
+ return {find:label=>all().find(e=>e.attrs['aria-label']===label),button:text=>all().find(e=>e.tag==='button'&&e.textContent===text),request:()=>request, parent:child=>all().find(e=>e.children.includes(child)),all:()=>all()};
 }
 test('department limits choices and changing it clears previous target',()=>{
  const s=setup(),dep=s.find('Dział budżetu dla Sklep'),target=s.find('Pozycja w wybranym dziale dla Sklep');
@@ -32,10 +32,14 @@ test('department limits choices and changing it clears previous target',()=>{
  target.value='food';dep.value='T9 Dzieci';dep.onchange();assert.equal(target.value,'');assert.deepEqual(target.options.slice(1).map(x=>x.value),['school']);
  s.button('Zapisz decyzję w DEV').onclick();assert.equal(s.request(),undefined);
 });
-test('search handles Polish letters and cannot retain an invisible target',()=>{
- const s=setup(),dep=s.find('Dział budżetu dla Sklep'),target=s.find('Pozycja w wybranym dziale dla Sklep'),search=s.find('Szukaj pozycji dla Sklep');
- dep.value='T7 Wyżywienie';dep.onchange();target.value='clean';search.value='zywnosc';search.oninput();
- assert.deepEqual(target.options.slice(1).map(x=>x.value),['food']);assert.equal(target.value,'');
+test('new purchase shows description only, and existing position hides it again',()=>{
+ const s=setup(),dep=s.find('Dział budżetu dla Sklep'),mode=s.find('Sposób zapisania Sklep'),desc=s.find('Własny opis dla Sklep'),target=s.find('Pozycja w wybranym dziale dla Sklep');
+ assert.equal(s.parent(mode).hidden,true); assert.equal(s.parent(target).hidden,true);
+ dep.value='T7 Wyżywienie';dep.onchange();
+ assert.equal(s.parent(mode).hidden,false); assert.equal(s.parent(target).hidden,false);assert.equal(s.parent(desc).hidden,true);
+ mode.value='NEW_ROW';mode.onchange();assert.equal(s.parent(target).hidden,true);assert.equal(s.parent(desc).hidden,false);
+ mode.value='EXISTING_ROW';mode.onchange();assert.equal(s.parent(target).hidden,false);assert.equal(s.parent(desc).hidden,true);
+ assert.equal(s.all().some(e=>e.type==='search'),false);
 });
 test('new row needs only department and custom description and sends no existing target',()=>{
  const s=setup(),dep=s.find('Dział budżetu dla Sklep'),mode=s.find('Sposób zapisania Sklep'),desc=s.find('Własny opis dla Sklep');
