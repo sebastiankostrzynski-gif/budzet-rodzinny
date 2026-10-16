@@ -45,6 +45,10 @@ var EbApprovalQueueDevV1 = (function () {
         var sheet = next.manualRows.find(function (r) { return r.sheetName === request.sheetName; });
         if (!sheet || !/^T(?:[5-9]|[1-9][0-9]+)\b/i.test(sheet.sheetName)) throw new Error('INVALID_EXPENSE_SHEET');
         decision.sheetName = sheet.sheetName;
+        if (/^T12\b/i.test(sheet.sheetName)) {
+          if (['Ewa','Julka','Olek','Seba'].indexOf(request.person) < 0) throw new Error('PERSON_REQUIRED');
+          decision.person = request.person;
+        }
       } else {
         var existing = next.manualRows.find(function (r) { return r.manualKey === request.targetManualKey; });
         if (!existing) throw new Error('UNKNOWN_MANUAL_ENTRY');
