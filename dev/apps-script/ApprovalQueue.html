@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0;overflow-wrap:anywhere}button,select,input{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}label{display:block;margin-top:12px}label>select,label>input{display:block;width:100%;box-sizing:border-box}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>
+<style>[hidden]{display:none!important}body{font:16px system-ui;background:#f4f6f8;color:#172636;margin:0}main{max-width:800px;margin:auto;padding:24px}article{background:white;border-radius:14px;padding:20px;margin:16px 0;overflow-wrap:anywhere}button,select,input{font:inherit;padding:10px;margin:5px 5px 5px 0;max-width:100%}label{display:block;margin-top:12px}label>select,label>input{display:block;width:100%;box-sizing:border-box}button{cursor:pointer}small{display:block;color:#526577}#message{white-space:pre-wrap}button:disabled{cursor:wait}</style></head>
 <body><main><h1>Do akceptacji <small>Środowisko DEV</small></h1><p>Decyzje zapisujesz wyłącznie testowo. Budżet pozostaje bez zmian.</p><button id="reload">Odśwież zapisane wyniki</button><p id="message" role="status"></p><section id="rows"></section></main>
 <script>
 'use strict';
@@ -46,49 +46,48 @@ function render() {
     const card = node('article'); card.append(node('h2', row.description),node('p', String(row.amount) + ' ' + row.currency),node('small', [row.date,row.sourceLabel,row.accountLabel].filter(Boolean).join(' · ')));
     if(row.detail) card.append(node('p',row.detail));
     const mode = node('select'); mode.setAttribute('aria-label','Sposób zapisania ' + row.description);
-    mode.append(new Option('Dodaj do istniejącej pozycji','EXISTING_ROW'),new Option('Utwórz nowy wiersz','NEW_ROW'));
+    mode.append(new Option('Dodaj do istniejącej pozycji','EXISTING_ROW'),new Option('Zapisz jako osobny zakup','NEW_ROW'));
     const department = node('select'); department.setAttribute('aria-label','Dział budżetu dla ' + row.description);
-    department.append(new Option('Wybierz dział budżetu',''));
+    department.append(new Option('Wybierz kategorię',''));
     state.expenseSheets.forEach(s => department.append(new Option(s,s)));
     const target = node('select'); target.setAttribute('aria-label','Pozycja w wybranym dziale dla ' + row.description);
-    const search = node('input'); search.type='search'; search.placeholder='Szukaj pozycji w wybranym dziale';
-    search.setAttribute('aria-label','Szukaj pozycji dla ' + row.description);
     function field(text, control) { const label=node('label',text); label.append(control); return label; }
-    const targetField=field('2. Pozycja w tym dziale',target), searchField=field('Szukaj pozycji',search);
+    const targetField=field('Do której pozycji dodać kwotę?',target);
+    const modeField=field('Jak zapisać ten zakup?',mode);
     const description = node('input'); description.type='text'; description.maxLength=200;
-    description.placeholder='Własny opis, np. Parasolka'; description.setAttribute('aria-label','Własny opis dla ' + row.description);
+    description.placeholder='Np. Buty Julki lub Parasolka'; description.setAttribute('aria-label','Własny opis dla ' + row.description);
+    const descriptionField=field('Co kupiłeś?',description);
     const preview = node('p');
     function updatePreview() {
       const isNew=mode.value === 'NEW_ROW', option=target.options[target.selectedIndex];
       const ready=department.value && (isNew || target.value);
       preview.textContent = ready ? 'Plan w DEV: ' + department.value + ' · ' +
         (isNew ? 'nowy wiersz' : 'dodanie do pozycji „' + option.textContent + '”') +
-        (description.value.trim() ? ' · opis: ' + description.value.trim() : '') +
-        ' · ' + row.amount + ' ' + row.currency + '. Arkusz nie zostanie zmieniony.' : 'Wybierz dział budżetu, a następnie pozycję.';
+        (isNew && description.value.trim() ? ' · opis: ' + description.value.trim() : '') +
+        ' · ' + row.amount + ' ' + row.currency + '. Arkusz nie zostanie zmieniony.' : 'Wybierz kategorię zakupu.';
     }
     function updateTargets() {
       const isNew=mode.value === 'NEW_ROW', previous=target.value;
-      targetField.hidden=isNew || !department.value; searchField.hidden=isNew || !department.value;
-      const norm = value => String(value || '').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l');
-      const matches=state.existingRows.filter(r => r.sheet === department.value && norm(r.label).includes(norm(search.value.trim())));
-      target.replaceChildren(new Option(matches.length ? 'Wybierz pozycję' : 'Brak pozycji — zmień wyszukiwanie lub utwórz nowy wiersz',''));
+      targetField.hidden=isNew || !department.value;
+      descriptionField.hidden=!isNew || !department.value;
+      modeField.hidden=!department.value;
+      const matches=state.existingRows.filter(r => r.sheet === department.value);
+      target.replaceChildren(new Option(matches.length ? 'Wybierz pozycję' : 'Brak pozycji — wybierz zapis jako osobny zakup',''));
       matches.forEach(r => target.append(new Option([r.label,r.month].filter(Boolean).join(' · '),r.key)));
       if(matches.some(r=>r.key === previous)) target.value=previous;
       updatePreview();
     }
-    department.onchange=()=>{ target.value=''; search.value=''; updateTargets(); };
-    mode.onchange=()=>{ target.value=''; search.value=''; updateTargets(); };
-    search.oninput=updateTargets; target.onchange=updatePreview; description.oninput=updatePreview; updateTargets();
+    department.onchange=()=>{ target.value=''; updateTargets(); };
+    mode.onchange=()=>{ target.value=''; updateTargets(); };
+    target.onchange=updatePreview; description.oninput=updatePreview; updateTargets();
     const approve = node('button','Zapisz decyzję w DEV'); approve.onclick = () => {
       if(!department.value || (mode.value === 'EXISTING_ROW' && !target.value)) { preview.textContent='Wybierz dział i pozycję w tym dziale.'; return; }
       if(mode.value === 'NEW_ROW' && !description.value.trim()) { preview.textContent='Wpisz opis nowego wiersza.'; description.focus(); return; }
-      decide(row,mode.value,{description:description.value, sheetName: mode.value === 'NEW_ROW' ? department.value : undefined,
+      decide(row,mode.value,{description:mode.value === 'NEW_ROW' ? description.value : '', sheetName: mode.value === 'NEW_ROW' ? department.value : undefined,
         targetManualKey:mode.value === 'EXISTING_ROW' ? target.value : undefined});
     };
-    const edit = node('details');
-    edit.append(node('summary',row.queueGroup === 'REVIEW_BUDGET' ? 'Wybierz właściwy dział i pozycję' : 'Opisz wydatek i wybierz miejsce zapisu'));
-    edit.append(field('Sposób zapisu',mode),field('1. Dział budżetu',department),searchField,targetField,field('Własny opis zakupu',description),preview,approve);
-    edit.open=true;
+    const edit = node('div');
+    edit.append(field('Kategoria',department),modeField,targetField,descriptionField,preview,approve);
     card.append(edit);
     if(row.candidates.length) {
       row.candidates.forEach(c => card.append(node('p','Możliwy wpis: ' + c.sheet + ' · ' + c.label + ' · ' + c.amount + ' PLN')));
