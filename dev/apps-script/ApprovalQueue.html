@@ -57,12 +57,18 @@ function render() {
     const description = node('input'); description.type='text'; description.maxLength=200;
     description.placeholder='Np. Buty Julki lub Parasolka'; description.setAttribute('aria-label','Własny opis dla ' + row.description);
     const descriptionField=field('Co kupiłeś?',description);
+    const person=node('select'); person.setAttribute('aria-label','Dla kogo zakup ' + row.description);
+    person.append(new Option('Wybierz osobę',''));
+    ['Ewa','Julka','Olek','Seba'].forEach(name=>person.append(new Option(name,name)));
+    const personField=field('Dla kogo?',person);
+    function needsPerson() { return mode.value === 'NEW_ROW' && /^T12\b/i.test(department.value); }
     const preview = node('p');
     function updatePreview() {
       const isNew=mode.value === 'NEW_ROW', option=target.options[target.selectedIndex];
       const ready=department.value && (isNew || target.value);
       preview.textContent = ready ? 'Plan w DEV: ' + department.value + ' · ' +
         (isNew ? 'nowy wiersz' : 'dodanie do pozycji „' + option.textContent + '”') +
+        (needsPerson() && person.value ? ' · dla: ' + person.value : '') +
         (isNew && description.value.trim() ? ' · opis: ' + description.value.trim() : '') +
         ' · ' + row.amount + ' ' + row.currency + '. Arkusz nie zostanie zmieniony.' : 'Wybierz kategorię zakupu.';
     }
@@ -70,6 +76,7 @@ function render() {
       const isNew=mode.value === 'NEW_ROW', previous=target.value;
       targetField.hidden=isNew || !department.value;
       descriptionField.hidden=!isNew || !department.value;
+      personField.hidden=!needsPerson();
       modeField.hidden=!department.value;
       const matches=state.existingRows.filter(r => r.sheet === department.value);
       target.replaceChildren(new Option(matches.length ? 'Wybierz pozycję' : 'Brak pozycji — wybierz zapis jako osobny zakup',''));
@@ -77,17 +84,18 @@ function render() {
       if(matches.some(r=>r.key === previous)) target.value=previous;
       updatePreview();
     }
-    department.onchange=()=>{ target.value=''; updateTargets(); };
+    department.onchange=()=>{ target.value=''; person.value=''; updateTargets(); };
     mode.onchange=()=>{ target.value=''; updateTargets(); };
-    target.onchange=updatePreview; description.oninput=updatePreview; updateTargets();
+    target.onchange=updatePreview; description.oninput=updatePreview; person.onchange=updatePreview; updateTargets();
     const approve = node('button','Zapisz decyzję w DEV'); approve.onclick = () => {
       if(!department.value || (mode.value === 'EXISTING_ROW' && !target.value)) { preview.textContent='Wybierz dział i pozycję w tym dziale.'; return; }
       if(mode.value === 'NEW_ROW' && !description.value.trim()) { preview.textContent='Wpisz opis nowego wiersza.'; description.focus(); return; }
-      decide(row,mode.value,{description:mode.value === 'NEW_ROW' ? description.value : '', sheetName: mode.value === 'NEW_ROW' ? department.value : undefined,
+      if(needsPerson() && !person.value) { preview.textContent='Wybierz, dla kogo jest zakup: Ewa, Julka, Olek lub Seba.'; person.focus(); return; }
+      decide(row,mode.value,{person:needsPerson() ? person.value : undefined, description:mode.value === 'NEW_ROW' ? description.value : '', sheetName: mode.value === 'NEW_ROW' ? department.value : undefined,
         targetManualKey:mode.value === 'EXISTING_ROW' ? target.value : undefined});
     };
     const edit = node('div');
-    edit.append(field('Kategoria',department),modeField,targetField,descriptionField,preview,approve);
+    edit.append(field('Kategoria',department),modeField,targetField,personField,descriptionField,preview,approve);
     card.append(edit);
     if(row.candidates.length) {
       row.candidates.forEach(c => card.append(node('p','Możliwy wpis: ' + c.sheet + ' · ' + c.label + ' · ' + c.amount + ' PLN')));
