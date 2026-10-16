@@ -9,7 +9,7 @@ function setup() {
   const state = queue.prepare([{item:{key:'a',amountCents:1695,currency:'PLN'},status:'NO_MATCH'}],
     [{manualKey:'m',amountCents:1695,sheetName:'T5',label:'Jedzenie'}], ['Jedzenie'],'r1','today',()=>true,[]);
   const context = {
-    ebDevAssertIsolation_:()=>{}, EbApprovalQueueDevV1:queue, console:{log:()=>{}},
+    ebDevAssertIsolation_:()=>{}, EbApprovalQueueDevV1:queue, eb78ManualMatchScoreV1_:()=>10, console:{log:()=>{}},
     LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>released++})},
     PropertiesService:{getScriptProperties:()=>({getProperty:k=>{reads++;return stored[k];},getProperties:()=>({...stored}),setProperty:(k,v)=>{if(writes >= failAfter) throw Error("SIMULATED_WRITE_FAILURE");writes++;stored[k]=v;}})},
     Utilities:{newBlob:(v,type)=>({getBytes:()=>v,getDataAsString:()=>v,contentType:type}),gzip:v=>v,ungzip:v=>{
@@ -92,4 +92,11 @@ test('no candidate means unmatched, without asserting that purchase is new',()=>
  const s=setup(); s.state.rows[0].allowedManualKeys=[];
  s.context.ebQueueWrite_(s.state);
  assert.equal(s.context.ebQueueListDev().rows[0].queueGroup,'NO_MATCH');
+});
+
+test('weak amount-only match is neither shown nor accepted as already in budget',()=>{
+ const s=setup(); s.context.eb78ManualMatchScoreV1_=()=>4;
+ assert.equal(s.context.ebQueueListDev().rows[0].candidates.length,0);
+ assert.throws(()=>s.context.ebQueueDecideDev({revision:'r1',key:'a',action:'ALREADY_IN_BUDGET',manualKey:'m'}),/wiarygodnym/);
+ assert.equal(s.context.ebQueueRead_().rows[0].decision,null);
 });
