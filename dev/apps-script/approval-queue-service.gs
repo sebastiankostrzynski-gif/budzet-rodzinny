@@ -72,8 +72,34 @@ function ebQueueText_(value) {
   if (Array.isArray(value)) return value.map(ebQueueText_).filter(Boolean).join(' · ');
   return typeof value === 'string' ? value.trim() : '';
 }
+// Explicit editor action only. A page read or decision never calls this scan.
+function ebDev04OdswiezPorownanieBezUtratyDecyzji() {
+  return ebQueueLock_(function () {
+    var started = Date.now(), saved = ebQueueRead_();
+    var inbox = ebInboxReadV1_(PropertiesService.getScriptProperties());
+    var manualStarted = Date.now(), manual = eb78ManualBudgetRowsV1_();
+    console.log(JSON.stringify({stage: 'QUEUE_REFRESH_MANUAL', elapsedMs: Date.now() - manualStarted}));
+    var planStarted = Date.now();
+    var plan = EbReconciliationGuardsV1.planManual(inbox.items || [], manual,
+      eb78IsManualCandidateV1_, eb78ManualMatchScoreV1_, function (item) {
+        return ebV5IsTechnicalClass_(ebV5ClassifyWealthRule_(item));
+      });
+    var fresh = EbApprovalQueueDevV1.prepare(plan, manual,
+      manual.map(function (r) { return r.label; }), Utilities.getUuid(), new Date().toISOString(),
+      function (item, target) { return (item.currency || 'PLN') === 'PLN' && eb78IsManualCandidateV1_(item, target); },
+      Array.from(EbReconciliationGuardsV1.claimedKeys(inbox.items || [], 'manualBudgetMatchedKey')));
+    var next = EbApprovalQueueDevV1.refresh(saved, fresh, saved.revision);
+    console.log(JSON.stringify({stage: 'QUEUE_REFRESH_PLAN', elapsedMs: Date.now() - planStarted}));
+    ebQueueWrite_(next);
+    var result = {stage: 'QUEUE_REFRESH', rows: next.rows.length,
+      decisionsPreserved: next.refresh.decisionsPreserved, decisionsToReview: next.refresh.decisionsToReview,
+      elapsedMs: Date.now() - started};
+    console.log(JSON.stringify(result));
+    return result;
+  });
+}
 function ebQueueView_(state, started) {
-  return {revision: state.revision, createdAt: state.createdAt, categories: state.categories,
+  return {revision: state.revision, createdAt: state.createdAt, categories: state.categories, refresh: state.refresh || null,
     expenseSheets: Array.from(new Set(state.manualRows.map(function (m) { return m.sheetName; }).filter(function (name) {
       return typeof name === 'string' && /^T(?:[5-9]|[1-9][0-9]+)\b/i.test(name);
     }))),
@@ -89,7 +115,7 @@ function ebQueueView_(state, started) {
         sourceLabel: item.source === 'ALERTY24_EMAIL' ? 'Alerty24' : 'Bank',
         accountLabel: ebQueueText_(item.accountLabel),
         amount: Number(item.amountCents) / 100, currency: item.currency || 'PLN', date: item.effectiveDate || item.bookingDate || '',
-        reason: row.reason, decision: row.decision,
+        reason: row.reason, decision: row.decision, refreshReview: row.refreshReview || null,
         queueGroup: row.status === 'REVIEW' || row.status === 'MATCH' || row.allowedManualKeys.length ? 'REVIEW_BUDGET' : 'NO_MATCH',
         candidates: state.manualRows.filter(function (m) { return row.allowedManualKeys.indexOf(m.manualKey) >= 0 &&
           typeof eb78ManualMatchScoreV1_ === 'function' && Number(eb78ManualMatchScoreV1_(item, m)) >= 8; })

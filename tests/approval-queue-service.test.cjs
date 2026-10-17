@@ -100,3 +100,26 @@ test('weak amount-only match is neither shown nor accepted as already in budget'
  assert.throws(()=>s.context.ebQueueDecideDev({revision:'r1',key:'a',action:'ALREADY_IN_BUDGET',manualKey:'m'}),/wiarygodnym/);
  assert.equal(s.context.ebQueueRead_().rows[0].decision,null);
 });
+
+test('explicit refresh scans once, preserves decisions and reopening never scans',()=>{
+ const s=setup();
+ s.state.rows[0].decision={action:'CATEGORY',category:'Jedzenie',at:'before'};
+ s.context.ebQueueWrite_(s.state);
+ let scans=0;
+ s.context.eb78ManualBudgetRowsV1_=()=>{scans++;return s.state.manualRows;};
+ s.context.ebInboxReadV1_=()=>({items:[s.state.rows[0].transaction]});
+ s.context.EbReconciliationGuardsV1={planManual:items=>items.map(item=>({item,status:'REVIEW',reason:'WEAK_MATCH'})),claimedKeys:()=>new Set()};
+ s.context.eb78IsManualCandidateV1_=()=>true;
+ s.context.ebV5ClassifyWealthRule_=()=>'';s.context.ebV5IsTechnicalClass_=()=>false;
+ const result=s.context.ebDev04OdswiezPorownanieBezUtratyDecyzji();
+ assert.equal(result.decisionsPreserved,1);assert.equal(scans,1);
+ const reopened=s.context.ebQueueListDev();
+ assert.equal(reopened.rows[0].decision.at,'before');assert.equal(reopened.rows[0].refreshReview,'RECHECK_AFTER_MANUAL_UPDATE');
+ assert.equal(scans,1);
+});
+test('failed refresh scan leaves saved decisions and revision untouched',()=>{
+ const s=setup(),before=JSON.stringify(s.context.ebQueueRead_()),writes=s.counts().writes;
+ s.context.ebInboxReadV1_=()=>({items:[]});
+ assert.throws(()=>s.context.ebDev04OdswiezPorownanieBezUtratyDecyzji(),/UNEXPECTED_SHEET_SCAN/);
+ assert.equal(JSON.stringify(s.context.ebQueueRead_()),before);assert.equal(s.counts().writes,writes);
+});

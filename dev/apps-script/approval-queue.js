@@ -76,6 +76,65 @@ var EbApprovalQueueDevV1 = (function () {
     next.revision = nextRevision;
     return next;
   }
-  return { prepare: prepare, decide: decide };
+  // Explicit reconciliation refresh. Previous decisions are immutable history;
+  // changed totals cannot prove that a particular purchase was already entered.
+  function refresh(previous, fresh, expectedRevision) {
+    if (!previous || expectedRevision !== previous.revision) throw new Error('STALE_REVISION');
+    if (!fresh || !fresh.revision || fresh.revision === previous.revision) throw new Error('Invalid refresh revision.');
+    var next = copy(fresh), oldByKey = new Map(), freshByKey = new Map();
+    previous.rows.forEach(function (row) {
+      if (oldByKey.has(row.key)) throw new Error('Duplicate transaction key.');
+      oldByKey.set(row.key, row);
+    });
+    next.rows.forEach(function (row) {
+      if (freshByKey.has(row.key)) throw new Error('Duplicate transaction key.');
+      freshByKey.set(row.key, row);
+    });
+    var carried = 0, review = 0;
+    previous.rows.forEach(function (old) {
+      if (!old.decision) return;
+      var current = freshByKey.get(old.key);
+      // Keep the complete decision and its old transaction evidence, even when
+      // the transaction no longer qualifies for the new pending queue.
+      var saved = copy(old);
+      saved.refreshReview = null;
+      if (old.decision.action !== 'DEFER') {
+        saved.refreshReview = 'RECHECK_AFTER_MANUAL_UPDATE'; review++;
+      }
+      if (current) next.rows[next.rows.indexOf(current)] = saved;
+      else next.rows.push(saved);
+      carried++;
+    });
+    next.refresh = {at: fresh.createdAt, previousRevision: previous.revision,
+      decisionsPreserved: carried, decisionsToReview: review};
+    // Old target details must remain inspectable when amount-based manual keys change.
+    next.decisionEvidence = previous.rows.filter(function (row) { return !!row.decision; }).map(function (row) {
+      var key = row.decision.manualKey || row.decision.targetManualKey;
+      var prior = (previous.decisionEvidence || []).find(function (entry) { return entry.transactionKey === row.key; });
+      var target = previous.manualRows.find(function (entry) { return entry.manualKey === key; });
+      return {transactionKey: row.key, manualTarget: target ? copy(target) : prior ? prior.manualTarget : null};
+    });
+    var claimed = new Set();
+    previous.rows.filter(function (row) { return row.decision && row.decision.action === 'ALREADY_IN_BUDGET'; }).forEach(function (row) {
+      var evidence = next.decisionEvidence.find(function (entry) { return entry.transactionKey === row.key; });
+      var oldTarget = evidence && evidence.manualTarget;
+      next.manualRows.forEach(function (target) {
+        var sameCell = oldTarget && oldTarget.sheetName && Number.isInteger(oldTarget.rowNumber) &&
+          Number.isInteger(oldTarget.columnNumber) && oldTarget.monthKey &&
+          target.sheetName === oldTarget.sheetName && target.rowNumber === oldTarget.rowNumber &&
+          target.columnNumber === oldTarget.columnNumber && target.monthKey === oldTarget.monthKey;
+        if (target.manualKey === row.decision.manualKey || sameCell) claimed.add(target.manualKey);
+      });
+    });
+    next.rows.forEach(function (row) {
+      if (row.decision) return;
+      row.allowedManualKeys = row.allowedManualKeys.filter(function (key) { return !claimed.has(key); });
+      if (claimed.has(row.suggestedManualKey)) {
+        row.suggestedManualKey = null; row.status = 'REVIEW'; row.reason = 'ALREADY_CLAIMED';
+      }
+    });
+    return next;
+  }
+  return { prepare: prepare, decide: decide, refresh: refresh };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = EbApprovalQueueDevV1;

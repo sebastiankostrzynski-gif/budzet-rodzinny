@@ -31,6 +31,18 @@ function rpc(method, request) {
 function decide(row, action, extra) { rpc('decide', Object.assign({revision:state.revision,key:row.key,action},extra)); }
 function render() {
   rows.replaceChildren();
+  const reviews = state.rows.filter(r => r.refreshReview);
+  if(reviews.length) {
+    rows.append(node('h2','Wcześniejsze decyzje do ponownego sprawdzenia'));
+    rows.append(node('p','Po ręcznej aktualizacji budżetu zachowaliśmy te decyzje. Przed przyszłym zapisem trzeba sprawdzić, czy wydatki są już ujęte.'));
+    const decisionLabels = {CATEGORY:'Wybrano kategorię',EXISTING_ROW:'Dodanie do istniejącej pozycji',NEW_ROW:'Osobny zakup',ALREADY_IN_BUDGET:'Potwierdzono wpis w budżecie'};
+    reviews.forEach(row => {
+      const card = node('article');
+      card.append(node('h3',row.description),node('p',row.amount + ' ' + row.currency),
+        node('small',(decisionLabels[row.decision.action] || 'Zachowana decyzja') + ' · ' + row.decision.at));
+      rows.append(card);
+    });
+  }
   const pending = state.rows.filter(r => !r.decision);
   if(!pending.length) rows.append(node('p','Brak wydatków oczekujących na decyzję w tej migawce.'));
   pending.sort((a,b) => Number(b.queueGroup === 'REVIEW_BUDGET') - Number(a.queueGroup === 'REVIEW_BUDGET'));
