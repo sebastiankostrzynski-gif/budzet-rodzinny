@@ -1759,10 +1759,13 @@ const budgetTransport = (() => {
   const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
   const channel = crypto.randomUUID();
+  const hostedRpc = new URLSearchParams(location.search).get('budgetRpcHost') === '1' && window.parent !== window;
+  let hostedPing = null, hostedRedirecting = false;
   let frame, popup, client, origin, connected = false, sequence = 0;
   const log = (stage, values = {}) => console.info('[Budget DEV] ' + JSON.stringify({stage,...values}));
   function trusted(e) {
     if (!/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
+    if (hostedRpc) return e.source === window.parent;
     try {
       let w = e.source;
       for (let n=0; w && n<8; n++) {
@@ -1782,6 +1785,13 @@ const budgetTransport = (() => {
     } catch (error) { finish(item.id,false,error.message); }
   }
   function start() {
+    if (hostedRpc) {
+      if (connected || !navigator.onLine) return;
+      const ping = () => window.parent.postMessage({protocol:'budget-rpc-v10',type:'ready',channel},'*');
+      ping();
+      if (!hostedPing) hostedPing = setInterval(() => { if (connected) { clearInterval(hostedPing); hostedPing = null; } else ping(); },500);
+      return;
+    }
     if (frame || (popup && !popup.closed) || !navigator.onLine) return;
     frame = document.createElement('iframe');
     frame.title = 'Synchronizacja danych budżetu';
@@ -1822,12 +1832,17 @@ const budgetTransport = (() => {
     if (connected && popup && popup.closed) { connected=false; client=null; origin=null; }
     const id = ++sequence;
     const item = {id,method,args,success,failure,sent:false,startedAt:performance.now(),sentAt:null};
-    const timeoutMs = method === 'getBudgetData' || method === 'getRefreshState' ? 8000 : 60000;
+    const timeoutMs = method === 'getBudgetData' || method === 'getRefreshState' ? (hostedRpc ? 8000 : 2500) : 60000;
     item.timer = setTimeout(() => {
       const phase=item.sent?'backend':'bridge-handshake';
       log('timeout',{method,phase,elapsedMs:Math.round(performance.now()-item.startedAt)});
       finish(id,false,item.sent?'Google nie zwrócił danych w ciągu '+(timeoutMs/1000)+' s. Zapisane dane pozostają dostępne.':'Google zablokował połączenie w ramce. Kliknij Odśwież budżet, aby połączyć bezpośrednio.');
       if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; origin = null; }
+      if (!hostedRpc && !connected && phase === 'bridge-handshake' && !hostedRedirecting) {
+        hostedRedirecting = true;
+        log('hosted-fallback',{endpoint:BUDGET_SERVER_URL,elapsedMs:Math.round(performance.now()-item.startedAt)});
+        location.replace(BUDGET_SERVER_URL);
+      }
     },timeoutMs);
     pending.set(id,item);
     start(); send(item);
@@ -1841,13 +1856,10 @@ const budgetTransport = (() => {
     return r;
   }
   function ensureConnection() {
-    if (connected && client && (!popup || !popup.closed)) return;
-    if (popup && !popup.closed) { popup.focus(); return; }
-    if (frame) { frame.remove(); frame=null; }
-    client=null; origin=null; connected=false;
-    popup=window.open(BUDGET_SERVER_URL,'budzet-budget-dev','popup,width=520,height=620');
-    if (!popup) throw new Error('Zezwól na otwarcie okna Google dla tej aplikacji i spróbuj ponownie.');
-    log('popup-opened',{endpoint:BUDGET_SERVER_URL}); popup.focus();
+    if (hostedRpc || (connected && client)) return;
+    hostedRedirecting = true;
+    log('hosted-fallback',{endpoint:BUDGET_SERVER_URL,reason:'manual-refresh'});
+    location.assign(BUDGET_SERVER_URL);
   }
   addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
   return {runner,start,ensureConnection};
