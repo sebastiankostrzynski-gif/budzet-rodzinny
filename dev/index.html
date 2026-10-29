@@ -1755,12 +1755,23 @@ const DEV_BACKEND_URL = !devBackendParam_ || devBackendParam_ === '/dev'
   ? 'https://script.google.com/macros/s/AKfycbx2TItmC_9CGkg0v0Za7CUpgoJd7-_VdqrF5oZblMHm/dev'
   : devBackendParam_;
 const BUDGET_SERVER_URL = DEV_BACKEND_URL;
+const budgetRpcHost_ = new URLSearchParams(location.search).get('budgetRpcHost') === '1';
+const budgetHostOrigin_ = (() => {
+  if (!budgetRpcHost_ || !document.referrer) return '';
+  try {
+    const u = new URL(document.referrer);
+    return u.protocol === 'https:' && /script\.googleusercontent\.com$/.test(u.hostname)
+      ? u.origin : '';
+  } catch (_) { return ''; }
+})();
 const budgetTransport = (() => {
   const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
   const channel = crypto.randomUUID();
-  let frame, client, origin, connected = false, sequence = 0;
+  const hosted = budgetRpcHost_ && !!budgetHostOrigin_ && window.parent !== window;
+  let frame, client = hosted ? window.parent : null, origin = hosted ? budgetHostOrigin_ : '', connected = false, sequence = 0, handshakeTimer;
   function trusted(e) {
+    if (hosted) return e.source === window.parent && e.origin === budgetHostOrigin_;
     if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
     try {
       let w = e.source;
@@ -1775,9 +1786,23 @@ const budgetTransport = (() => {
   function send(item) {
     if (!connected || item.sent) return;
     item.sent = true;
-    client.postMessage({protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
+    const message = {protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args};
+    if (hosted) client.postMessage(message,origin);
+    else client.postMessage(message,origin);
   }
   function start() {
+    if (hosted) {
+      if (connected || !navigator.onLine) return;
+      if (!handshakeTimer) {
+        const announce = () => {
+          if (connected || !navigator.onLine) return;
+          client.postMessage({protocol:'budget-rpc-v10',type:'connect',channel},origin);
+        };
+        announce();
+        handshakeTimer = setInterval(announce,500);
+      }
+      return;
+    }
     if (frame || !navigator.onLine) return;
     frame = document.createElement('iframe');
     frame.title = 'Synchronizacja danych budżetu';
@@ -1795,18 +1820,13 @@ const budgetTransport = (() => {
   }
   addEventListener('message', e => {
     const m = e.data;
-    if (!m || m.protocol !== 'budget-rpc-v10' || !trusted(e)) return;
-    if (m.type === 'ready') {
-      if (connected && e.source === client) return;
-      client = e.source; origin = e.origin;
-      client.postMessage({protocol:'budget-rpc-v10',type:'connect',channel},origin);
-    } else if (e.source === client && e.origin === origin && m.channel === channel) {
-      if (m.type === 'connected') {
-        connected = true;
-        pending.forEach(send);
-      } else if (m.type === 'result') {
-        finish(m.id,m.ok,m.ok ? m.data : m.error);
-      }
+    if (!m || m.protocol !== 'budget-rpc-v10' || !trusted(e) || e.source !== client || e.origin !== origin || m.channel !== channel) return;
+    if (m.type === 'connected') {
+      connected = true;
+      if (handshakeTimer) { clearInterval(handshakeTimer); handshakeTimer = null; }
+      pending.forEach(send);
+    } else if (m.type === 'result') {
+      finish(m.id,m.ok,m.ok ? m.data : m.error);
     }
   });
   function call(method,args,success,failure) {
@@ -1817,10 +1837,14 @@ const budgetTransport = (() => {
     const timeoutMs = method === 'getBudgetData' || method === 'getRefreshState' ? 8000 : 60000;
     item.timer = setTimeout(() => {
       finish(id,false,'Google nie odpowiedział w ciągu ' + (timeoutMs/1000) + ' s. Zapisane dane pozostają dostępne.');
-      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
+      if (!connected && pending.size === 0) {
+        if (handshakeTimer) { clearInterval(handshakeTimer); handshakeTimer = null; }
+        if (!hosted && frame) { frame.remove(); frame = null; client = null; }
+      }
     },timeoutMs);
     pending.set(id,item);
-    start(); send(item);
+    start();
+    send(item);
   }
   function runner(success = () => {}, failure = () => {}) {
     const r = {
@@ -1832,7 +1856,7 @@ const budgetTransport = (() => {
   }
   addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
   function ensureConnection() { start(); }
-  return {runner,start,ensureConnection};
+  return {runner,start,ensureConnection,hosted};
 })();
 const google = {script:{run:budgetTransport.runner()}};
 
