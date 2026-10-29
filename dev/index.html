@@ -1752,7 +1752,7 @@ const amountAttributes_=new Map();
 const devBackendParam_ = new URLSearchParams(location.search).get('devBackend') || '';
 // DEV UI reads the unchanged, existing budget deployment. Alerty24 uses its private DEV bridge.
 const DEV_BACKEND_URL = !devBackendParam_ || devBackendParam_ === '/dev'
-  ? 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec'
+  ? 'https://script.google.com/macros/s/AKfycbx2TItmC_9CGkg0v0Za7CUpgoJd7-_VdqrF5oZblMHm/dev'
   : devBackendParam_;
 const BUDGET_SERVER_URL = DEV_BACKEND_URL;
 const budgetTransport = (() => {
