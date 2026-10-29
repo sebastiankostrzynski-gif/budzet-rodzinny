@@ -1759,13 +1759,14 @@ const budgetTransport = (() => {
   const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
   const channel = crypto.randomUUID();
-  let frame, client, origin, connected = false, sequence = 0;
+  let frame, popup, client, origin, connected = false, sequence = 0;
+  const log = (stage, values = {}) => console.info('[Budget DEV] ' + JSON.stringify({stage,...values}));
   function trusted(e) {
-    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
+    if (!/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
     try {
       let w = e.source;
       for (let n=0; w && n<8; n++) {
-        if (w === frame.contentWindow) return true;
+        if ((frame && w === frame.contentWindow) || (popup && !popup.closed && w === popup)) return true;
         if (w === w.parent) break;
         w = w.parent;
       }
@@ -1774,23 +1775,30 @@ const budgetTransport = (() => {
   }
   function send(item) {
     if (!connected || item.sent) return;
-    item.sent = true;
-    client.postMessage({protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
+    try {
+      item.sent = true; item.sentAt = performance.now();
+      client.postMessage({protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
+      log('request-sent',{method:item.method,bridgeWaitMs:Math.round(item.sentAt-item.startedAt)});
+    } catch (error) { finish(item.id,false,error.message); }
   }
   function start() {
-    if (frame || !navigator.onLine) return;
+    if (frame || (popup && !popup.closed) || !navigator.onLine) return;
     frame = document.createElement('iframe');
     frame.title = 'Synchronizacja danych budżetu';
     frame.setAttribute('aria-hidden','true');
     frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;left:-10000px;top:0';
+    frame.addEventListener('load',()=>log('iframe-loaded'),{once:true});
+    frame.addEventListener('error',()=>log('iframe-error'),{once:true});
     frame.src = BUDGET_SERVER_URL;
     document.body.appendChild(frame);
+    log('iframe-opened',{endpoint:BUDGET_SERVER_URL});
   }
   function finish(id, ok, value) {
     const item = pending.get(id);
     if (!item) return;
-    pending.delete(id);
-    clearTimeout(item.timer);
+    pending.delete(id); clearTimeout(item.timer);
+    log('finished',{method:item.method,ok:!!ok,elapsedMs:Math.round(performance.now()-item.startedAt),
+      backendMs:item.sentAt==null?null:Math.round(performance.now()-item.sentAt)});
     (ok ? item.success : item.failure)(ok ? value : new Error(String(value || 'Nie udało się odświeżyć danych.')));
   }
   addEventListener('message', e => {
@@ -1799,25 +1807,27 @@ const budgetTransport = (() => {
     if (m.type === 'ready') {
       if (connected && e.source === client) return;
       client = e.source; origin = e.origin;
+      log('bridge-ready',{mode:popup&&!popup.closed?'popup':'iframe',origin});
       client.postMessage({protocol:'budget-rpc-v10',type:'connect',channel},origin);
     } else if (e.source === client && e.origin === origin && m.channel === channel) {
       if (m.type === 'connected') {
-        connected = true;
+        connected = true; log('bridge-connected');
         pending.forEach(send);
-      } else if (m.type === 'result') {
-        finish(m.id,m.ok,m.ok ? m.data : m.error);
-      }
+      } else if (m.type === 'result') finish(m.id,m.ok,m.ok ? m.data : m.error);
     }
   });
   function call(method,args,success,failure) {
     if (!allowed.has(method)) { failure(new Error('Niedozwolona operacja.')); return; }
     if (!navigator.onLine) { failure(new Error('Brak internetu. Pokazuję zapisane dane.')); return; }
+    if (connected && popup && popup.closed) { connected=false; client=null; origin=null; }
     const id = ++sequence;
-    const item = {id,method,args,success,failure,sent:false};
+    const item = {id,method,args,success,failure,sent:false,startedAt:performance.now(),sentAt:null};
     const timeoutMs = method === 'getBudgetData' || method === 'getRefreshState' ? 8000 : 60000;
     item.timer = setTimeout(() => {
-      finish(id,false,'Google nie odpowiedział w ciągu ' + (timeoutMs/1000) + ' s. Zapisane dane pozostają dostępne.');
-      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
+      const phase=item.sent?'backend':'bridge-handshake';
+      log('timeout',{method,phase,elapsedMs:Math.round(performance.now()-item.startedAt)});
+      finish(id,false,item.sent?'Google nie zwrócił danych w ciągu '+(timeoutMs/1000)+' s. Zapisane dane pozostają dostępne.':'Google zablokował połączenie w ramce. Kliknij Odśwież budżet, aby połączyć bezpośrednio.');
+      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; origin = null; }
     },timeoutMs);
     pending.set(id,item);
     start(); send(item);
@@ -1830,10 +1840,18 @@ const budgetTransport = (() => {
     allowed.forEach(method => { r[method] = (...args) => call(method,args,success,failure); });
     return r;
   }
+  function ensureConnection() {
+    if (connected && client && (!popup || !popup.closed)) return;
+    if (popup && !popup.closed) { popup.focus(); return; }
+    if (frame) { frame.remove(); frame=null; }
+    client=null; origin=null; connected=false;
+    popup=window.open(BUDGET_SERVER_URL,'budzet-budget-dev','popup,width=520,height=620');
+    if (!popup) throw new Error('Zezwól na otwarcie okna Google dla tej aplikacji i spróbuj ponownie.');
+    log('popup-opened',{endpoint:BUDGET_SERVER_URL}); popup.focus();
+  }
   addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
-  return {runner,start};
-})();
-const google = {script:{run:budgetTransport.runner()}};
+  return {runner,start,ensureConnection};
+})();const google = {script:{run:budgetTransport.runner()}};
 
 // Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
 // It is intentionally opt-in: production is unchanged until the query parameter is supplied.
@@ -2726,7 +2744,7 @@ const budgetDisk = (() => {
       } else if (state === 'error') {
         label =
           lastRefreshSuccessAt
-            ? 'Ostatnio sprawdzono · ' +
+            ? 'Nie udało się odświeżyć · dane z ' +
               formatRefreshClock_(
                 lastRefreshSuccessAt
               )
@@ -3865,6 +3883,14 @@ function formatHistoryValue(value) {
         isMonthLoading ||
         !dashboardData
       ) {
+        return;
+      }
+
+      try {
+        budgetTransport.ensureConnection();
+      } catch (error) {
+        console.warn('[Budget DEV] refresh connection failed', error);
+        updateFreshnessIndicator_('error');
         return;
       }
 
