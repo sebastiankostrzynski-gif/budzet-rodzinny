@@ -1831,7 +1831,8 @@ const budgetTransport = (() => {
     return r;
   }
   addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
-  return {runner,start};
+  function ensureConnection() { start(); }
+  return {runner,start,ensureConnection};
 })();
 const google = {script:{run:budgetTransport.runner()}};
 
