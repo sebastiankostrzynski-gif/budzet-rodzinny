@@ -1734,8 +1734,8 @@ body.amounts-hidden .history-chart{visibility:hidden}
   <script>
 // Local UI; Google is a background read-only data transport.
 const DEV_BACKEND_URL = new URLSearchParams(location.search).get('devBackend') || '';
-const BUDGET_SERVER_URL = DEV_BACKEND_URL;
-if (!DEV_BACKEND_URL) console.warn('DEV dashboard: add ?devBackend=YOUR_DEV_WEB_APP_URL to test the copy.');
+const BUDGET_SERVER_URL = DEV_BACKEND_URL || 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
+
 const budgetTransport = (() => {
   const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
@@ -4310,7 +4310,71 @@ function alerty24Start_() {
 
         ${unifiedHeader_('budget','Budżet',budgetPeriods_(),selectedYear+'-'+String(selectedMonth).padStart(2,'0'),null)}
         <div class="sav-status budget-status"><div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div><button id="budget-refresh" onclick="refreshDashboardSilently_()" aria-label="Odśwież budżet">↻</button></div>
-        ${alerty24CardHtml_()}
+        <!-- ROZLICZENIE MIESIĄCA -->
+
+        <details class="surplus-card disposition-card"><summary>Rozliczenie miesiąca</summary>
+
+          
+
+          <div class="disposition-grid">
+
+            <div class="disposition-item">
+              <div class="disposition-item-label">
+                Nadpłata kredytu
+              </div>
+              <div class="disposition-item-value">
+                ${formatPLN(mortgageOverpayment)}
+              </div>
+            </div>
+
+            <div class="disposition-item">
+              <div class="disposition-item-label">
+                Inwestycje / IKZE
+              </div>
+              <div class="disposition-item-value">
+                ${formatPLN(investments)}
+              </div>
+            </div>
+
+            <div class="disposition-item ${savingsValueClass}">
+              <div class="disposition-item-label">
+                ${savingsLabel}
+              </div>
+              <div class="disposition-item-value"
+                   style="color:${
+                     savings < 0
+                       ? '#e74c3c'
+                       : savings > 0
+                         ? '#39aa6b'
+                         : '#777'
+                   };">
+                ${formatPLN(savings)}
+              </div>
+            </div>
+
+          </div>
+
+          <div class="disposition-total">
+            <div class="disposition-total-label">
+              Łącznie: nadpłaty, inwestycje i zmiana oszczędności
+            </div>
+            <div
+              class="disposition-total-value"
+              style="
+                color: ${
+                  dispositionBalance < 0
+                    ? '#e74c3c'
+                    : dispositionBalance > 0
+                      ? '#39aa6b'
+                      : '#777'
+                };
+              "
+            >
+              ${formatPLN(dispositionBalance)}
+            </div>
+          </div>
+
+        </details>        ${alerty24CardHtml_()}
 
         <!-- WOLNE ŚRODKI -->
 
@@ -4401,71 +4465,7 @@ function alerty24Start_() {
 
         ${categoryControls_()}
         ${categoriesHtml}
-        <!-- ROZLICZENIE MIESIĄCA -->
 
-        <details class="surplus-card disposition-card"><summary>Rozliczenie miesiąca</summary>
-
-          
-
-          <div class="disposition-grid">
-
-            <div class="disposition-item">
-              <div class="disposition-item-label">
-                Nadpłata kredytu
-              </div>
-              <div class="disposition-item-value">
-                ${formatPLN(mortgageOverpayment)}
-              </div>
-            </div>
-
-            <div class="disposition-item">
-              <div class="disposition-item-label">
-                Inwestycje / IKZE
-              </div>
-              <div class="disposition-item-value">
-                ${formatPLN(investments)}
-              </div>
-            </div>
-
-            <div class="disposition-item ${savingsValueClass}">
-              <div class="disposition-item-label">
-                ${savingsLabel}
-              </div>
-              <div class="disposition-item-value"
-                   style="color:${
-                     savings < 0
-                       ? '#e74c3c'
-                       : savings > 0
-                         ? '#39aa6b'
-                         : '#777'
-                   };">
-                ${formatPLN(savings)}
-              </div>
-            </div>
-
-          </div>
-
-          <div class="disposition-total">
-            <div class="disposition-total-label">
-              Łącznie: nadpłaty, inwestycje i zmiana oszczędności
-            </div>
-            <div
-              class="disposition-total-value"
-              style="
-                color: ${
-                  dispositionBalance < 0
-                    ? '#e74c3c'
-                    : dispositionBalance > 0
-                      ? '#39aa6b'
-                      : '#777'
-                };
-              "
-            >
-              ${formatPLN(dispositionBalance)}
-            </div>
-          </div>
-
-        </details>
 
 
 
@@ -6148,3 +6148,4 @@ function historyTouchV24_(event,svg){
 
 </body>
 </html>
+
