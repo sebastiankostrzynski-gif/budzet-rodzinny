@@ -1737,7 +1737,7 @@ const DEV_BACKEND_URL = new URLSearchParams(location.search).get('devBackend') |
 const BUDGET_SERVER_URL = DEV_BACKEND_URL || 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
 
 const budgetTransport = (() => {
-  const allowed = new Set(['getBudgetData','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
+  const allowed = new Set(['getBudgetData','getBudgetDataFresh','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
@@ -2792,60 +2792,45 @@ const budgetDisk = (() => {
       scheduleMonthDashboardCacheBackup_();
     }
 
-    function fetchMonthData(year, month, success, failure) {
-      const key = monthCacheKey(year, month);
+    function fetchMonthData(year, month, success, failure, forceFresh) {
+      // Oddzielna kolejka dla ręcznego/tylnego odświeżenia zapobiega
+      // mieszaniu odpowiedzi cache z odpowiedzią świeżą.
+      const key = monthCacheKey(year, month) + (forceFresh ? '|fresh' : '');
 
-      
-      
       if (monthInflight[key]) {
-        monthInflight[key].push({
-          success: success,
-          failure: failure
-        });
+        monthInflight[key].push({ success: success, failure: failure });
         return;
       }
 
-      monthInflight[key] = [{
-        success: success,
-        failure: failure
-      }];
+      monthInflight[key] = [{ success: success, failure: failure }];
 
-      google.script.run
+      const runner = google.script.run
         .withSuccessHandler(function(data) {
           adoptSnapshotMetadata_(data);
           setCachedMonth(data);
 
-          const callbacks =
-            monthInflight[key] || [];
-
+          const callbacks = monthInflight[key] || [];
           delete monthInflight[key];
 
           callbacks.forEach(function(callback) {
-            if (typeof callback.success === 'function') {
-              callback.success(data);
-            }
+            if (typeof callback.success === 'function') callback.success(data);
           });
         })
         .withFailureHandler(function(error) {
-          const callbacks =
-            monthInflight[key] || [];
-
+          const callbacks = monthInflight[key] || [];
           delete monthInflight[key];
 
           callbacks.forEach(function(callback) {
-            if (typeof callback.failure === 'function') {
-              callback.failure(error);
-            }
+            if (typeof callback.failure === 'function') callback.failure(error);
           });
-        })
-        .getBudgetData(year, month);
+        });
+
+      if (forceFresh) runner.getBudgetDataFresh(year, month);
+      else runner.getBudgetData(year, month);
     }
 
-    
-    
     function fetchMonthDataFresh_(year, month, success, failure) {
-      // The regular request always calls the server; the queue prevents duplicate calls.
-      fetchMonthData(year, month, success, failure);
+      fetchMonthData(year, month, success, failure, true);
     }
 
     function preloadMonth(year, month) {
@@ -3677,6 +3662,9 @@ function formatHistoryValue(value) {
 
           if (!opts.silent) {
             startInitialBackgroundPreload();
+            // Pierwszy ekran może pochodzić z szybkiego cache. Po renderze
+            // pobieramy aktualny stan w tle, bez zasłaniania aplikacji.
+            setTimeout(function() { requestBackgroundFreshDashboard_(true); }, 250);
           }
         },
         function(error) {
@@ -3875,8 +3863,7 @@ function formatHistoryValue(value) {
     // ========================================================
 
     function handleAppResume_() {
-
-      checkRefreshState_(true);
+      requestBackgroundFreshDashboard_(false);
     }
 
     window.addEventListener(
@@ -5646,26 +5633,30 @@ function toggleHolidayTrips() {
 
     let startupCompleted_ = false;
     let startupNetworkStarted_ = false;
+    let lastBackgroundFreshAt_ = 0;
 
-    function continueAfterStartupRestore_() {
-      if (startupCompleted_) {
+    // Ekran pokazuje dane lokalne natychmiast. Ten odczyt działa obok niego
+    // i po zakończeniu sam podmienia wartości bez blokowania aplikacji.
+    function requestBackgroundFreshDashboard_(force) {
+      if (!dashboardData || document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (!force && now - lastBackgroundFreshAt_ < 120000) {
+        checkRefreshState_(false);
         return;
       }
+      lastBackgroundFreshAt_ = now;
+      refreshDashboardSilently_({ categoryCacheMode: 'keep', backgroundFresh: true });
+    }
+
+    function continueAfterStartupRestore_() {
+      if (startupCompleted_) return;
 
       startupCompleted_ = true;
-
-      
-      
       setTimeout(function() {
-        if (dashboardData && document.visibilityState === 'visible') {
-          checkRefreshState_(true);
-        }
+        requestBackgroundFreshDashboard_(true);
       }, 250);
 
-      
-      if (dashboardData) {
-        startInitialBackgroundPreload();
-      }
+      if (dashboardData) startInitialBackgroundPreload();
     }
 
     function tryRestoreStartupCaches_() {
