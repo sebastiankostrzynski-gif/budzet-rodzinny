@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v26-sortowanie';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v27-rozliczenie';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -128,4 +128,5 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
+
 
