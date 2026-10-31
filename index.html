@@ -4056,6 +4056,36 @@ function alerty24Start_() {
       const investments =
         Number(financialFlows.investments) || 0;
 
+      // Backend V25 provides a breakdown. Until it is deployed, keep the
+      // existing single investment amount visible rather than showing zeros.
+      const hasInvestmentBreakdown =
+        ['retirementSeba', 'retirementEwa', 'childrenSavings', 'personalInvestments']
+          .some(function(key) {
+            return Object.prototype.hasOwnProperty.call(financialFlows, key);
+          });
+
+      const retirementSeba =
+        Number(financialFlows.retirementSeba) || 0;
+
+      const retirementEwa =
+        Number(financialFlows.retirementEwa) || 0;
+
+      const childrenSavings =
+        Number(financialFlows.childrenSavings) || 0;
+
+      const personalInvestments =
+        hasInvestmentBreakdown
+          ? Number(financialFlows.personalInvestments) || 0
+          : investments;
+
+      const investmentTotal =
+        hasInvestmentBreakdown
+          ? retirementSeba +
+            retirementEwa +
+            childrenSavings +
+            personalInvestments
+          : investments;
+
       const mortgageOverpayment =
         Number(financialFlows.mortgageOverpayment) || 0;
 
@@ -4078,7 +4108,7 @@ function alerty24Start_() {
       // Ujemna zmiana oszczędności oznacza pobranie środków.
       const dispositionBalance =
         mortgageOverpayment +
-        investments +
+        investmentTotal +
         savings;
 
       const isCurrentMonth =
@@ -4314,14 +4344,31 @@ function alerty24Start_() {
               </div>
             </div>
 
+            ${
+              hasInvestmentBreakdown
+                ? `
             <div class="disposition-item">
-              <div class="disposition-item-label">
-                Inwestycje / IKZE
-              </div>
-              <div class="disposition-item-value">
-                ${formatPLN(investments)}
-              </div>
+              <div class="disposition-item-label">Emerytura Seby</div>
+              <div class="disposition-item-value">${formatPLN(retirementSeba)}</div>
             </div>
+            <div class="disposition-item">
+              <div class="disposition-item-label">Emerytura Ewy</div>
+              <div class="disposition-item-value">${formatPLN(retirementEwa)}</div>
+            </div>
+            <div class="disposition-item">
+              <div class="disposition-item-label">Oszczędności dzieci</div>
+              <div class="disposition-item-value">${formatPLN(childrenSavings)}</div>
+            </div>
+            <div class="disposition-item">
+              <div class="disposition-item-label">Inwestycje własne</div>
+              <div class="disposition-item-value">${formatPLN(personalInvestments)}</div>
+            </div>`
+                : `
+            <div class="disposition-item">
+              <div class="disposition-item-label">Inwestycje / IKZE</div>
+              <div class="disposition-item-value">${formatPLN(investments)}</div>
+            </div>`
+            }
 
             <div class="disposition-item ${savingsValueClass}">
               <div class="disposition-item-label">
@@ -4343,7 +4390,7 @@ function alerty24Start_() {
 
           <div class="disposition-total">
             <div class="disposition-total-label">
-              Łącznie: nadpłaty, inwestycje i zmiana oszczędności
+              Łącznie: nadpłaty, emerytura, inwestycje i zmiana oszczędności
             </div>
             <div
               class="disposition-total-value"
