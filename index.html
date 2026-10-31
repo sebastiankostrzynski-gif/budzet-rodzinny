@@ -465,40 +465,49 @@
 
 
     .disposition-card {
-      padding-bottom: 16px;
+      padding-bottom: 14px;
     }
 
 
     .disposition-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 9px;
+      gap: 0;
+      border-top: 1px solid #edf0ef;
     }
 
 
     .disposition-item {
       min-width: 0;
-      padding: 11px 10px;
-      border-radius: 14px;
-      background: #f8f9f9;
-      border: 1px solid #eef0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 11px 2px;
+      border-bottom: 1px solid #edf0ef;
     }
 
 
     .disposition-item-label {
-      min-height: 30px;
-      color: #888;
-      font-size: 11px;
+      color: #68716f;
+      font-size: 13px;
       line-height: 1.25;
     }
 
 
     .disposition-item-value {
-      margin-top: 4px;
-      font-size: 14px;
-      font-weight: 750;
-      color: #222;
+      flex: 0 0 auto;
+      font-size: 15px;
+      font-weight: 760;
+      color: #27302d;
       white-space: nowrap;
+    }
+
+    .disposition-item.positive .disposition-item-value {
+      color: #28965f;
+    }
+
+    .disposition-item.negative .disposition-item-value {
+      color: #bf4e48;
     }
 
 
@@ -1379,15 +1388,6 @@
 
       .summary-value {
         font-size: 18px;
-      }
-
-      .disposition-grid {
-        grid-template-columns: 1fr;
-        gap: 7px;
-      }
-
-      .disposition-item-label {
-        min-height: 0;
       }
 
 
@@ -4056,22 +4056,19 @@ function alerty24Start_() {
       const investments =
         Number(financialFlows.investments) || 0;
 
-      // Backend V25 provides a breakdown. Until it is deployed, keep the
-      // existing single investment amount visible rather than showing zeros.
+      // Backend V26 groups the money by purpose, not by account holder.
+      // Old saved responses remain readable until the refreshed backend responds.
       const hasInvestmentBreakdown =
-        ['retirementSeba', 'retirementEwa', 'childrenSavings', 'personalInvestments']
+        ['retirement', 'childrenCapital', 'personalInvestments']
           .some(function(key) {
             return Object.prototype.hasOwnProperty.call(financialFlows, key);
           });
 
-      const retirementSeba =
-        Number(financialFlows.retirementSeba) || 0;
+      const retirement =
+        Number(financialFlows.retirement) || 0;
 
-      const retirementEwa =
-        Number(financialFlows.retirementEwa) || 0;
-
-      const childrenSavings =
-        Number(financialFlows.childrenSavings) || 0;
+      const childrenCapital =
+        Number(financialFlows.childrenCapital) || 0;
 
       const personalInvestments =
         hasInvestmentBreakdown
@@ -4080,10 +4077,7 @@ function alerty24Start_() {
 
       const investmentTotal =
         hasInvestmentBreakdown
-          ? retirementSeba +
-            retirementEwa +
-            childrenSavings +
-            personalInvestments
+          ? retirement + childrenCapital + personalInvestments
           : investments;
 
       const mortgageOverpayment =
@@ -4334,63 +4328,29 @@ function alerty24Start_() {
           
 
           <div class="disposition-grid">
-
-            <div class="disposition-item">
-              <div class="disposition-item-label">
-                Nadpłata kredytu
-              </div>
-              <div class="disposition-item-value">
-                ${formatPLN(mortgageOverpayment)}
-              </div>
-            </div>
-
-            ${
+            ${[
+              mortgageOverpayment ? {label:'Nadpłata kredytu',value:mortgageOverpayment} : null,
               hasInvestmentBreakdown
-                ? `
-            <div class="disposition-item">
-              <div class="disposition-item-label">Emerytura Seby</div>
-              <div class="disposition-item-value">${formatPLN(retirementSeba)}</div>
-            </div>
-            <div class="disposition-item">
-              <div class="disposition-item-label">Emerytura Ewy</div>
-              <div class="disposition-item-value">${formatPLN(retirementEwa)}</div>
-            </div>
-            <div class="disposition-item">
-              <div class="disposition-item-label">Oszczędności dzieci</div>
-              <div class="disposition-item-value">${formatPLN(childrenSavings)}</div>
-            </div>
-            <div class="disposition-item">
-              <div class="disposition-item-label">Inwestycje własne</div>
-              <div class="disposition-item-value">${formatPLN(personalInvestments)}</div>
-            </div>`
-                : `
-            <div class="disposition-item">
-              <div class="disposition-item-label">Inwestycje / IKZE</div>
-              <div class="disposition-item-value">${formatPLN(investments)}</div>
-            </div>`
-            }
-
-            <div class="disposition-item ${savingsValueClass}">
-              <div class="disposition-item-label">
-                ${savingsLabel}
-              </div>
-              <div class="disposition-item-value"
-                   style="color:${
-                     savings < 0
-                       ? '#e74c3c'
-                       : savings > 0
-                         ? '#39aa6b'
-                         : '#777'
-                   };">
-                ${formatPLN(savings)}
-              </div>
-            </div>
-
+                ? (retirement ? {label:'Emerytura',value:retirement} : null)
+                : {label:'Inwestycje / IKZE',value:investments},
+              hasInvestmentBreakdown && childrenCapital
+                ? {label:'Kapitał na start dla dzieci',value:childrenCapital}
+                : null,
+              hasInvestmentBreakdown && personalInvestments
+                ? {label:'Inwestycje własne',value:personalInvestments}
+                : null,
+              savings ? {label:savingsLabel,value:savings,kind:savingsValueClass} : null
+            ].filter(Boolean).map(function(item) {
+              return `<div class="disposition-item ${item.kind || ''}">
+                <div class="disposition-item-label">${item.label}</div>
+                <div class="disposition-item-value">${formatPLN(item.value)}</div>
+              </div>`;
+            }).join('')}
           </div>
 
           <div class="disposition-total">
             <div class="disposition-total-label">
-              Łącznie: nadpłaty, emerytura, inwestycje i zmiana oszczędności
+              Razem rozdysponowano
             </div>
             <div
               class="disposition-total-value"
