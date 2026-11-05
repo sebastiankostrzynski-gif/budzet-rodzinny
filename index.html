@@ -3330,6 +3330,7 @@ const budgetDisk = (() => {
     }
 
     function startInitialBackgroundPreload() {
+      scheduleBalanceReads_();
       
       
       
@@ -5722,11 +5723,24 @@ const savingsKey_='budzet-savings-v1';
 function savingsValid_(x) {
  return x && x.schema===1 && Number.isFinite(x.fetchedAt) && Array.isArray(x.periods) && x.periods.length>0 && x.periods.every(p=>p && /^20\d{2}-\d{2}$/.test(p.key) && Number.isFinite(p.total) && p.groups && Object.keys(savingsMeta_).every(g=>p.groups[g] && Number.isFinite(p.groups[g].value) && Array.isArray(p.groups[g].items) && p.groups[g].items.every(i=>typeof i.name==='string'&&Number.isFinite(i.value))));
 }
+function balanceNeedsRead_(data, error) {
+ const age=data ? Date.now()-data.fetchedAt : Infinity;
+ return !!error || age<0 || age>=45000;
+}
+function scheduleBalanceReads_(){
+ if(scheduleBalanceReads_.started)return;
+ scheduleBalanceReads_.started=true;
+ const warm=(restore,read)=>{if(!navigator.onLine || document.visibilityState!=='visible' || activeView_!=='dashboard' || navigator.connection?.saveData)return;
+ restore();read();};
+ setTimeout(()=>warm(savingsRestore_,()=>savingsRefresh_(true)),700);
+ setTimeout(()=>warm(debtRestore_,()=>debtRefresh_(true)),1800);
+}
 function savingsAdopt_(x) {
  if(!savingsValid_(x)) return false;
  if(savingsData_ && savingsData_.fetchedAt>x.fetchedAt) return false;
+ const followingLatest=savingsPeriod_===savingsData_?.periods.at(-1)?.key;
  savingsData_=x;
- if(!savingsPeriod_ || !x.periods.some(p=>p.key===savingsPeriod_)) savingsPeriod_=x.periods[x.periods.length-1].key;
+ if(followingLatest || !savingsPeriod_ || !x.periods.some(p=>p.key===savingsPeriod_)) savingsPeriod_=x.periods[x.periods.length-1].key;
  return true;
 }
 function savingsStatus_() {
@@ -5743,8 +5757,8 @@ async function savingsRestore_(){
  if(savingsData_ && activeView_==='savings')renderSavings_();
  try{const cache=await caches.open('budzet-rodzinny-runtime-v8');const hit=await cache.match(savingsCacheURL_());if(hit && savingsAdopt_(await hit.json()) && activeView_==='savings')renderSavings_();}catch(_){}
 }
-function savingsRefresh_(){
- if(savingsBusy_)return;
+function savingsRefresh_(automatic=false){
+ if(savingsBusy_ || (automatic && !balanceNeedsRead_(savingsData_,savingsError_)))return;
  if(!navigator.onLine){savingsError_='Brak internetu';if(activeView_==='savings')renderSavings_();return;}
  savingsBusy_=true;savingsError_='';if(!savingsData_&&activeView_==='savings')renderSavings_();else savingsStatus_();
  const serial=++savingsSerial_;
@@ -5759,7 +5773,7 @@ function savingsRefresh_(){
 function setBudgetTab_(tab){document.body.classList.toggle('debts-theme',tab==='debts');document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
 function openSavings_(){
  cleanupDetailSticky_();activeView_='savings';activeCategory_=null;setBudgetTab_('savings');
- savingsRestore_();renderSavings_();savingsRefresh_();window.scrollTo(0,0);
+ savingsRestore_();renderSavings_();savingsRefresh_(true);window.scrollTo(0,0);
 }
 function savingsMove_(delta){const at=savingsData_.periods.findIndex(p=>p.key===savingsPeriod_);const p=savingsData_.periods[at+delta];if(p){savingsPeriod_=p.key;renderSavings_();}}
 function savingsSelect_(key){if(savingsData_.periods.some(p=>p.key===key)){savingsPeriod_=key;renderSavings_();}}
@@ -5876,20 +5890,20 @@ function renderSavingsContentV24_(){
  if(scroll!==null&&window.scrollY!==scroll)window.scrollTo(0,scroll);
  savingsStatus_();
 }
-setInterval(()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_();},60000);
+setInterval(()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_(true);},60000);
 addEventListener('online',()=>{if(activeView_==='savings')savingsRefresh_();});
-document.addEventListener('visibilitychange',()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_();});
+document.addEventListener('visibilitychange',()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_(true);});
 
 
 let debtData_=null,debtPeriod_=null,debtId_=null,debtBusy_=false,debtError_=false,debtLoaded_=false,debtMetric_='total';
 const debtKey_='budzet-debts-v1';
 function debtValid_(x){return x&&x.schema===1&&Number.isFinite(x.fetchedAt)&&Array.isArray(x.periods)&&x.periods.length>0&&x.periods.every(p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(p.key)&&[p.total,p.principal,p.interest].every(n=>Number.isFinite(n)&&n>=0)&&Array.isArray(p.items)&&p.items.every(i=>typeof i.id==='string'&&typeof i.name==='string'&&[i.total,i.principal,i.interest].every(n=>Number.isFinite(n)&&n>=0)));}
-function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;debtData_=x;if(!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
+function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;const followingLatest=debtPeriod_===debtData_?.periods.at(-1)?.key;debtData_=x;if(followingLatest||!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
 function debtURL_(){return new URL('./__debts_v1__.json',location.href).href;}
 async function debtRestore_(){if(debtLoaded_)return;debtLoaded_=true;try{debtAdopt_(JSON.parse(localStorage.getItem(debtKey_)));}catch(_){}if(activeView_==='debts')renderDebts_();try{const c=await caches.open('budzet-rodzinny-runtime-v8'),r=await c.match(debtURL_());if(r&&debtAdopt_(await r.json())&&activeView_==='debts')renderDebts_();}catch(_){}}
-function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');debtRestore_();renderDebts_();debtRefresh_();window.scrollTo(0,0);}
-function debtRefresh_(){
- if(debtBusy_)return;if(!navigator.onLine){debtError_=true;if(activeView_==='debts')renderDebts_();return;}
+function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');debtRestore_();renderDebts_();debtRefresh_(true);window.scrollTo(0,0);}
+function debtRefresh_(automatic=false){
+ if(debtBusy_ || (automatic && !balanceNeedsRead_(debtData_,debtError_)))return;if(!navigator.onLine){debtError_=true;if(activeView_==='debts')renderDebts_();return;}
  debtBusy_=true;debtError_=false;if(activeView_==='debts')debtStatus_();
  google.script.run.withSuccessHandler(data=>{debtBusy_=false;debtError_=!debtAdopt_(data);if(!debtError_){try{localStorage.setItem(debtKey_,JSON.stringify(data));}catch(_){}try{caches.open('budzet-rodzinny-runtime-v8').then(c=>c.put(debtURL_(),new Response(JSON.stringify(data)))).catch(()=>{});}catch(_){}}if(activeView_==='debts')renderDebts_();}).withFailureHandler(()=>{debtBusy_=false;debtError_=true;if(activeView_==='debts')renderDebts_();}).getDebtsData();
 }
@@ -5937,9 +5951,9 @@ function renderDebtsContentV24_(){
  if(focus){const el=document.getElementById(focus);if(el&&!el.disabled)el.focus({preventScroll:true});}
  if(same&&window.scrollY!==scroll)window.scrollTo(0,scroll);debtStatus_();
 }
-setInterval(()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_();},60000);
+setInterval(()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_(true);},60000);
 addEventListener('online',()=>{if(activeView_==='debts')debtRefresh_();});
-document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_();});
+document.addEventListener('visibilitychange',()=>{if(activeView_==='debts'&&document.visibilityState==='visible')debtRefresh_(true);});
 
 (function(){
  const app=document.getElementById('app');let previous=null;
