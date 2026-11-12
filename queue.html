@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="pl"><head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wydatki do przypisania</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#1c302b;background:#f4f7f5;--green:#217650;--line:#dce5df}*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:auto;padding:24px 18px 96px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}h1{font-size:25px;line-height:1.2;margin:7px 0 12px}h2{font-size:18px;margin:0}h3{font-size:16px;margin:0}.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--green)}p{line-height:1.5;margin:8px 0}small,.muted{color:#586d62;font-size:13px;line-height:1.5}button,input,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:white;border-radius:10px;padding:10px 14px;min-height:44px;color:inherit}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #99cbb0;outline-offset:2px}.primary{background:var(--green);color:white;border-color:var(--green);font-weight:650}.quiet{background:transparent;border-color:transparent;font-size:14px}.tabs{display:flex;gap:8px;margin:18px 0}.tabs button[aria-pressed=true]{background:#e0efe6;border-color:#8cbba0;color:#155a38}.search{margin-bottom:12px}input,select{width:100%;min-height:46px;padding:10px 12px;border:1px solid #b9cbbf;border-radius:9px;background:white;color:#1c302b}input[type=search]{background:#fff}label{display:block;font-size:14px;font-weight:550;margin-bottom:6px}.field{margin:15px 0}.field small{display:block;margin-top:5px}.transaction{background:#fff;border:1px solid var(--line);border-radius:14px;margin:10px 0;overflow:hidden}.summary{display:flex;align-items:center;gap:12px;padding:16px;width:100%;border:0;border-radius:0;text-align:left;background:transparent}.summary:disabled{opacity:1;cursor:default}.summary .info{flex:1;min-width:0}.merchant{display:block;font-size:16px;font-weight:650;overflow-wrap:anywhere}.money{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700;font-size:18px}.meta{display:block;font-size:12px;color:#647769;margin-top:4px}.badge{display:inline-block;font-size:11px;line-height:1.3;padding:4px 7px;border-radius:6px;background:#edf4ef;color:#356244;margin-top:5px}.badge.pending{background:#fff5dc;color:#78591c}.editor{border-top:1px solid var(--line);padding:4px 18px 18px}.choice{display:flex;gap:8px}.choice button{flex:1}.choice button[aria-pressed=true]{background:#e5f1e9;border-color:var(--green)}.split{background:#f5f8f6;border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}.split-head{display:flex;align-items:center;justify-content:space-between}.split-grid{display:grid;grid-template-columns:1fr 150px;gap:10px}.split-grid .wide{grid-column:1/-1}.split .field{margin:8px 0}.split button{min-height:34px;padding:5px 7px}.balance{display:flex;justify-content:space-between;font-size:14px;padding:12px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}.balance.error{color:#a23e2c}.balance.good{color:#217650}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions .primary{flex:1}.notice{padding:12px 14px;background:#eaf2ed;border-radius:10px;font-size:14px}.error-box{background:#fff0eb;color:#8f3223}.status{min-height:24px;margin:10px 0;font-size:13px}.empty{text-align:center;padding:40px 16px;background:#fff;border:1px solid var(--line);border-radius:14px}details{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}details summary{cursor:pointer;font-weight:600;padding:6px 0}.technical-item{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.saved-description{padding:0 16px 14px;font-size:14px}.current-note{margin-bottom:20px}.hidden,[hidden]{display:none!important}@media(max-width:460px){main{padding:18px 12px 80px}.editor{padding:4px 12px 14px}.split-grid{grid-template-columns:minmax(0,1fr) 115px}.money{font-size:17px}.summary{padding:14px 12px}.tabs button{padding:9px 10px;font-size:14px}header button{padding:8px 10px;font-size:13px}.choice button{font-size:13px;padding:8px}}
+.bank-access{margin:14px 0 4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:14px}.bank-access[data-state="ACTIVE"]{border-color:#afd2bc;background:#eef7f0}.bank-access[data-state="EXPIRING"],.bank-access[data-state="EXPIRED"],.bank-access[data-state="NO_SESSION"]{border-color:#e7c887;background:#fff6e4}.bank-access[data-state="RATE_LIMITED"],.bank-access[data-state="STALE"],.bank-access[data-state="ERROR"]{border-color:#e1bdb0;background:#fff2ee}.bank-access strong{display:block}.bank-access p{margin:4px 0 0}.bank-access small{display:block;margin-top:5px}[hidden]{display:none!important}#openQueue,#backBudget{min-height:44px}#backBudget{margin-bottom:12px}.back-link{display:inline-flex;align-items:center;min-height:44px;margin-bottom:12px;color:#176541;font-weight:650;text-decoration:none}</style></head><body><main><section id="budgetScreen" style="padding:16px;background:white;border:1px solid #dce5df;border-radius:14px;margin-bottom:18px"><span class="eyebrow">BUDŻET RODZINNY · TEST</span><h2>Mój budżet</h2><label for="telMonth">Miesiąc</label><input type="month" id="telMonth"><div aria-live="polite" id="telData">Wczytuję budżet…</div><button id="telLoad" type="button">Odśwież budżet</button> <button type="button" class="primary" id="openQueue">Przypisz wydatki · listopad 2026</button><p><a href="./">Konta ręczne i gotówka</a></p></section>
+
+<section id="queueScreen"><a class="back-link" href="./">← Budżet</a><header id="telQueue" tabindex="-1"><div><span class="eyebrow">BUDŻET · KOPIA TESTOWA</span><h1>Przypisz wydatki</h1><a href="./inflows.html" target="_top">Przejdź do wpływów →</a></div><button id="reload" type="button">Odśwież listę</button></header>
+<aside class="bank-access" id="bankAccess" data-state="LOADING" role="status" aria-live="polite"><strong id="bankAccessTitle">Sprawdzam dostęp do banku…</strong><p id="bankAccessDetail">Lista wydatków z e-maili działa niezależnie od sesji bankowej.</p><small id="bankAccessUpdated"></small></aside>
+<p id="mailState" role="status"></p><p class="muted current-note">Wybierz zakup i przypisz kategorię. Po zapisaniu decyzji automat księguje wydatek w kopii TEST podczas kolejnego cyklu.</p>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<nav class="tabs" aria-label="Widok wydatków"><button id="pendingTab" aria-pressed="true">Do przypisania</button><button id="savedTab" aria-pressed="false">Historia</button></nav>
+<input id="search" class="search" type="search" aria-label="Szukaj sklepu lub kwoty" placeholder="Szukaj sklepu lub kwoty">
+<section id="rows" aria-label="Zakupy"></section><section id="technical"></section>
+</section></main><script src="./queue-transport.js"></script>
+<script>
+'use strict';
+const money = n => new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(n/100);
+function parseCents(value){const text=String(value).trim().replace(/\s/g,'').replace(',','.');if(!/^\d+(\.\d{1,2})?$/.test(text))return null;const p=text.split('.'),v=Number(p[0])*100+Number((p[1]||'').padEnd(2,'0'));return Number.isSafeInteger(v)?v:null;}
+function formatInput(cents){return (cents/100).toFixed(2).replace('.',',');}
+// One auto-filled line: always the last. A manually edited amount stays manual.
+function fillRemainder(lines,total){const last=lines.at(-1);if(!last||!last.auto)return;let used=0;for(const x of lines.slice(0,-1)){const n=x.amount===''?0:parseCents(x.amount);if(n===null){last.amount='';return;}used+=n;}last.amount=used<total?formatInput(total-used):'';}
+function addSplit(lines,total){if(lines.length>=20)return;const last=lines.at(-1);if(last&&last.auto){last.amount='';last.auto=false;}lines.push({person:'',description:'',amount:'',auto:true});fillRemainder(lines,total);}
+function validateSplit(lines,total){if(lines.length<2||lines.length>20)return 'Dodaj co najmniej dwie pozycje.';let sum=0;for(let i=0;i<lines.length;i++){const x=lines[i],n=parseCents(x.amount);if(!['Ewa','Julka','Olek','Seba'].includes(x.person))return 'Wybierz osobę w pozycji '+(i+1)+'.';if(!x.description.trim())return 'Uzupełnij opis pozycji '+(i+1)+'.';if(n===null||n<=0)return 'Wpisz poprawną kwotę w pozycji '+(i+1)+'.';sum+=n;}return sum===total?'':'Suma pozycji musi wynosić '+money(total)+'.';}
+const $=id=>document.getElementById(id), element=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);return e;};
+let state,tab='pending',opened=null,busy=false,sequence=0,draft=null;
+const sections=[['CLOTHES','Ubrania'],['BIRTHDAYS','Urodziny i imieniny'],['CHRISTMAS','Prezenty świąteczne'],['OTHER_GIFTS','Inne prezenty'],['XTB_GIFTS','Prezenty — XTB'],['MONDELEZ_GIFTS','Prezenty — Mondelez']];
+function field(title,input){const wrap=element('div');wrap.className='field';const label=element('label',title);label.htmlFor=input.id;wrap.append(label,input);return wrap;}
+let serial=0;function input(value,label){const x=element('input');x.id='input-'+(++serial);x.value=value||'';x.setAttribute('aria-label',label);return x;}
+function select(options,value,label){const x=element('select');x.id='select-'+(++serial);x.setAttribute('aria-label',label);options.forEach(([v,t])=>x.add(new Option(t,v)));x.value=value||'';return x;}
+function button(text,fn,cls){const b=element('button',text);b.type='button';b.onclick=fn;if(cls)b.className=cls;return b;}
+function announce(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' notice error-box':'');}
+function api(method,request){
+  if(busy)return;
+  busy=true;
+  document.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
+  const token=++sequence;
+  let attempts=0;
+  announce(method==='list'?'Odczyt listy…':'Zapisywanie decyzji…');
+  const timer=setTimeout(()=>{
+    if(token!==sequence)return;
+    sequence++;busy=false;
+    document.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);
+    announce('Odczyt trwa dłużej. Odśwież listę za chwilę.',true);
+  },30000);
+  function done(error,result){
+    if(token!==sequence)return;
+    if(error&&method==='list'&&/Kolejka jest zaj[eę]ta/i.test(error.message||String(error))&&attempts<3){
+      attempts++;
+      announce('Automat aktualizuje kolejkę. Ponawiam odczyt ('+attempts+'/3)…');
+      setTimeout(dispatch,[0,1500,3000,5000][attempts]);
+      return;
+    }
+    clearTimeout(timer);
+    busy=false;
+    document.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);
+    if(error){announce(error.message||String(error),true);return;}
+    state=result;opened=null;draft=null;render();
+    announce(method==='list'?'Lista gotowa.':'Zapisano decyzję. Możesz przejść do kolejnego zakupu.');
+  }
+  function dispatch(){
+    if(token!==sequence)return;
+    const run=google.script.run.withSuccessHandler(r=>done(null,r)).withFailureHandler(e=>done(e));
+    if(method==='list')run.ebListSectionsDev();else run.ebQueueReviseDev(request);
+  }
+  dispatch();
+}
+function rowDraft(row){const d=row.decision||{},split=Array.isArray(d.splits);const parts=split?d.splits.map(x=>({person:x.person,description:x.description,amount:formatInput(x.amountCents),auto:false})):[{person:'',description:'',amount:'',auto:false},{person:'',description:'',amount:'',auto:true}];if(!split)fillRemainder(parts,row.amountCents);return {sheet:d.sheetName||'',mode:d.action==='EXISTING_ROW'?'EXISTING_ROW':'NEW_ROW',target:d.targetManualKey||'',description:d.description==='Zakup podzielony'?'':d.description||'',person:d.person||'',danceSection:d.budgetSection||d.t10Section||'',section:d.t12Section||'',split,parts};}
+function buildEditor(row){const box=element('div');box.className='editor';const d=draft;if(row.targetNeedsReview){const note=element('p','Po odświeżeniu arkusza wybierz ponownie właściwą pozycję i zapisz zmianę.');note.className='notice';box.append(note);}
+  const cat=select([['','Wybierz kategorię'],...state.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')])],d.sheet,'Kategoria zakupu');cat.onchange=()=>{d.sheet=cat.value;d.danceSection='';d.mode='EXISTING_ROW';d.target='';d.section='';d.person='';d.split=false;render();};box.append(field('Kategoria',cat));
+  if(!d.sheet)return box;const dance=!/^T12\b/.test(d.sheet);const groups=(state.sections||[]).filter(x=>x.sheet===d.sheet).map(x=>x.name);if(groups.length===1)d.danceSection=groups[0];
+  const targets=state.existingRows.filter(x=>x.sheet===d.sheet&&x.month===row.date.slice(0,7));
+  const choices=element('div');choices.className='choice';for(const [value,label] of [['NEW_ROW','Osobny wpis'],['EXISTING_ROW','Dodaj do pozycji']]){const b=button(value==='EXISTING_ROW'?'Dodaj do istniejącej pozycji':'Dodaj nową pozycję',()=>{d.mode=value;render();});b.setAttribute('aria-pressed',d.mode===value);choices.append(b);}box.append(choices);
+  if(dance&&d.mode==='NEW_ROW'){const sec=select([['','Wybierz sekcję'],...groups.map(x=>[x,x])],d.danceSection,'Sekcja nowej pozycji');sec.onchange=()=>{d.danceSection=sec.value;update();};box.append(field('Gdzie dodać nową pozycję?',sec));}
+  let splitContainer, balance,save;
+  function error(){if(!d.sheet)return 'Wybierz kategorię.';if(dance&&d.mode==='NEW_ROW'&&!d.danceSection)return 'Wybierz sekcję.';if(d.mode==='EXISTING_ROW')return targets.some(x=>x.key===d.target)?'':'Wybierz istniejącą pozycję.';if(/^T12\b/.test(d.sheet)){if(!d.section)return 'Wybierz rodzaj zakupu.';if(d.section==='CLOTHES'){if(d.split)return validateSplit(d.parts,row.amountCents);if(!d.person)return 'Wybierz osobę.';}}return d.description.trim()?'':'Napisz krótko, co kupiono.';}
+  function update(){const msg=error();save.disabled=busy||!!msg;save.title=msg||'';if(balance){const sum=d.parts.reduce((s,x)=>s+(parseCents(x.amount)||0),0),left=row.amountCents-sum;balance.replaceChildren(element('span',left===0?'Cała kwota rozpisana':left>0?'Pozostało do podziału':'Przekroczono kwotę'),element('strong',money(Math.abs(left))));balance.className='balance '+(left===0?'good':'error');}}
+  if(d.mode==='EXISTING_ROW'){const t=select([['',targets.length?'Wybierz pozycję':'Brak pozycji dla tego miesiąca'],...targets.map(x=>{const group=x.sectionName;return [x.key,group?group+' → '+x.label:x.label];})],d.target,'Pozycja budżetu');t.onchange=()=>{d.target=t.value;update();};box.append(field('Do której pozycji?',t));if(dance&&!targets.length)box.append(element('p','Brak pozycji dla tego miesiąca w katalogu DEV. Pozostaw zakup bez przypisania.'));}
+  else{
+    if(/^T12\b/.test(d.sheet)){const s=select([['','Wybierz rodzaj'],...sections],d.section,'Rodzaj zakupu');s.onchange=()=>{d.section=s.value;render();};box.append(field('Rodzaj zakupu',s));
+      if(d.section==='CLOTHES'){const choice=element('div');choice.className='choice';[[false,'Jedna pozycja'],[true,'Podziel zakup']].forEach(([value,label])=>{const b=button(label,()=>{d.split=value;render();});b.setAttribute('aria-pressed',d.split===value);choice.append(b);});box.append(choice);
+        if(!d.split){const who=select([['','Wybierz osobę'],...['Seba','Ewa','Julka','Olek'].map(x=>[x,x])],d.person,'Dla kogo');who.onchange=()=>{d.person=who.value;update();};box.append(field('Dla kogo?',who));}
+      }
+    }
+    if(/^T12\b/.test(d.sheet)&&d.section==='CLOTHES'&&d.split){
+      box.append(element('p','Każda pozycja ma własną osobę, opis i kwotę. Jedna osoba może pojawić się kilka razy.'));splitContainer=element('div');box.append(splitContainer);
+      function renderSplits(){splitContainer.replaceChildren();d.parts.forEach((part,index)=>{const line=element('div');line.className='split';const head=element('div');head.className='split-head';head.append(element('h3','Pozycja '+(index+1)));const remove=button('Usuń',()=>{d.parts.splice(index,1);fillRemainder(d.parts,row.amountCents);renderSplits();update();},'quiet');remove.disabled=d.parts.length<=2;head.append(remove);line.append(head);const grid=element('div');grid.className='split-grid';
+        const who=select([['','Wybierz osobę'],...['Seba','Ewa','Julka','Olek'].map(x=>[x,x])],part.person,'Osoba — pozycja '+(index+1));who.onchange=()=>{part.person=who.value;update();};grid.append(field('Dla kogo?',who));
+        const amount=input(part.amount,'Kwota — pozycja '+(index+1));amount.inputMode='decimal';amount.placeholder='0,00';const amountField=field('Kwota (zł)',amount);if(index===d.parts.length-1){amountField.append(button('Uzupełnij resztą',()=>{part.auto=true;fillRemainder(d.parts,row.amountCents);renderSplits();update();},'quiet'));if(part.auto)amountField.append(element('small','Podpowiedź · możesz zmienić'));}
+        amount.oninput=()=>{part.amount=amount.value;part.auto=false;fillRemainder(d.parts,row.amountCents);const autoInput=splitContainer.querySelector('[data-auto-amount]');if(autoInput){autoInput.value=d.parts.at(-1).amount;if(index===d.parts.length-1)autoInput.removeAttribute('data-auto-amount');}update();};if(part.auto)amount.dataset.autoAmount='1';grid.append(amountField);
+        const desc=input(part.description,'Opis — pozycja '+(index+1));desc.maxLength=200;desc.placeholder='Np. buty, sukienka';desc.oninput=()=>{part.description=desc.value;update();};const df=field('Co kupiono?',desc);df.classList.add('wide');grid.append(df);line.append(grid);splitContainer.append(line);});}
+      renderSplits();const add=button('+ Dodaj pozycję',()=>{addSplit(d.parts,row.amountCents);renderSplits();update();});add.disabled=d.parts.length>=20;box.append(add);balance=element('div');balance.setAttribute('aria-live','polite');box.append(balance);
+    }else{const desc=input(d.description,'Co kupiono');desc.maxLength=200;desc.placeholder='Krótka nazwa wydatku';desc.oninput=()=>{d.description=desc.value;update();};box.append(field(dance?'Nazwa nowej pozycji':'Co kupiono?',desc));}
+  }
+  if(row.sourceLabel==='Bank')box.append(element('p','Po przypisaniu automat zapisze wydatek w wybranej kategorii w kopii TEST.'));
+  const actions=element('div');actions.className='actions';save=button(row.decision?'Zapisz zmianę':'Zapisz przypisanie',()=>{const problem=error();if(problem){announce(problem,true);return;}const split=d.mode==='NEW_ROW'&&/^T12\b/.test(d.sheet)&&d.section==='CLOTHES'&&d.split;api('save',{revision:state.revision,key:row.key,action:d.mode,sheetName:d.sheet,targetManualKey:d.target||undefined,description:split?'Zakup podzielony':d.description.trim(),person:d.person||undefined,budgetSection:dance&&d.mode==='NEW_ROW'?d.danceSection:undefined,t12Section:d.section||undefined,splits:split?d.parts.map(x=>({person:x.person,description:x.description.trim(),amountCents:parseCents(x.amount)})):undefined});},'primary');actions.append(save,button('Później',()=>api('save',{revision:state.revision,key:row.key,action:'DEFER'}),'quiet'),button('Anuluj',()=>{opened=null;draft=null;render();},'quiet'));box.append(actions);update();return box;
+}
+function render(){if(!state)return;$('rows').replaceChildren();const list=state.rows.filter(r=>!r.bridgeArchived),pending=list.filter(r=>!r.decision&&!r.postedEvidence&&!r.bridgeBlocked),saved=list.filter(r=>r.decision||r.postedEvidence||r.bridgeBlocked);$('pendingTab').textContent='Do przypisania · '+pending.length;$('savedTab').textContent='Historia · '+saved.length;['pending','saved'].forEach(t=>$(t+'Tab').setAttribute('aria-pressed',tab===t));const q=$('search').value.trim().toLocaleLowerCase('pl');const shown=(tab==='pending'?pending:saved).filter(r=>(r.description+' '+money(r.amountCents)).toLocaleLowerCase('pl').includes(q)).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!shown.length){const empty=element('div',q?'Brak wyników wyszukiwania.':tab==='pending'?'Brak wydatków do przypisania w ostatnio pobranych danych.':'Nie ma jeszcze zapisanych decyzji.');empty.className='empty';$('rows').append(empty);}
+  shown.forEach(row=>{const card=element('article');card.className='transaction';const posted=row.postedEvidence,blocked=row.bridgeBlocked;const sum=button('',()=>{if(posted||blocked)return;if(opened===row.key){opened=null;draft=null;}else{opened=row.key;draft=rowDraft(row);}render();},'summary');sum.setAttribute('aria-expanded',opened===row.key);sum.setAttribute('aria-label',(posted?'Zapisano: ':'Przypisz: ')+row.description+' '+money(row.amountCents));if(posted||blocked)sum.disabled=true;const info=element('span');info.className='info';info.append(element('span',row.description));info.firstChild.className='merchant';const meta=element('span',row.date+' · '+(row.sourceLabel==='Bank'?'Konto':'Karta'));meta.className='meta';info.append(meta);const badge=element('span',posted?'W budżecie':blocked||row.targetNeedsReview?'Do sprawdzenia':row.decision?(row.decision.action==='DEFER'?'Odłożone':'Czeka na zapis w budżecie'):row.sourceLabel==='Bank'?'Płatność z konta':row.confirmed?'Potwierdzone przez bank':'Oczekuje na księgowanie');badge.className='badge'+(!posted&&!row.decision&&!row.confirmed?' pending':'');info.append(badge);const amt=element('span',money(row.amountCents));amt.className='money';sum.append(info,amt);card.append(sum);
+    if(posted||blocked){const p=element('p',blocked||'Zaksięgowano w kopii TEST. Ten zakup nie trafi do ponownego zapisu.');p.className='saved-description';card.append(p);if(posted && posted.target)card.append(element('p','Miejsce zapisu: '+posted.target));}else if(opened===row.key)card.append(buildEditor(row));else if(row.decision){const d=row.decision,p=element('p',d.splits?d.splits.map(x=>x.person+' · '+x.description+' · '+money(x.amountCents)).join(' / '):[d.sheetName,d.budgetSection||d.t10Section,d.person,d.description||d.category].filter(Boolean).join(' · '));p.className='saved-description';card.append(p);}$('rows').append(card);});
+  $('technical').replaceChildren();if(state.bridge){const source=element('p','Dane źródłowe: '+new Date(state.bridge.sourceAt).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'})+'.');source.className='muted';$('technical').append(source);}else{$('technical').append(element('p','Czekamy na wczytanie uzgodnionej listy listopadowej.'));}
+}
+$('reload').onclick=()=>api('list');$('pendingTab').onclick=()=>{tab='pending';opened=null;draft=null;render();};$('savedTab').onclick=()=>{tab='saved';opened=null;draft=null;render();};$('search').oninput=()=>{opened=null;draft=null;render();};
+function showQueue(visible){
+  $('budgetScreen').hidden=visible;
+
+  $('queueScreen').hidden=!visible;
+  if(visible){
+    $('telQueue').focus();
+    google.script.run.withSuccessHandler(function(v){
+      var text=v&&v.last?'Ostatni odczyt maili: '+new Date(v.last).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'}):'Brak potwierdzenia odczytu maili.';
+      if(v&&v.status==='LIMIT')text+=' · Limit Gmaila. Nowsze płatności mogą jeszcze nie być widoczne.';
+      if(v&&v.status==='ERROR')text+=' · Ostatnia próba nie powiodła się.';
+      $('mailState').textContent=text;
+    }).withFailureHandler(()=>{$('mailState').textContent='Nie udało się sprawdzić aktualności maili.';}).telefonStanMailiTEST();
+    api('list');
+  }else{
+
+  }
+}
+
+if($('backBudget'))$('backBudget').onclick=()=>showQueue(false);
+showQueue(true);
+</script><!-- In the existing KolejkaProsta.html insert this script immediately before </body>.
+     Do not add another HTML file. Works with the current editor's state/render helpers. -->
+<script>
+(function(){
+  'use strict';
+  const baseEditor=buildEditor;
+  const t10=[['A. Prestige:','Prestiż'],['B. Egurrola Dance Studio (EDS):','Egurrola'],
+    ['Zajęcia dodatkowe:','Zajęcia dodatkowe'],['Zawody / warsztaty /  występy:','Zawody i warsztaty'],
+    ['Stroje i wyposażenie:','Stroje i wyposażenie'],['Obozy:','Obozy'],['Regeneracja:','Regeneracja']];
+  const t12=[['CLOTHES','Ubrania'],['BIRTHDAYS','Urodziny i imieniny'],['CHRISTMAS','Prezenty świąteczne'],
+    ['OTHER_GIFTS','Inne prezenty'],['XTB_GIFTS','Prezenty — XTB'],['MONDELEZ_GIFTS','Prezenty — Mondelez']];
+  let active=null,parts=[];
+  function clean(n){return String(n||'').replace(/^T\d+\s+/, '');}
+  function fresh(row){
+    return row.decision&&row.decision.action==='MULTI_SPLIT'?
+      row.decision.parts.map(p=>Object.assign({},p,{amount:formatInput(p.amountCents),auto:false})):
+      [{mode:'EXISTING_ROW',sheetName:'',targetManualKey:'',description:'',amount:'',auto:false},
+       {mode:'EXISTING_ROW',sheetName:'',targetManualKey:'',description:'',amount:formatInput(row.amountCents),auto:true}];
+  }
+  function remain(row){
+    const last=parts.at(-1);if(!last||!last.auto)return;
+    let n=0;for(const p of parts.slice(0,-1)){const c=parseCents(p.amount);if(c===null){last.amount='';return;}n+=c;}
+    last.amount=n<row.amountCents?formatInput(row.amountCents-n):'';
+  }
+  function check(row){
+    if(parts.length<2||parts.length>20)return 'Dodaj od 2 do 20 części.';
+    let sum=0;
+    for(let i=0;i<parts.length;i++){
+      const p=parts[i],n=parseCents(p.amount);
+      if(!p.sheetName)return 'Wybierz kategorię w części '+(i+1)+'.';
+      if(n===null||n<=0)return 'Popraw kwotę w części '+(i+1)+'.';
+      if(p.mode==='EXISTING_ROW'&&!p.targetManualKey)return 'Wybierz pozycję budżetu w części '+(i+1)+'.';
+      if(p.mode==='NEW_ROW'){
+        if(!p.description.trim())return 'Opisz część '+(i+1)+'.';
+        if(/^T10\b/.test(p.sheetName)&&!p.t10Section)return 'Wybierz część Tańca Julki.';
+        if(/^T12\b/.test(p.sheetName)&&!p.t12Section)return 'Wybierz rodzaj ubrania lub prezentu.';
+        if(p.t12Section==='CLOTHES'&&!p.person)return 'Wybierz osobę dla ubrania.';
+      }
+      sum+=n;
+    }
+    return sum===row.amountCents?'':'Suma ma wynosić '+money(row.amountCents)+'.';
+  }
+  function control(label,choices,value,change){
+    const wrap=element('div'),caption=element('label',label),sel=element('select');
+    sel.setAttribute('aria-label',label);choices.forEach(([v,t])=>sel.add(new Option(t,v)));
+    sel.value=value||'';sel.onchange=()=>change(sel.value);wrap.className='field';wrap.append(caption,sel);return wrap;
+  }
+  function view(row){
+    const box=element('div');box.className='editor';
+    const lead=element('p','Rozdziel '+money(row.amountCents)+' na kategorie. Ostatnia kwota uzupełnia się sama i możesz ją zmienić.');
+    box.append(lead);
+    const items=element('div'),result=element('div');result.className='balance';result.setAttribute('aria-live','polite');
+    const save=button('Zapisz podział',()=>{
+      const error=check(row);if(error){announce(error,true);return;}
+      const request={revision:state.revision,key:row.key,parts:parts.map(p=>({mode:p.mode,sheetName:p.sheetName,
+        targetManualKey:p.targetManualKey||undefined,description:(p.description||'').trim(),
+        t10Section:p.t10Section||undefined,t12Section:p.t12Section||undefined,person:p.person||undefined,
+        amountCents:parseCents(p.amount)}))};
+      if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
+      announce('Zapisywanie podziału…');
+      google.script.run.withSuccessHandler(next=>{busy=false;state=next;active=null;opened=null;draft=null;render();announce('Zapisano podział.');})
+        .withFailureHandler(err=>{busy=false;document.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);
+          announce(err.message||String(err),true);}).pkDecideDevV1(request);
+    },'primary');
+    function refresh(){
+      items.replaceChildren();parts.forEach((p,i)=>{
+        const card=element('section');card.className='split';card.append(element('h3','Część '+(i+1)));
+        const category=control('Kategoria', [['','Wybierz kategorię'],...state.expenseSheets.map(x=>[x,clean(x)])],p.sheetName,v=>{
+          p.sheetName=v;p.targetManualKey='';p.t10Section='';p.t12Section='';p.person='';refresh();});card.append(category);
+        const mode=control('Gdzie zapisać?', [['EXISTING_ROW','Dodaj do istniejącej pozycji'],['NEW_ROW','Nowa pozycja']],p.mode,v=>{p.mode=v;refresh();});card.append(mode);
+        if(p.mode==='EXISTING_ROW'){
+          const rows=state.existingRows.filter(x=>x.sheet===p.sheetName&&x.month===row.date.slice(0,7));
+          card.append(control('Pozycja', [['','Wybierz pozycję'],...rows.map(x=>[x.key,x.label])],p.targetManualKey,v=>{p.targetManualKey=v;status();}));
+        }else{
+          if(/^T10\b/.test(p.sheetName))card.append(control('Część Tańca Julki',[['','Wybierz część'],...t10],p.t10Section,v=>{p.t10Section=v;status();}));
+          if(/^T12\b/.test(p.sheetName)){
+            card.append(control('Rodzaj zakupu',[['','Wybierz rodzaj'],...t12],p.t12Section,v=>{p.t12Section=v;refresh();}));
+            if(p.t12Section==='CLOTHES')card.append(control('Dla kogo?',[['','Wybierz osobę'],...['Seba','Ewa','Julka','Olek'].map(x=>[x,x])],p.person,v=>{p.person=v;status();}));
+          }
+          const description=input(p.description,'Co kupiono w części '+(i+1));description.maxLength=200;
+          description.placeholder='Np. żywność, chemia, ubranie';description.oninput=()=>{p.description=description.value;status();};
+          card.append(field('Co kupiono?',description));
+        }
+        const amount=input(p.amount,'Kwota części '+(i+1));amount.inputMode='decimal';amount.placeholder='0,00';
+        amount.oninput=()=>{p.amount=amount.value;p.auto=false;remain(row);
+          const auto=items.querySelector('[data-pk-auto]');if(auto)auto.value=parts.at(-1).amount;status();};
+        if(p.auto)amount.dataset.pkAuto='1';card.append(field('Kwota w zł',amount));
+        if(i===parts.length-1)card.append(button('Uzupełnij pozostałą kwotą',()=>{p.auto=true;remain(row);refresh();},'quiet'));
+        if(parts.length>2)card.append(button('Usuń część',()=>{parts.splice(i,1);remain(row);refresh();},'quiet'));
+        items.append(card);
+      });status();
+    }
+    function status(){const sum=parts.reduce((n,p)=>n+(parseCents(p.amount)||0),0),left=row.amountCents-sum;
+      result.replaceChildren(element('span',left===0?'Cała kwota rozpisana':'Pozostało / nadwyżka'),element('strong',money(Math.abs(left))));
+      result.className='balance '+(left===0?'good':'error');save.disabled=!!check(row)||busy;}
+    box.append(items,button('+ Dodaj część',()=>{if(parts.length>=20)return;parts.at(-1).auto=false;
+      parts.push({mode:'EXISTING_ROW',sheetName:'',targetManualKey:'',description:'',amount:'',auto:true});remain(row);refresh();}),result);
+    const actions=element('div');actions.className='actions';actions.append(save,button('Wróć',()=>{active=null;render();},'quiet'));box.append(actions);refresh();return box;
+  }
+  buildEditor=function(row){
+    const container=element('div');
+    const splitMode=active===row.key;
+    const toggle=button(splitMode?'Wróć do jednej kategorii':'Podziel na kilka kategorii',()=>{
+      if(active===row.key)active=null;else{active=row.key;parts=fresh(row);}render();
+    });toggle.className='quiet';container.append(toggle,splitMode?view(row):baseEditor(row));return container;
+  };
+  // In the saved tab, the original renderer lists clothing splits only. The editor
+  // above opens an existing MULTI_SPLIT decision and displays every part for editing.
+  // In-app notice: poll the DEV queue while the app page is open. No email,
+  // browser permission, or budget write. A closed app cannot receive this notice.
+  const pendingStorage='budget-dev-pending-ids-v1';let known=null,notice=null;
+  try{const raw=localStorage.getItem(pendingStorage);if(raw)known=new Set(JSON.parse(raw));}catch(_){known=null;}
+  function pendingKeys(){return (state&&state.rows||[]).filter(r=>!r.bridgeArchived&&!r.bridgeBlocked&&
+    !r.decision&&!r.postedEvidence).map(r=>r.key);}
+  function refreshNotice(){
+    if(!state)return;const current=pendingKeys(),set=new Set(current);
+    if(known===null)known=set;else{const added=current.filter(k=>!known.has(k));if(added.length)showNotice(added.length);known=set;}
+    try{localStorage.setItem(pendingStorage,JSON.stringify(current));}catch(_){}
+  }
+  function showNotice(n){
+    if(!notice){notice=element('div');notice.className='notice';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
+      notice.style.margin='12px 0';notice.style.display='flex';notice.style.justifyContent='space-between';notice.style.alignItems='center';
+      const host=$('status');host.parentNode.insertBefore(notice,host);}
+    notice.replaceChildren(element('span',n+' nowych wydatków do przypisania'));
+    notice.append(button('Pokaż',()=>{tab='pending';opened=null;draft=null;render();notice.hidden=true;}));notice.hidden=false;
+  }
+  const originalRender=render;render=function(){originalRender();refreshNotice();};
+  setInterval(()=>{
+    if(busy||opened||!state)return;
+    google.script.run.withSuccessHandler(next=>{
+      if(!next||!next.revision||next.revision===state.revision)return;state=next;render();
+    }).withFailureHandler(()=>{}).ebQueueListDev();
+  },60000);
+})();
+</script>
+<!-- Paste this whole script immediately before </body> in the EXISTING KolejkaProsta.html.
+     Requires KorektaZapisanychTESTV1.gs. It adds a correction button to posted purchases. -->
+<script>
+(function(){
+  'use strict';
+  let openedKey=null,loaded=null,loadError='',lines=[],working=false,readSeq=0;
+  const originalRender=render;
+  function matchingRows(){
+    if(!state||tab!=='saved')return [];
+    const q=$('search').value.trim().toLocaleLowerCase('pl');
+    return state.rows.filter(r=>!r.bridgeArchived&&(r.decision||r.postedEvidence||r.bridgeBlocked))
+      .filter(r=>(r.description+' '+money(r.amountCents)).toLocaleLowerCase('pl').includes(q))
+      .sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  function close(){readSeq++;openedKey=null;loaded=null;loadError='';lines=[];working=false;render();}
+  function loadCorrection(row){
+    if(working)return;working=true;openedKey=row.key;loaded=null;loadError='';render();
+    const token=++readSeq;
+    const timer=setTimeout(()=>{
+      if(token!==readSeq)return;readSeq++;working=false;
+      loadError='Odczyt trwał ponad 20 sekund. Sprawdź w Apps Script → Wykonania, czy kzGetDevV1 zakończyła się błędem.';
+      render();
+    },20000);
+    function finish(data,error){
+      if(token!==readSeq||openedKey!==row.key)return;
+      clearTimeout(timer);working=false;
+      if(error){loadError=error.message||String(error);render();return;}
+      try{
+        if(!data||!Array.isArray(data.current)||!Number.isSafeInteger(data.amountCents))
+          throw Error('Odczyt zwrócił niekompletne dane.');
+        loaded=data;loadError='';
+        lines=[{sheetName:'',targetManualKey:'',amount:formatInput(data.amountCents),auto:true}];render();
+      }catch(err){loaded=null;loadError='Nie udało się wyświetlić korekty: '+(err.message||String(err));render();}
+    }
+    try{google.script.run.withSuccessHandler(data=>finish(data,null))
+      .withFailureHandler(err=>finish(null,err)).kzGetDevV1({key:row.key});}
+    catch(err){finish(null,err);}
+  }
+  function remaining(){
+    const last=lines.at(-1);if(!last||!last.auto)return;
+    const used=lines.slice(0,-1).reduce((n,p)=>n+(parseCents(p.amount)||0),0);
+    last.amount=used<loaded.amountCents?formatInput(loaded.amountCents-used):'';
+  }
+  function editor(){
+    const box=element('div');box.className='editor';
+    if(!loaded){
+      const message=element('p',loadError||'Sprawdzam pierwotny zapis…');
+      if(loadError)message.className='notice error-box';box.append(message);
+      if(loadError)box.append(button('Spróbuj ponownie',()=>loadCorrection(state.rows.find(r=>r.key===openedKey))));
+      box.append(button('Zamknij',close,'quiet'));return box;
+    }
+    box.append(element('h3','Korekta zaksięgowanego zakupu'));
+    box.append(element('p','Obecnie: '+loaded.current.map(p=>p.label+' · '+money(p.amountCents)).join(' / ')));
+    box.append(element('p','Wybierz nowe pozycje. Saldo konta i karty pozostanie bez zmian.'));
+    const list=element('div'),status=element('div');status.className='balance';box.append(list);
+    function rerender(){list.replaceChildren();lines.forEach((part,i)=>{
+      const group=element('div');group.className='split';group.append(element('h3','Część '+(i+1)));
+      const category=select([['','Wybierz kategorię'],...state.expenseSheets.map(s=>[s,s.replace(/^T\d+\s+/, '')])],part.sheetName,'Kategoria '+(i+1));
+      category.onchange=()=>{part.sheetName=category.value;part.targetManualKey='';rerender();};group.append(field('Kategoria',category));
+      const choices=state.existingRows.filter(x=>x.sheet===part.sheetName&&x.month==='2026-11');
+      const target=select([['','Wybierz pozycję'],...choices.map(x=>[x.key,x.label])],part.targetManualKey,'Pozycja '+(i+1));
+      target.onchange=()=>{part.targetManualKey=target.value;update();};group.append(field('Pozycja budżetu',target));
+      const amount=input(part.amount,'Kwota '+(i+1));amount.inputMode='decimal';
+      amount.oninput=()=>{part.amount=amount.value;part.auto=false;remaining();
+        const auto=list.querySelector('[data-kz-auto]');if(auto)auto.value=lines.at(-1).amount;update();};
+      if(part.auto)amount.dataset.kzAuto='1';group.append(field('Kwota (zł)',amount));
+      if(i===lines.length-1)group.append(button('Uzupełnij pozostałą kwotą',()=>{part.auto=true;remaining();rerender();},'quiet'));
+      if(lines.length>1)group.append(button('Usuń część',()=>{lines.splice(i,1);remaining();rerender();},'quiet'));
+      list.append(group);
+    });update();}
+    function problem(){
+      if(!lines.length)return 'Dodaj pozycję.';
+      let sum=0;for(const p of lines){const c=parseCents(p.amount);
+        if(!p.targetManualKey)return 'Wybierz pozycję każdej części.';
+        if(c===null||c<=0)return 'Wpisz dodatnią kwotę każdej części.';sum+=c;}
+      return sum===loaded.amountCents?'':'Suma części musi wynosić '+money(loaded.amountCents)+'.';
+    }
+    const save=button('Sprawdź i zapisz korektę',()=>{
+      const error=problem();if(error){announce(error,true);return;}
+      const req={revision:state.revision,key:openedKey,correctionVersion:loaded.version,
+        parts:lines.map(p=>({mode:'EXISTING_ROW',targetManualKey:p.targetManualKey,amountCents:parseCents(p.amount)}))};
+      if(working)return;working=true;save.disabled=true;announce('Sprawdzam korektę…');
+      google.script.run.withSuccessHandler(()=>{
+        google.script.run.withSuccessHandler(result=>{
+          working=false;close();api('list');announce('Korekta zapisana w kopii TEST.');
+        }).withFailureHandler(err=>{working=false;save.disabled=false;
+          announce('Sprawdź historię przed ponowieniem: '+(err.message||String(err)),true);}).kzPostDevV1(req);
+      }).withFailureHandler(err=>{working=false;save.disabled=false;announce(err.message||String(err),true);}).kzPreviewDevV1(req);
+    },'primary');
+    function update(){const total=lines.reduce((n,p)=>n+(parseCents(p.amount)||0),0),left=loaded.amountCents-total;
+      status.replaceChildren(element('span',left===0?'Cała kwota rozpisana':'Pozostało / nadwyżka'),element('strong',money(Math.abs(left))));
+      status.className='balance '+(left===0?'good':'error');save.disabled=!!problem()||working;}
+    box.append(button('+ Dodaj część',()=>{if(lines.length>=20)return;
+      if(lines.length===1&&lines[0].auto)lines[0].amount=formatInput(Math.floor(loaded.amountCents/2));
+      lines.at(-1).auto=false;lines.push({sheetName:'',targetManualKey:'',amount:'',auto:true});remaining();rerender();}),status);
+    const actions=element('div');actions.className='actions';actions.append(save,button('Anuluj',close,'quiet'));box.append(actions);
+    rerender();return box;
+  }
+  render=function(){originalRender();if(tab!=='saved'||!state)return;
+    const rows=matchingRows(),cards=[...$('rows').querySelectorAll('.transaction')];
+    rows.forEach((r,i)=>{if(r.bridgeBlocked||!cards[i])return;
+      if(!r.postedEvidence&&r.decision){
+        const summary=cards[i].querySelector('button.summary');
+        if(summary)cards[i].append(button(opened===r.key?'Zamknij zmianę':'Zmień przypisanie',()=>summary.click(),'quiet'));
+        return;
+      }
+      if(!r.postedEvidence)return;
+      const control=button(openedKey===r.key?'Zamknij korektę':'Koryguj zapis',()=>{
+        if(openedKey===r.key)close();else loadCorrection(r);},'quiet');
+      cards[i].append(control);
+      if(openedKey===r.key)cards[i].append(editor());
+    });
+  };
+})();
+</script>
+<script>
+(function(){
+  'use strict';
+  const box=document.getElementById('bankAccess');
+  const title=document.getElementById('bankAccessTitle');
+  const detail=document.getElementById('bankAccessDetail');
+  const updated=document.getElementById('bankAccessUpdated');
+  const formatDate=value=>{
+    const d=new Date(value);
+    return Number.isFinite(d.getTime())?d.toLocaleString('pl-PL',{timeZone:'Europe/Warsaw',dateStyle:'short',timeStyle:'short'}):null;
+  };
+  function show(data){
+    const s=data&&typeof data.state==='string'?data.state:'ERROR';
+    box.dataset.state=s;
+    title.textContent=data&&data.message||'Nie można potwierdzić dostępu do banku';
+    const expires=data&&data.expiresAt&&formatDate(data.expiresAt);
+    const retry=data&&data.retryAfter&&formatDate(data.retryAfter);
+    const lines=[];
+    if(s==='ACTIVE'&&expires)lines.push('Zgoda bankowa ważna do '+expires+'.');
+    else if(s==='EXPIRING'&&expires)lines.push('Zgoda wygasa '+expires+'. Odnów dostęp w banku.');
+    else if(s==='RATE_LIMITED'&&retry)lines.push('Wstrzymano odczyt API do '+retry+'. Nie ponawiaj teraz połączenia.');
+    else if(s==='EXPIRED'||s==='NO_SESSION')lines.push('Odnów zgodę bankową, aby pobierać nowe transakcje z API.');
+    else if(s==='STALE')lines.push('Sprawdź automatyczny cykl statusu w projekcie bankowym.');
+    else if(s==='ERROR')lines.push('Odśwież stronę za chwilę lub sprawdź połączenie aplikacji.');
+    lines.push('Wydatki z alertów e-mail mogą pojawiać się niezależnie od API.');
+    detail.textContent=lines.join(' ');
+    const checked=data&&data.checkedAt&&formatDate(data.checkedAt);
+    updated.textContent=checked?'Stan sprawdzony: '+checked+'. Status sesji nie oznacza świeżości transakcji.':'';
+  }
+  function load(){
+    google.script.run.withSuccessHandler(show).withFailureHandler(function(){show({state:'ERROR'});}).apiStatusGetDEV();
+  }
+  load();
+  setInterval(function(){if(!document.hidden)load();},5*60*1000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)load();});
+})();
+</script>
+</body></html>

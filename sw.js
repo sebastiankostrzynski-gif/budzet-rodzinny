@@ -1,9 +1,12 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v32-warm-tabs';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v34-role-visibility';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
+  './queue.html',
+  './inflows.html',
+  './queue-transport.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -100,6 +103,13 @@ self.addEventListener('fetch', event => {
     // Najpierw oddajemy lokalny shell. Internet jest używany wyłącznie,
     // gdy na urządzeniu nie ma jeszcze żadnej kopii aplikacji.
     event.respondWith((async () => {
+      const isShell = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+      if (!isShell) {
+        const cache = await caches.open(SHELL_CACHE);
+        const exact = await cache.match(request, { ignoreSearch: true });
+        if (exact) return exact;
+        try { return await fetchAndCache_(request); } catch (_) { return Response.error(); }
+      }
       const cached = await matchShell_(request);
       if (cached) return cached;
 

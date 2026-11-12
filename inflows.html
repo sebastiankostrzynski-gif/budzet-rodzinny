@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pl"><head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wpływy do przypisania</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#203b33;background:#f4f7f5}
+*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:auto;padding:22px 16px 70px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font-size:25px;margin:6px 0 10px}
+p{line-height:1.5}.small{font-size:13px;color:#597267}.eyebrow{color:#217650;font-size:12px;font-weight:700;letter-spacing:.07em}
+button,input,select{font:inherit;min-height:44px}button{cursor:pointer;background:white;border:1px solid #cadbd0;border-radius:9px;padding:8px 13px}
+button.primary{background:#217650;color:white;border-color:#217650;font-weight:650}button:disabled{opacity:.5}
+input,select{width:100%;padding:9px 11px;border:1px solid #a9c1b0;border-radius:8px;background:white}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #91c9ab;outline-offset:2px}
+label{display:block;margin:13px 0 5px;font-size:14px;font-weight:600}.card{background:white;border:1px solid #dce6df;border-radius:14px;margin:10px 0;padding:16px}
+.head{display:flex;gap:12px;justify-content:space-between}.head strong{overflow-wrap:anywhere}.money{white-space:nowrap;font-weight:700}
+.meta{font-size:12px;color:#64776b;margin:6px 0}.badge{display:inline-block;background:#e3f0e8;color:#1f6643;border-radius:6px;padding:4px 7px;font-size:12px}
+.fields{margin-top:14px;border-top:1px solid #e3eae5;padding-top:3px}.actions{display:flex;gap:8px;margin-top:14px}
+.empty{background:white;border:1px solid #dce6df;border-radius:14px;padding:30px;text-align:center}
+.error{color:#9f3527}.tabs{display:flex;gap:8px;margin:16px 0}.tabs button[aria-pressed=true]{background:#e3f0e8;border-color:#91c9ab}
+</style></head><body><main>
+<header><div><span class="eyebrow">BUDŻET · KOPIA TESTOWA</span><h1>Przypisz wpływy</h1><a href="./queue.html" target="_top">← Wydatki</a></div><button id="reload">Odśwież</button></header>
+<p class="small">Sprzedaż, zwroty na rachunek i inne wpływy. Przelewy między własnymi kontami nie są tu ujmowane. Zapis przypisania nie zmienia jeszcze budżetu ani salda.</p>
+<div id="status" role="status" aria-live="polite"></div>
+<nav class="tabs"><button id="pending" aria-pressed="true">Do przypisania</button><button id="saved" aria-pressed="false">Zapisane</button></nav>
+<section id="rows"></section><p id="freshness" class="small"></p>
+</main><script src="./queue-transport.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(n/100);
+let state=null,tab='pending',busy=false,opened=null;
+function node(tag,value){const e=document.createElement(tag);if(value!==undefined)e.textContent=value;return e}
+function status(message,error){$('status').textContent=message;$('status').className=error?'error':''}
+function load(){if(busy)return;busy=true;$('reload').disabled=true;status('Odczyt listy…');
+ google.script.run.withSuccessHandler(r=>{state=r;busy=false;$('reload').disabled=false;render();status('Lista gotowa.')})
+ .withFailureHandler(e=>{busy=false;$('reload').disabled=false;status(e.message||String(e),true)}).ebIncomeListDev();}
+function render(){const rows=state.rows.filter(x=>!!x.decision===(tab==='saved'));$('rows').replaceChildren();
+ $('pending').textContent='Do przypisania · '+state.rows.filter(x=>!x.decision).length;
+ $('saved').textContent='Zapisane · '+state.rows.filter(x=>x.decision).length;
+ for(const t of ['pending','saved'])$(t).setAttribute('aria-pressed',t===tab);
+ if(!rows.length){$('rows').append(node('div',tab==='pending'?'Brak wpływów do przypisania.':'Nie ma zapisanych decyzji.'));$('rows').firstChild.className='empty'}
+ rows.forEach(x=>{const card=node('article');card.className='card';const head=node('div');head.className='head';
+ head.append(node('strong',x.merchant),node('span',fmt(x.amountCents)));head.lastChild.className='money';card.append(head);
+ const meta=node('div',x.date+' · '+x.account);meta.className='meta';card.append(meta);
+ if(x.decision){const p=node('p',x.decision.sheetName.replace(/^T\d+\s+/,'')+' · '+x.decision.description);p.className='badge';card.append(p)}
+ const toggle=node('button',x.decision?'Zmień przypisanie':'Przypisz');toggle.onclick=()=>{opened=opened===x.key?null:x.key;render()};card.append(toggle);
+ if(opened===x.key){const f=node('div');f.className='fields';const label=node('label','Rodzaj wpływu');const select=node('select');
+ select.add(new Option('Wybierz kategorię',''));state.categories.forEach(c=>select.add(new Option(c.replace(/^T\d+\s+/,'') ,c)));
+ select.value=x.decision?.sheetName||'';label.append(select);f.append(label);
+ const dl=node('label','Czego dotyczy wpływ?'),input=node('input');input.maxLength=200;input.value=x.decision?.description||'';
+ input.placeholder='Np. sprzedaż używanego przedmiotu, zwrot zakupu';dl.append(input);f.append(dl);
+ const action=node('button','Zapisz przypisanie');action.className='primary';action.onclick=()=>{if(!select.value||!input.value.trim()){status('Wybierz kategorię i wpisz opis.',true);return}
+ if(busy)return;busy=true;action.disabled=true;status('Zapisywanie decyzji…');
+ google.script.run.withSuccessHandler(()=>{busy=false;opened=null;load()})
+ .withFailureHandler(e=>{busy=false;action.disabled=false;status(e.message||String(e),true)})
+ .ebIncomeDecideDev({revision:state.revision,key:x.key,sheetName:select.value,description:input.value.trim()});};f.append(action);card.append(f)}
+ $('rows').append(card)});
+ $('freshness').textContent='Dane źródłowe: '+new Date(state.sourceAt).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'})+'.';
+}
+$('pending').onclick=()=>{tab='pending';opened=null;if(state)render()};
+$('saved').onclick=()=>{tab='saved';opened=null;if(state)render()};
+$('reload').onclick=load;load();
+</script></body></html>

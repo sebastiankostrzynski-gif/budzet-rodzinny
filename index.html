@@ -1706,13 +1706,14 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .alerty24-amount{text-align:right}.alerty24-amount strong{display:block;font-size:23px;line-height:1.12;font-variant-numeric:tabular-nums;color:#23774b}.alerty24-card.is-over .alerty24-amount strong{color:#c43f33}.alerty24-amount span{display:block;margin-top:3px;color:#64716a;font-size:12px}
 .alerty24-progress{height:8px;margin:14px 0 9px;border-radius:999px;background:#e8efe9;overflow:hidden}.alerty24-progress>span{display:block;height:100%;border-radius:inherit;background:#39aa6b}.alerty24-card.is-over .alerty24-progress>span{background:#d76659}
 .alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
+.budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06)}.assignment-links a:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
 </style>
 
 </head>
 
 
 <body>
-<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16v13H4zM7 7V4h10v3M4 11h16M8 15h3"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h17M7 15l5-5 4 2 5-7"/></svg><span>Oszczędności</span></button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><span>Zobowiązania</span></button></nav>
+<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16v13H4zM7 7V4h10v3M4 11h16M8 15h3"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h17M7 15l5-5 4 2 5-7"/></svg><span>Oszczędności</span></button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><span>Zobowiązania</span></button><button data-tab="balances" aria-pressed="false" onclick="openBalances_()"><span>Salda kont</span></button><button data-tab="assignments" aria-pressed="false" onclick="openAssignments_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4zM8 10h8M8 14h5"/></svg><span>Przypisz</span></button></nav>
 
   <div id="app">
 
@@ -1734,10 +1735,10 @@ body.amounts-hidden .history-chart{visibility:hidden}
   <script>
 // Local UI; Google is a background read-only data transport.
 const DEV_BACKEND_URL = new URLSearchParams(location.search).get('devBackend') || '';
-const BUDGET_SERVER_URL = DEV_BACKEND_URL || 'https://script.google.com/macros/s/AKfycbxwfK-V2xmXNcWylpVEQHRoaTcPn8hbmPW0CLrHIl82LuvU-sZg6cBSXDjEl2w6AK4vLQ/exec';
+const BUDGET_SERVER_URL = DEV_BACKEND_URL || 'https://script.google.com/macros/s/AKfycbzKsqATFNdbPAJetye7MeS2rrRBFkN4g9DIfR-xM8ZcjAAAzXa66roYBrEWoB2mpYzSug/exec?view=bridge';
 
 const budgetTransport = (() => {
-  const allowed = new Set(['getBudgetData','getBudgetDataFresh','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries']);
+  const allowed = new Set(['getViewerRole','getBudgetData','getBudgetDataFresh','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries','getAccountBalances','getAlerty24DashboardDataV1']);
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
@@ -1814,6 +1815,13 @@ const budgetTransport = (() => {
   return {runner,start};
 })();
 const google = {script:{run:budgetTransport.runner()}};
+let viewerRole_ = null;
+google.script.run.withSuccessHandler(role => {
+  viewerRole_ = role === 'owner' ? 'owner' : 'viewer';
+  const assignmentTab = document.querySelector('.budget-tabs button[data-tab="assignments"]');
+  if (assignmentTab) assignmentTab.style.display = viewerRole_ === 'owner' ? 'flex' : 'none';
+}).withFailureHandler(() => { viewerRole_ = 'viewer'; }).getViewerRole();
+
 
 // Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
 // It is intentionally opt-in: production is unchanged until the query parameter is supplied.
@@ -1821,7 +1829,7 @@ const ALERTY24_BACKEND_URL = new URLSearchParams(location.search).get('alerty24B
 // V2: Alerty24 korzysta z TEGO SAMEGO uwierzytelnionego mostu co dashboard.
 // Nie otwieramy drugiego projektu Apps Script w ukrytej ramce, bo w incognito
 // Chrome odcina jego sesję Google jako pliki cookie podmiotu trzeciego.
-const ALERTY24_DIRECT_ENABLED = new URLSearchParams(location.search).get('alerty24Main') === '1';
+const ALERTY24_DIRECT_ENABLED = true;
 const alerty24Transport = (() => {
   const pending = new Map();
   const channel = crypto.randomUUID();
@@ -5771,6 +5779,39 @@ function savingsRefresh_(automatic=false){
  }).withFailureHandler(function(error){savingsBusy_=false;savingsError_=String(error&&error.message||'Nie udało się odświeżyć');if(activeView_==='savings')renderSavings_();}).getSavingsData();
 }
 function setBudgetTab_(tab){document.body.classList.toggle('debts-theme',tab==='debts');document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
+
+function openAssignments_() {
+  if (viewerRole_ !== 'owner') return;
+  cleanupDetailSticky_();
+  activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Wybierz kolejkę TEST. Po zapisaniu przypisania automat przenosi je do budżetu w kolejnym cyklu.</p><div class="assignment-links"><a href="./queue.html">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="./inflows.html">Przypisz wpływy <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
+  window.scrollTo(0,0);
+}
+
+function openBalances_() {
+  activeView_='balances';
+  setBudgetTab_('balances');
+  const app=document.getElementById('app');
+  app.innerHTML='<div class="sav-wrap"><h1>Salda kont</h1><p id="balances-status">Odczytuję…</p><div id="balances-list"></div><button onclick="openBalances_()">Odśwież</button></div>';
+  google.script.run.withSuccessHandler(data=>{
+    if(activeView_!=='balances')return;
+    const list=document.getElementById('balances-list');
+    list.replaceChildren();
+    for(const row of data.accounts){
+      const p=document.createElement('p');
+      const label=document.createElement('span');
+      const value=document.createElement('strong');
+      label.textContent=row.name;
+      value.textContent=row.amount==null?'Brak danych':new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amount);
+      p.style.cssText='display:flex;justify-content:space-between;gap:12px;padding:12px;background:#fff;border-bottom:1px solid #ddd';
+      p.append(label,value);
+      list.append(p);
+    }
+    document.getElementById('balances-status').textContent='Odczyt z '+new Date(data.readAt).toLocaleString('pl-PL');
+  }).withFailureHandler(e=>{
+    document.getElementById('balances-status').textContent='Nie udało się odczytać sald: '+(e.message||e);
+  }).getAccountBalances();
+}
 function openSavings_(){
  cleanupDetailSticky_();activeView_='savings';activeCategory_=null;setBudgetTab_('savings');
  savingsRestore_();renderSavings_();savingsRefresh_(true);window.scrollTo(0,0);
@@ -6160,4 +6201,5 @@ function historyTouchV24_(event,svg){
 
 </body>
 </html>
+
 
