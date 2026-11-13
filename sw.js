@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v39-oauth-test';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v40-private-file';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -28,6 +28,10 @@ self.addEventListener('install', event => {
       throw new Error('Nie udało się zapisać krytycznego index.html.');
     }
 
+    const authUrl = new URL('./private-budget.js', self.registration.scope).href;
+    const authResponse = await fetch(authUrl, {cache:'no-store'});
+    if (!authResponse.ok) throw new Error('Nie udało się pobrać modułu logowania.');
+    await cache.put(authUrl,authResponse);
     await cache.put(criticalUrl, criticalResponse.clone());
 
     const optionalPaths = APP_SHELL.filter(path => path !== './index.html');
