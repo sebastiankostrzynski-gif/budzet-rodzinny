@@ -2,6 +2,7 @@
   'use strict';
   const endpoint = 'https://script.googleapis.com/v1/scripts/AKfycbxJ3Y1YJVX-PdJ0Nn68KuHCBFmX0t2Nl8xbubKF4WflS-7uXlilJKxCDpHsc5jL9RGsTA:run';
   const clientId = '346154367588-kd2si4cjh6hgelh9jhujbiph73e67l5m.apps.googleusercontent.com';
+  const testFileId = '1ZgQJZ6_7BzwhBtRZMAP5UdVuPi0ynDYPmkDZNU3PWMo';
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(()=>{});
   const gate = document.getElementById('budget-login');
   const status = gate.querySelector('[role=status]');
@@ -53,7 +54,26 @@
     const p=window.google.picker;
     new p.PickerBuilder().setAppId('346154367588').setDeveloperKey('AIzaSyBCaybFVVbdmHD7k15icRep3CrYouw7I58').setOAuthToken(token)
       .setOrigin(location.origin).addView(new p.DocsView(p.ViewId.SPREADSHEETS))
-      .setCallback(async e=>{if(e.action===p.Action.PICKED){try{await showBudget();}catch(err){report(err);}}}).build().setVisible(true);
+      .setCallback(async e=>{
+        if(e.action===p.Action.CANCEL){status.textContent='Nie wybrano arkusza.';return;}
+        if(e.action!==p.Action.PICKED)return;
+        const selected=e.docs?.[0];
+        if(!selected?.id){report(Error('Google nie zwrócił identyfikatora wybranego arkusza.'));return;}
+        if(selected.id!==testFileId){
+          report(Error('Wybrano inny plik. Wybierz dokładnie „Budżet 2026 — TEST automat karty”.'));
+          return;
+        }
+        try{
+          status.textContent='Sprawdzanie dostępu do wybranego arkusza…';
+          const check=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(selected.id)+'?fields=id,name,mimeType',
+            {headers:{Authorization:'Bearer '+token},cache:'no-store'});
+          if(!check.ok)throw Error('Google Drive nie przyznał aplikacji dostępu do wybranego arkusza (HTTP '+check.status+').');
+          const file=await check.json();
+          if(file.id!==testFileId)throw Error('Odpowiedź Google Drive dotyczy innego arkusza.');
+          status.textContent='Arkusz TEST został rozpoznany; łączenie z budżetem…';
+          await showBudget();
+        }catch(err){report(err);}
+      }).build().setVisible(true);
   }
   gate.querySelector('[data-file]').onclick=()=>{
     status.textContent='Otwieranie wyboru arkusza…';
