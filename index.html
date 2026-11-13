@@ -5773,7 +5773,7 @@ function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Wybierz kolejkę TEST. Po zapisaniu przypisania automat przenosi je do budżetu w kolejnym cyklu.</p><div class="assignment-links"><a href="./queue.html">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="./inflows.html">Przypisz wpływy <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="./queue.html">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="./inflows.html">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
   window.scrollTo(0,0);
 }
 
