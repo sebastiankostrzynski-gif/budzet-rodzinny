@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="pl" class="budget-locked">
 <head>
 
   <meta charset="utf-8">
@@ -1732,91 +1732,19 @@ body.amounts-hidden .history-chart{visibility:hidden}
   </div>
 
 
-  <script>
-// Local UI; Google is a background read-only data transport.
-const DEV_BACKEND_URL = new URLSearchParams(location.search).get('devBackend') || '';
-const BUDGET_SERVER_URL = DEV_BACKEND_URL || 'https://script.google.com/macros/s/AKfycbzKsqATFNdbPAJetye7MeS2rrRBFkN4g9DIfR-xM8ZcjAAAzXa66roYBrEWoB2mpYzSug/exec?view=bridge';
-
-const budgetTransport = (() => {
-  const allowed = new Set(['getViewerRole','getBudgetData','getBudgetDataFresh','getCategoryDetails','getCategoryDetailsBundle','getRefreshState','getSavingsData','getDebtsData','getBudgetEntries','getAccountBalances','getAlerty24DashboardDataV1']);
-  const pending = new Map();
-  const channel = crypto.randomUUID();
-  let frame, client, origin, connected = false, sequence = 0;
-  function trusted(e) {
-    if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
-    try {
-      let w = e.source;
-      for (let n=0; w && n<8; n++) {
-        if (w === frame.contentWindow) return true;
-        if (w === w.parent) break;
-        w = w.parent;
-      }
-    } catch (_) {}
-    return false;
-  }
-  function send(item) {
-    if (!connected || item.sent) return;
-    item.sent = true;
-    client.postMessage({protocol:'budget-rpc-v10',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
-  }
-  function start() {
-    if (frame || !navigator.onLine) return;
-    frame = document.createElement('iframe');
-    frame.title = 'Synchronizacja danych budżetu';
-    frame.setAttribute('aria-hidden','true');
-    frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;left:-10000px;top:0';
-    frame.src = BUDGET_SERVER_URL;
-    document.body.appendChild(frame);
-  }
-  function finish(id, ok, value) {
-    const item = pending.get(id);
-    if (!item) return;
-    pending.delete(id);
-    clearTimeout(item.timer);
-    (ok ? item.success : item.failure)(ok ? value : new Error(String(value || 'Nie udało się odświeżyć danych.')));
-  }
-  addEventListener('message', e => {
-    const m = e.data;
-    if (!m || m.protocol !== 'budget-rpc-v10' || !trusted(e)) return;
-    if (m.type === 'ready') {
-      if (connected && e.source === client) return;
-      client = e.source; origin = e.origin;
-      client.postMessage({protocol:'budget-rpc-v10',type:'connect',channel},origin);
-    } else if (e.source === client && e.origin === origin && m.channel === channel) {
-      if (m.type === 'connected') {
-        connected = true;
-        pending.forEach(send);
-      } else if (m.type === 'result') {
-        finish(m.id,m.ok,m.ok ? m.data : m.error);
-      }
-    }
-  });
-  function call(method,args,success,failure) {
-    if (!allowed.has(method)) { failure(new Error('Niedozwolona operacja.')); return; }
-    if (!navigator.onLine) { failure(new Error('Brak internetu. Pokazuję zapisane dane.')); return; }
-    const id = ++sequence;
-    const item = {id,method,args,success,failure,sent:false};
-    item.timer = setTimeout(() => {
-      finish(id,false,'Nie udało się połączyć z Google. Zapisane dane pozostają dostępne.');
-      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
-    },18000);
-    pending.set(id,item);
-    start(); send(item);
-  }
-  function runner(success = () => {}, failure = () => {}) {
-    const r = {
-      withSuccessHandler: fn => runner(fn,failure),
-      withFailureHandler: fn => runner(success,fn)
-    };
-    allowed.forEach(method => { r[method] = (...args) => call(method,args,success,failure); });
-    return r;
-  }
-  addEventListener('online',() => { start(); if (typeof handleAppResume_ === 'function') handleAppResume_(); });
-  return {runner,start};
-})();
-const google = {script:{run:budgetTransport.runner()}};
+  <style>html.budget-locked body > :not(#budget-login){display:none!important}#budget-login{margin:18vh auto 0;max-width:26rem;padding:1.25rem;font:1rem system-ui}#budget-login button{padding:.75rem 1rem;margin:.4rem .2rem .4rem 0;border:0;border-radius:.6rem;background:#247950;color:white;font:inherit}#budget-login [hidden]{display:none}</style>
+<section id="budget-login"><h1>Budżet rodzinny</h1><p role="status">Łączenie z Google…</p><button type="button" disabled>Zaloguj przez Google</button><button type="button" data-file hidden>Wybierz arkusz budżetu TEST</button></section>
+<script type="text/plain" id="budget-app-source">
+const budgetApi = {script:{run: makeRunner()}};
+function makeRunner(success=()=>{}, failure=()=>{}) {
+  return new Proxy({}, {get(_,name) {
+    if(name==='withSuccessHandler')return fn=>makeRunner(fn,failure);
+    if(name==='withFailureHandler')return fn=>makeRunner(success,fn);
+    return (...args)=>window.budgetRpc(name,args).then(success,failure);
+  }});
+}
 let viewerRole_ = null;
-google.script.run.withSuccessHandler(role => {
+budgetApi.script.run.withSuccessHandler(role => {
   viewerRole_ = role === 'owner' ? 'owner' : 'viewer';
   const assignmentTab = document.querySelector('.budget-tabs button[data-tab="assignments"]');
   if (assignmentTab) assignmentTab.style.display = viewerRole_ === 'owner' ? 'flex' : 'none';
@@ -2812,7 +2740,7 @@ const budgetDisk = (() => {
 
       monthInflight[key] = [{ success: success, failure: failure }];
 
-      const runner = google.script.run
+      const runner = budgetApi.script.run
         .withSuccessHandler(function(data) {
           adoptSnapshotMetadata_(data);
           setCachedMonth(data);
@@ -2964,7 +2892,7 @@ const budgetDisk = (() => {
         failure: failure
       }];
 
-      google.script.run
+      budgetApi.script.run
         .withSuccessHandler(function(data) {
 
           setCachedCategoryDetail(
@@ -3077,7 +3005,7 @@ const budgetDisk = (() => {
         failure: failure
       }];
 
-      google.script.run
+      budgetApi.script.run
         .withSuccessHandler(function(bundle) {
           if (bundle && bundle.categories) {
             CATEGORY_NAMES.forEach(function(categoryName) {
@@ -3731,7 +3659,7 @@ function formatHistoryValue(value) {
         updateFreshnessIndicator_('checking');
       }
 
-      google.script.run
+      budgetApi.script.run
         .withSuccessHandler(function(state) {
 
           refreshStateRequestInFlight = false;
@@ -3993,7 +3921,7 @@ function alerty24Refresh_(force) {
   if (!force && Date.now() - alerty24LastRequestAt_ < 60000) return;
   alerty24Busy_ = true; alerty24Error_ = ''; alerty24LastRequestAt_ = Date.now();
   alerty24RenderSlot_();
-  google.script.run.withSuccessHandler(function(data) {
+  budgetApi.script.run.withSuccessHandler(function(data) {
     alerty24Busy_ = false;
     if (alerty24Valid_(data)) {
       alerty24Data_ = data;
@@ -5759,7 +5687,7 @@ function savingsRefresh_(automatic=false){
  if(!navigator.onLine){savingsError_='Brak internetu';if(activeView_==='savings')renderSavings_();return;}
  savingsBusy_=true;savingsError_='';if(!savingsData_&&activeView_==='savings')renderSavings_();else savingsStatus_();
  const serial=++savingsSerial_;
- google.script.run.withSuccessHandler(function(data){
+ budgetApi.script.run.withSuccessHandler(function(data){
   if(serial!==savingsSerial_)return;savingsBusy_=false;
   if(!savingsAdopt_(data)){savingsError_='Nieprawidłowe dane z arkusza';if(activeView_==='savings')renderSavings_();return;}
   try{localStorage.setItem(savingsKey_,JSON.stringify(data));}catch(_){}
@@ -5782,7 +5710,7 @@ function openBalances_() {
   setBudgetTab_('balances');
   const app=document.getElementById('app');
   app.innerHTML='<div class="sav-wrap"><h1>Salda kont</h1><p id="balances-status">Odczytuję…</p><div id="balances-list"></div><button onclick="openBalances_()">Odśwież</button></div>';
-  google.script.run.withSuccessHandler(data=>{
+  budgetApi.script.run.withSuccessHandler(data=>{
     if(activeView_!=='balances')return;
     const list=document.getElementById('balances-list');
     list.replaceChildren();
@@ -5935,7 +5863,7 @@ function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_
 function debtRefresh_(automatic=false){
  if(debtBusy_ || (automatic && !balanceNeedsRead_(debtData_,debtError_)))return;if(!navigator.onLine){debtError_=true;if(activeView_==='debts')renderDebts_();return;}
  debtBusy_=true;debtError_=false;if(activeView_==='debts')debtStatus_();
- google.script.run.withSuccessHandler(data=>{debtBusy_=false;debtError_=!debtAdopt_(data);if(!debtError_){try{localStorage.setItem(debtKey_,JSON.stringify(data));}catch(_){}try{caches.open('budzet-rodzinny-runtime-v8').then(c=>c.put(debtURL_(),new Response(JSON.stringify(data)))).catch(()=>{});}catch(_){}}if(activeView_==='debts')renderDebts_();}).withFailureHandler(()=>{debtBusy_=false;debtError_=true;if(activeView_==='debts')renderDebts_();}).getDebtsData();
+ budgetApi.script.run.withSuccessHandler(data=>{debtBusy_=false;debtError_=!debtAdopt_(data);if(!debtError_){try{localStorage.setItem(debtKey_,JSON.stringify(data));}catch(_){}try{caches.open('budzet-rodzinny-runtime-v8').then(c=>c.put(debtURL_(),new Response(JSON.stringify(data)))).catch(()=>{});}catch(_){}}if(activeView_==='debts')renderDebts_();}).withFailureHandler(()=>{debtBusy_=false;debtError_=true;if(activeView_==='debts')renderDebts_();}).getDebtsData();
 }
 function debtStatus_(){const el=document.getElementById('debt-status'),btn=document.getElementById('debt-refresh');if(el)el.textContent=debtBusy_?'Odświeżanie…':debtError_?'Nie udało się odświeżyć · pokazujemy zapisane dane':'Odświeżono · '+new Date(debtData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});if(btn){btn.textContent=debtError_?'Spróbuj ponownie':'↻';btn.disabled=debtBusy_;btn.setAttribute('aria-busy',String(debtBusy_));}}
 function debtSelect_(key){if(debtData_.periods.some(p=>p.key===key)){debtPeriod_=key;renderDebts_();}}
@@ -6078,7 +6006,7 @@ function entryFetchV22_(el,force){
  if(!force&&state.requested&&Date.now()-state.requested<60000)return;
  state.busy=true;state.error=false;state.requested=Date.now();entryRenderV22_(el,state);
  const update=()=>{const current=document.getElementById('entry-panel');if(current&&entryKeyV22_(current)===key&&current.open)entryRenderV22_(current,state);};
- google.script.run.withSuccessHandler(data=>{
+ budgetApi.script.run.withSuccessHandler(data=>{
   state.busy=false;if(entryValidV22_(data,el)){state.data=data;state.error=false;try{localStorage.setItem('budget-entries-v22|'+key,JSON.stringify(data));}catch(_){}}else state.error=true;update();
  }).withFailureHandler(()=>{state.busy=false;state.error=true;update();}).getBudgetEntries(el.dataset.category,Number(el.dataset.year),Number(el.dataset.month));
 }
@@ -6188,7 +6116,7 @@ function historyTouchV24_(event,svg){
 </script>
 
 
-</body>
+<script src="./private-budget.js"></script></body>
 </html>
 
 
