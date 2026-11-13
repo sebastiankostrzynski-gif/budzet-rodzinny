@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v42-picker-key';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v43-picker-visible';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
