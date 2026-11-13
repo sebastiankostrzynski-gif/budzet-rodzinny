@@ -1706,8 +1706,8 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .alerty24-amount{text-align:right}.alerty24-amount strong{display:block;font-size:23px;line-height:1.12;font-variant-numeric:tabular-nums;color:#23774b}.alerty24-card.is-over .alerty24-amount strong{color:#c43f33}.alerty24-amount span{display:block;margin-top:3px;color:#64716a;font-size:12px}
 .alerty24-progress{height:8px;margin:14px 0 9px;border-radius:999px;background:#e8efe9;overflow:hidden}.alerty24-progress>span{display:block;height:100%;border-radius:inherit;background:#39aa6b}.alerty24-card.is-over .alerty24-progress>span{background:#d76659}
 .alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
-.budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06)}.assignment-links a:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
-</style>
+.budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a,.assignment-links button{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06);width:100%;text-align:left;cursor:pointer}.assignment-links a:focus-visible,.assignment-links button:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
+.assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}</style>
 
 </head>
 
@@ -5701,7 +5701,37 @@ function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="./queue.html">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="./inflows.html">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><button type="button" onclick="openAssignmentView_('queue')">Przypisz wydatki <span aria-hidden="true">›</span></button><button type="button" onclick="openAssignmentView_('inflows')">Przypisz wpływy <span aria-hidden="true">›</span></button><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
+  window.scrollTo(0,0);
+}
+
+function openAssignmentView_(kind) {
+  if (viewerRole_ !== 'owner' || !['queue','inflows'].includes(kind)) return;
+  cleanupDetailSticky_();
+  activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
+  const app=document.getElementById('app');
+  app.innerHTML='<div class="assignment-wrap assignment-embedded"><div class="assignment-toolbar"><button type="button" onclick="showMainDashboard()">← Budżet</button><button type="button" onclick="openAssignments_()">Inne opcje</button></div><iframe id="assignment-frame" title="Przypisywanie transakcji" loading="eager"></iframe></div>';
+  const frame=document.getElementById('assignment-frame');
+  frame.addEventListener('load',()=>{
+    // Keep navigation in the frame so the authenticated budget stays mounted.
+    // The two assignment pages have ordinary links (one also has <base target="_top">).
+    try {
+      frame.contentDocument.addEventListener('click',event=>{
+        const link=event.target.closest('a[href]');
+        if(!link)return;
+        const target=new URL(link.getAttribute('href'),frame.contentWindow.location.href);
+        if(target.origin!==location.origin)return;
+        if(target.pathname===new URL('./',location.href).pathname){
+          event.preventDefault();
+          showMainDashboard();
+        }else if(target.pathname.endsWith('/queue.html')||target.pathname.endsWith('/inflows.html')){
+          event.preventDefault();
+          frame.src=target.href;
+        }
+      },true);
+    }catch(_){}
+  });
+  frame.src=kind==='queue'?'./queue.html':'./inflows.html';
   window.scrollTo(0,0);
 }
 
