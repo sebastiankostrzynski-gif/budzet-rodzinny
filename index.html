@@ -2892,6 +2892,29 @@ const budgetDisk = (() => {
         failure: failure
       }];
 
+      // An already running monthly bundle contains this category. Join that
+      // request instead of starting a competing Apps Script execution.
+      const bundleKey = categoryDetailsCacheKey(year, month);
+      if (categoryBundleInflight[bundleKey]) {
+        fetchCategoryBundle(year, month, function(bundle) {
+          const data = bundle && bundle.categories && bundle.categories[categoryName];
+          if (data) {
+            const callbacks = categoryDetailsInflight[key] || [];
+            delete categoryDetailsInflight[key];
+            callbacks.forEach(function(callback) {
+              if (typeof callback.success === 'function') callback.success(data);
+            });
+          } else {
+            delete categoryDetailsInflight[key];
+            fetchCategoryDetail(categoryName, year, month, success, failure);
+          }
+        }, function() {
+          delete categoryDetailsInflight[key];
+          fetchCategoryDetail(categoryName, year, month, success, failure);
+        });
+        return;
+      }
+
       budgetApi.script.run
         .withSuccessHandler(function(data) {
 
@@ -3272,21 +3295,28 @@ const budgetDisk = (() => {
       
       
       
+      // Keep the current month responsive before fetching adjacent months.
+
+      
+      
+      
+      // One batch warms every category. A click joins this request instead of
+      // opening another slow execution; the result survives PWA restarts.
       setTimeout(function() {
-        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') {
+        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') return;
+        const year=Number(selectedYear), month=Number(selectedMonth);
+        if (Object.keys(categoryDetailsInflight).length) {
+          const waitForDetails=setInterval(function() {
+            if (Object.keys(categoryDetailsInflight).length) return;
+            clearInterval(waitForDetails);
+            if (document.visibilityState === 'visible' && Number(selectedYear)===year && Number(selectedMonth)===month)
+              preloadCategoryDetailsForMonth(year, month);
+          }, 1000);
+          setTimeout(function(){ clearInterval(waitForDetails); }, 45000);
           return;
         }
-
-        preloadAdjacentMonths({
-          includeCurrent: false,
-          includeTargetDetails: false
-        });
-      }, 3000);
-
-      
-      
-      
-      // Szczegóły pobieramy na żądanie: równoległy pakiet blokował klikniętą kategorię.
+        preloadCategoryDetailsForMonth(year, month);
+      }, 3500);
     }
 
 
