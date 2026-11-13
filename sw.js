@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v38-manual-expenses';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v39-oauth-test';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -103,7 +103,8 @@ self.addEventListener('fetch', event => {
     // Najpierw oddajemy lokalny shell. Internet jest używany wyłącznie,
     // gdy na urządzeniu nie ma jeszcze żadnej kopii aplikacji.
     event.respondWith((async () => {
-      const isShell = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+      const homePath = new URL(self.registration.scope).pathname;
+      const isShell = url.pathname === homePath || url.pathname === homePath + 'index.html';
       if (!isShell) {
         const cache = await caches.open(SHELL_CACHE);
         const exact = await cache.match(request, { ignoreSearch: true });
