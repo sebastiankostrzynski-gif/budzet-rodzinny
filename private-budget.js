@@ -29,7 +29,9 @@
       try {
         const saved=JSON.parse(storage.getItem(sessionKey)||'null');
         if(saved && typeof saved.token==='string' && saved.token && Number(saved.expires)>Date.now()+30000) {
-          token=saved.token; expires=Number(saved.expires); return true;
+          token=saved.token; expires=Number(saved.expires);
+          rememberSession(); // Move a prior sessionStorage-only session to the new short-lived store.
+          return true;
         }
       } catch (_) {}
     }
