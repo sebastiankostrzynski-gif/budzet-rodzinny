@@ -9,6 +9,7 @@
   const button = gate.querySelector('button');
   let token = '', expires = 0, started = false, client;
   const verifiedKey = 'budget-verified-test-file-v1';
+  const cacheKey = 'budget-fresh-cache-test-v1';
   const remembered = () => { try { return localStorage.getItem(verifiedKey) === testFileId; } catch (_) { return false; } };
   function script(src) {
     return new Promise((resolve,reject) => {
@@ -46,13 +47,14 @@
       throw Error('Serwer nie zwrócił bieżącego miesiąca z arkusza TEST.');
     const stamp=Date.now();
     try {
-      if(!remembered()) {
+      if(localStorage.getItem(cacheKey)!==testFileId) {
         for(const key of ['budzet-last-dashboard-v1','budzet-month-dashboard-cache-v1','budzet-category-details-v1','budzet-last-refresh-state-v1','budzet-pwa-dashboard-cache-v1','budzet-pwa-month-cache-v1','budzet-pwa-category-cache-v1','budzet-pwa-refresh-state-v1']) localStorage.removeItem(key);
         const runtime=await caches.open('budzet-rodzinny-runtime-v8');
         for(const path of ['./__budget_runtime_v10__.json','./__budget_runtime_v8__.json']) await runtime.delete(new URL(path,location.href).href);
       }
       localStorage.setItem('budzet-last-dashboard-v1',JSON.stringify({timestamp:stamp,data:fresh}));
       localStorage.setItem(verifiedKey,testFileId);
+      localStorage.setItem(cacheKey,testFileId);
     } catch (_) { /* Private mode can deny local storage. Current result still renders. */ }
     gate.hidden=true;
     document.documentElement.classList.remove('budget-locked');
