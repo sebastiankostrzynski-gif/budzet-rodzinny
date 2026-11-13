@@ -106,10 +106,20 @@
       callback:async result=>{
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
-        gate.querySelector('[data-file]').hidden=remembered();
-        if(remembered()) {
-          try { await showBudget(); } catch(err) { report(err); }
-        } else status.textContent='Wybierz prywatny arkusz budżetu TEST.';
+        status.textContent='Sprawdzanie dostępu do arkusza TEST…';
+        try {
+          // A previous Picker grant remains usable even when this device lost local storage.
+          const check=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(testFileId)+'?fields=id,name',
+            {headers:{Authorization:'Bearer '+token},cache:'no-store'});
+          if(check.ok && (await check.json()).id===testFileId) {
+            try { localStorage.setItem(verifiedKey,testFileId); } catch (_) {}
+            gate.querySelector('[data-file]').hidden=true;
+            await showBudget();
+          } else {
+            gate.querySelector('[data-file]').hidden=false;
+            status.textContent='Wybierz prywatny arkusz budżetu TEST jeden raz.';
+          }
+        } catch(err) { report(err); }
       }});
     // Google requires a user gesture for browser token authorization on iOS.
     button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
