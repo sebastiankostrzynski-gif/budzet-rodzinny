@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v52-category-on-demand';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v53-session-navigation';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
