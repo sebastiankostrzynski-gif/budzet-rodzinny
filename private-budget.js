@@ -11,15 +11,28 @@
   const verifiedKey = 'budget-verified-test-file-v1';
   const cacheKey = 'budget-fresh-cache-test-v1';
   const sessionKey = 'budget-google-session-v1';
-  function clearSession() { try { sessionStorage.removeItem(sessionKey); } catch (_) {} }
-  function rememberSession() { try { sessionStorage.setItem(sessionKey, JSON.stringify({token, expires})); } catch (_) {} }
+  function clearSession() {
+    for (const storage of [sessionStorage, localStorage]) {
+      try { storage.removeItem(sessionKey); } catch (_) {}
+    }
+  }
+  function rememberSession() {
+    const saved=JSON.stringify({token, expires});
+    // Keep the short-lived Google token across iOS PWA restarts. It is never
+    // sent to GitHub Pages and is discarded as soon as it expires.
+    for (const storage of [sessionStorage, localStorage]) {
+      try { storage.setItem(sessionKey, saved); } catch (_) {}
+    }
+  }
   function restoreSession() {
-    try {
-      const saved=JSON.parse(sessionStorage.getItem(sessionKey)||'null');
-      if(saved && typeof saved.token==='string' && saved.token && Number(saved.expires)>Date.now()+30000) {
-        token=saved.token; expires=Number(saved.expires); return true;
-      }
-    } catch (_) {}
+    for (const storage of [sessionStorage, localStorage]) {
+      try {
+        const saved=JSON.parse(storage.getItem(sessionKey)||'null');
+        if(saved && typeof saved.token==='string' && saved.token && Number(saved.expires)>Date.now()+30000) {
+          token=saved.token; expires=Number(saved.expires); return true;
+        }
+      } catch (_) {}
+    }
     clearSession(); return false;
   }
   const remembered = () => { try { return localStorage.getItem(verifiedKey) === testFileId; } catch (_) { return false; } };
