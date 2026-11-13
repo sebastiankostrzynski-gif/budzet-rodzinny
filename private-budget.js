@@ -76,7 +76,8 @@
   async function showBudget() {
     // The backend checks the signed-in owner before any private snapshot is shown.
     const role=await rpc('getViewerRole',[]);
-    if(role!=='owner') throw Error('To konto nie ma dostępu do tego wdrożenia.');
+    if(role!=='owner' && role!=='viewer') throw Error('To konto nie ma dostępu do tego wdrożenia.');
+    window.budgetViewerRole = role;
     const now=new Date();
     let cached=null;
     try {
