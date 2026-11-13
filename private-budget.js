@@ -36,12 +36,36 @@
     return data.response.result;
   }
   window.budgetRpc=rpc;
+  function startBudgetApp() {
+    gate.hidden=true;
+    document.documentElement.classList.remove('budget-locked');
+    if(!started) {
+      started=true;
+      const app=document.createElement('script');
+      app.textContent=document.getElementById('budget-app-source').textContent;
+      document.body.append(app);
+    }
+  }
   async function showBudget() {
-    // Never display a snapshot from a different workbook or an unverified old session.
+    // The backend checks the signed-in owner before any private snapshot is shown.
     const role=await rpc('getViewerRole',[]);
     if(role!=='owner') throw Error('To konto nie ma dostępu do tego wdrożenia.');
-    status.textContent='Pobieranie aktualnych danych z TEST…';
     const now=new Date();
+    let cached=null;
+    try {
+      if(localStorage.getItem(cacheKey)===testFileId &&
+         localStorage.getItem(verifiedKey)===testFileId) {
+        const snapshot=JSON.parse(localStorage.getItem('budzet-last-dashboard-v1')||'null');
+        if(snapshot && snapshot.data &&
+           Number(snapshot.data.year)===now.getFullYear() &&
+           Number(snapshot.data.monthNumber)===now.getMonth()+1 &&
+           Array.isArray(snapshot.data.categories)) cached=snapshot.data;
+      }
+    }catch(_){}
+    // The app renders this verified snapshot immediately and its existing startup
+    // routine checks for a newer bank cycle in the background.
+    if(cached) { startBudgetApp(); return; }
+    status.textContent='Pobieranie aktualnych danych z TEST…';
     const fresh=await rpc('getBudgetDataFresh',[now.getFullYear(),now.getMonth()+1]);
     if(!fresh || !Array.isArray(fresh.categories) || Number(fresh.year)!==now.getFullYear() || Number(fresh.monthNumber)!==now.getMonth()+1)
       throw Error('Serwer nie zwrócił bieżącego miesiąca z arkusza TEST.');
@@ -56,14 +80,7 @@
       localStorage.setItem(verifiedKey,testFileId);
       localStorage.setItem(cacheKey,testFileId);
     } catch (_) { /* Private mode can deny local storage. Current result still renders. */ }
-    gate.hidden=true;
-    document.documentElement.classList.remove('budget-locked');
-    if(!started) {
-      started=true;
-      const app=document.createElement('script');
-      app.textContent=document.getElementById('budget-app-source').textContent;
-      document.body.append(app);
-    }
+    startBudgetApp();
   }
   function report(error){lock(error.message);button.disabled=false;}
   async function chooseFile(){
@@ -108,7 +125,13 @@
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
         status.textContent='Sprawdzanie dostępu do arkusza TEST…';
         try {
-          // A previous Picker grant remains usable even when this device lost local storage.
+          // The exact file grant was verified on first selection. A returning
+          // owner can open the cached dashboard without a redundant Drive call.
+          if(remembered()) {
+            gate.querySelector('[data-file]').hidden=true;
+            await showBudget();
+            return;
+          }
           const check=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(testFileId)+'?fields=id,name',
             {headers:{Authorization:'Bearer '+token},cache:'no-store'});
           if(check.ok && (await check.json()).id===testFileId) {
