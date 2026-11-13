@@ -51,7 +51,7 @@
     if(!window.gapi)await script('https://apis.google.com/js/api.js');
     await new Promise((ok,fail)=>window.gapi.load('picker',{callback:ok,onerror:fail,timeout:15000,ontimeout:fail}));
     const p=window.google.picker;
-    new p.PickerBuilder().setAppId('346154367588').setOAuthToken(token)
+    new p.PickerBuilder().setAppId('346154367588').setDeveloperKey('AIzaSyBCaybFVVbdmHD7k15icRep3CrYouw7I58').setOAuthToken(token)
       .setOrigin(location.origin).addView(new p.DocsView(p.ViewId.SPREADSHEETS))
       .setCallback(async e=>{if(e.action===p.Action.PICKED){try{await showBudget();}catch(err){report(err);}}}).build().setVisible(true);
   }
