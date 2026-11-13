@@ -1799,7 +1799,7 @@ const budgetTransport = (() => {
     item.timer = setTimeout(() => {
       finish(id,false,'Nie udało się połączyć z Google. Zapisane dane pozostają dostępne.');
       if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
-    },60000);
+    },18000);
     pending.set(id,item);
     start(); send(item);
   }
@@ -5596,6 +5596,8 @@ function toggleHolidayTrips() {
           <div>
             ${escapeHtml(message)}
           </div>
+          <p>Możesz otworzyć wersję TEST bezpośrednio w Google:</p>
+          <a class="back-button" href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec" target="_blank" rel="noopener">Otwórz budżet TEST</a>
 
         </div>
 
