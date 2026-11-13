@@ -4308,7 +4308,7 @@ function alerty24Start_() {
             </div>
           </div>
 
-        </details>        ${alerty24CardHtml_()}
+        </details>
 
         <!-- WOLNE ŚRODKI -->
 
@@ -4410,7 +4410,7 @@ function alerty24Start_() {
       const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
       const pinsNode=app.querySelector('details.category-pins');if(pinsNode)pinsNode.open=pinsWasOpen;
       if(dashboardWasVisible){if(savedDashboardFocus){const el=document.getElementById(savedDashboardFocus);if(el)el.focus({preventScroll:true});}window.scrollTo(0,savedDashboardY);}
-      alerty24Start_();
+      // Current card alerts are handled by the bank cycle, not a dashboard request.
       sendPwaDashboardSnapshot_(data);
       notifyPwaReady_('dashboard');
     }
