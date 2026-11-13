@@ -55,7 +55,10 @@
       .setOrigin(location.origin).addView(new p.DocsView(p.ViewId.SPREADSHEETS))
       .setCallback(async e=>{if(e.action===p.Action.PICKED){try{await showBudget();}catch(err){report(err);}}}).build().setVisible(true);
   }
-  gate.querySelector('[data-file]').onclick=()=>chooseFile().catch(err=>report(Error(err?.message||'Nie udało się otworzyć wyboru arkusza.')));
+  gate.querySelector('[data-file]').onclick=()=>{
+    status.textContent='Otwieranie wyboru arkusza…';
+    chooseFile().catch(err=>report(Error(err?.message||'Nie udało się otworzyć wyboru arkusza.')));
+  };
   lock('Łączenie z Google…');
   script('https://accounts.google.com/gsi/client').then(()=>{
     client=window.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',include_granted_scopes:false,
@@ -63,8 +66,8 @@
       callback:async result=>{
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
-        gate.querySelector('[data-file]').hidden=false;status.textContent='Otwieranie prywatnego budżetu…';
-        try{await showBudget();}catch(err){report(err);}
+        gate.querySelector('[data-file]').hidden=false;
+        status.textContent='Wybierz prywatny arkusz budżetu TEST.';
       }});
     button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
     lock('Zaloguj się kontem właściciela budżetu.');
