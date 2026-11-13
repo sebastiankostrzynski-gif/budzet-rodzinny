@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v47-persist-test-choice';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v48-gesture-login';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
