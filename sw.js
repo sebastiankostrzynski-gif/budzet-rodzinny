@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v35-fast-fallback';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v36-local-first';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
