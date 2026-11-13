@@ -3617,8 +3617,9 @@ function formatHistoryValue(value) {
             </div>
 
             <div>
-              Ładowanie danych...
+              Pierwsze pobranie danych…
             </div>
+            <p>Jeśli Google nie odpowiada, <a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec" target="_blank" rel="noopener">otwórz budżet TEST</a>.</p>
 
           </div>
 
@@ -3669,11 +3670,9 @@ function formatHistoryValue(value) {
             updateFreshnessIndicator_('ok');
           }
 
-          if (!opts.silent) {
-            startInitialBackgroundPreload();
-            // Pierwszy ekran może pochodzić z szybkiego cache. Po renderze
-            // pobieramy aktualny stan w tle, bez zasłaniania aplikacji.
-            setTimeout(function() { requestBackgroundFreshDashboard_(true); }, 250);
+          if (!opts.silent && data.sync) {
+            // Jedno lekkie sprawdzenie po renderze zamiast drugiego pełnego odczytu.
+            setTimeout(function() { requestBackgroundFreshDashboard_(true); }, 1000);
           }
         },
         function(error) {
@@ -3839,22 +3838,9 @@ function formatHistoryValue(value) {
           renderDashboard(data);
           persistCurrentDashboard_(data);
 
-          // V5: ostatnie szczegóły kategorii pozostają dostępne do chwili,
-          // gdy świeże dane zastąpią je w tle. Nie pokazujemy pustego ekranu.
-          // Na wolniejszym łączu nie konkurujemy od razu z renderem i kliknięciami.
-          // Stare szczegóły są już dostępne natychmiast; pełny pakiet świeżych
-          // kategorii dogrzewamy po krótkiej chwili w tle.
-          setTimeout(function() {
-            if (document.visibilityState === 'visible') {
-              preloadCategoryDetailsForMonth(
-                selectedYear,
-                selectedMonth,
-                { forceRefresh: true }
-              );
-            }
-          }, 1800);
-
-          checkRefreshState_(true);
+          // Szczegóły kategorii pozostają zapisane i odświeżają się po otwarciu.
+          // Nie uruchamiaj kolejnych RPC podczas oglądania dashboardu.
+          updateFreshnessIndicator_('ok');
         },
         function() {
 
@@ -3921,7 +3907,7 @@ function formatHistoryValue(value) {
         checkRefreshState_(false);
       }
 
-    }, 30 * 1000);
+    }, 120 * 1000);
 
 
     // ========================================================
@@ -5663,7 +5649,8 @@ function toggleHolidayTrips() {
         return;
       }
       lastBackgroundFreshAt_ = now;
-      refreshDashboardSilently_({ categoryCacheMode: 'keep', backgroundFresh: true });
+      // Sprawdź wersję źródła; pełny dashboard pobierz tylko po zmianie.
+      checkRefreshState_(true);
     }
 
     function continueAfterStartupRestore_() {
@@ -5674,7 +5661,7 @@ function toggleHolidayTrips() {
         requestBackgroundFreshDashboard_(true);
       }, 250);
 
-      if (dashboardData) startInitialBackgroundPreload();
+      // Szczegóły i sąsiednie miesiące pobieramy dopiero po wejściu w widok.
     }
 
     function tryRestoreStartupCaches_() {
