@@ -10,6 +10,18 @@
   let token = '', expires = 0, started = false, client;
   const verifiedKey = 'budget-verified-test-file-v1';
   const cacheKey = 'budget-fresh-cache-test-v1';
+  const sessionKey = 'budget-google-session-v1';
+  function clearSession() { try { sessionStorage.removeItem(sessionKey); } catch (_) {} }
+  function rememberSession() { try { sessionStorage.setItem(sessionKey, JSON.stringify({token, expires})); } catch (_) {} }
+  function restoreSession() {
+    try {
+      const saved=JSON.parse(sessionStorage.getItem(sessionKey)||'null');
+      if(saved && typeof saved.token==='string' && saved.token && Number(saved.expires)>Date.now()+30000) {
+        token=saved.token; expires=Number(saved.expires); return true;
+      }
+    } catch (_) {}
+    clearSession(); return false;
+  }
   const remembered = () => { try { return localStorage.getItem(verifiedKey) === testFileId; } catch (_) { return false; } };
   function script(src) {
     return new Promise((resolve,reject) => {
@@ -29,7 +41,7 @@
     const res = await fetch(endpoint,{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',
       headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({function:method,parameters:args})});
-    if(res.status===401){token='';lock('Sesja wygasła. Zaloguj się ponownie.');}
+    if(res.status===401){token='';clearSession();lock('Sesja wygasła. Zaloguj się ponownie.');}
     const data=await res.json();
     if(!res.ok || data.error) throw Error(data.error?.details?.[0]?.errorMessage || data.error?.message || 'Błąd połączenia z budżetem.');
     if(!data.done || !data.response) throw Error('Google nie potwierdził wykonania operacji.');
@@ -122,7 +134,7 @@
       error_callback:()=>lock('Logowanie zostało przerwane. Możesz spróbować ponownie.'),
       callback:async result=>{
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
-        token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
+        token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;rememberSession();
         status.textContent='Sprawdzanie dostępu do arkusza TEST…';
         try {
           // The exact file grant was verified on first selection. A returning
@@ -146,6 +158,12 @@
       }});
     // Google requires a user gesture for browser token authorization on iOS.
     button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
-    lock('Dotknij „Zaloguj przez Google”, aby otworzyć prywatny budżet.');
+    if(restoreSession() && remembered()) {
+      gate.querySelector('[data-file]').hidden=true;
+      status.textContent='Otwieranie budżetu…';
+      showBudget().catch(err=>{clearSession();token='';report(err);});
+    } else {
+      lock('Dotknij „Zaloguj przez Google”, aby otworzyć prywatny budżet.');
+    }
   }).catch(report);
 })();
