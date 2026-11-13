@@ -53,7 +53,7 @@
     await new Promise((ok,fail)=>window.gapi.load('picker',{callback:ok,onerror:fail,timeout:15000,ontimeout:fail}));
     const p=window.google.picker;
     new p.PickerBuilder().setAppId('346154367588').setDeveloperKey('AIzaSyBCaybFVVbdmHD7k15icRep3CrYouw7I58').setOAuthToken(token)
-      .setOrigin(location.origin).addView(new p.DocsView(p.ViewId.SPREADSHEETS))
+      .setOrigin(location.origin).addView(new p.DocsView(p.ViewId.SPREADSHEETS).setFileIds(testFileId))
       .setCallback(async e=>{
         if(e.action===p.Action.CANCEL){status.textContent='Nie wybrano arkusza.';return;}
         if(e.action!==p.Action.PICKED)return;
