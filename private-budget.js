@@ -111,10 +111,8 @@
           try { await showBudget(); } catch(err) { report(err); }
         } else status.textContent='Wybierz prywatny arkusz budżetu TEST.';
       }});
-    button.onclick=()=>{button.disabled=true;client.requestAccessToken({prompt:''});};
-    if(remembered()) {
-      try { client.requestAccessToken({prompt:''}); } catch (_) { /* iOS may require a tap. */ }
-    }
-    lock('Zaloguj się kontem właściciela budżetu.');
+    // Google requires a user gesture for browser token authorization on iOS.
+    button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
+    lock('Dotknij „Zaloguj przez Google”, aby otworzyć prywatny budżet.');
   }).catch(report);
 })();
