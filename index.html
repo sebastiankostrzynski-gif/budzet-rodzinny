@@ -4486,75 +4486,19 @@ function alerty24Start_() {
         return;
       }
 
-      const monthKey =
-        categoryDetailsCacheKey(year, month);
-
-      // Jeżeli w tle trwa pakiet wszystkich kategorii, NIE czekamy
-      // na zakończenie całego batcha. Kliknięta kategoria dostaje
-      // własny priorytetowy request i pojawi się tak szybko, jak tylko
-      // przygotowane zostaną jej dane.
-      if (categoryBundleInflight[monthKey]) {
-        app.innerHTML = `
-
-          <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
-          <div class="loading-box">
-
-            <div class="loading-icon">
-              ⏳
-            </div>
-
-            <div>
-              Ładowanie szczegółów...
-            </div>
-
-          </div>
-
-        `;
-
-        fetchCategoryDetail(
-          categoryName,
-          year,
-          month,
-          function(data) {
-            if (data) {
-              renderCategoryDetails(data);
-              return;
-            }
-
-            showCategoryError(
-              'Nie znaleziono danych tej kategorii.'
-            );
-          },
-          function(error) {
-            showCategoryError(
-              error && error.message
-                ? error.message
-                : String(error)
-            );
-          }
-        );
-
-        return;
-      }
-
-      // Jeżeli dana kategoria nie jest jeszcze w cache, pobieramy tylko ją.
-      // To pozostaje szybkim fallbackiem dla pierwszego kliknięcia po zmianie
-      // miesiąca, zanim batch zdąży się przygotować.
+      const summary = dashboardData && Array.isArray(dashboardData.categories)
+        ? dashboardData.categories.find(item => item.name === categoryName) : null;
+      const monthLabel = new Intl.DateTimeFormat('pl-PL', {month:'long',year:'numeric'}).format(new Date(year,month-1,1));
+      const spent = summary ? Number(summary.execution)||0 : 0;
+      const limit = summary ? Number(summary.budget)||0 : 0;
       app.innerHTML = `
-
         <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
-        <div class="loading-box">
-
-          <div class="loading-icon">
-            ⏳
-          </div>
-
-          <div>
-            Ładowanie szczegółów...
-          </div>
-
-        </div>
-
+        <section class="category-preview" style="padding:20px;margin:16px 0;border-radius:20px;background:#fff">
+          <h1 style="margin:0 0 8px">${escapeHtml(categoryName)}</h1>
+          <p style="margin:0 0 20px;color:#64726b">${escapeHtml(monthLabel)}</p>
+          ${summary ? `<p>Wydano <strong>${formatPLN(spent)}</strong></p><p>Budżet <strong>${formatPLN(limit)}</strong></p><p>Pozostało <strong>${formatPLN(limit-spent)}</strong></p>` : ''}
+          <p role="status" style="margin-top:24px;color:#64726b">Pobieranie podkategorii i historii…</p>
+        </section>
       `;
 
       fetchCategoryDetail(
