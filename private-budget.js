@@ -8,6 +8,8 @@
   const status = gate.querySelector('[role=status]');
   const button = gate.querySelector('button');
   let token = '', expires = 0, started = false, client;
+  const verifiedKey = 'budget-verified-test-file-v1';
+  const remembered = () => { try { return localStorage.getItem(verifiedKey) === testFileId; } catch (_) { return false; } };
   function script(src) {
     return new Promise((resolve,reject) => {
       const el = document.createElement('script');
@@ -34,10 +36,24 @@
   }
   window.budgetRpc=rpc;
   async function showBudget() {
-    // Owner-only deployment authenticates on the server before any cached UI is shown.
+    // Never display a snapshot from a different workbook or an unverified old session.
     const role=await rpc('getViewerRole',[]);
     if(role!=='owner') throw Error('To konto nie ma dostępu do tego wdrożenia.');
-    await rpc('getRefreshState',[]);
+    status.textContent='Pobieranie aktualnych danych z TEST…';
+    const now=new Date();
+    const fresh=await rpc('getBudgetDataFresh',[now.getFullYear(),now.getMonth()+1]);
+    if(!fresh || !Array.isArray(fresh.categories) || Number(fresh.year)!==now.getFullYear() || Number(fresh.monthNumber)!==now.getMonth()+1)
+      throw Error('Serwer nie zwrócił bieżącego miesiąca z arkusza TEST.');
+    const stamp=Date.now();
+    try {
+      if(!remembered()) {
+        for(const key of ['budzet-last-dashboard-v1','budzet-month-dashboard-cache-v1','budzet-category-details-v1','budzet-last-refresh-state-v1','budzet-pwa-dashboard-cache-v1','budzet-pwa-month-cache-v1','budzet-pwa-category-cache-v1','budzet-pwa-refresh-state-v1']) localStorage.removeItem(key);
+        const runtime=await caches.open('budzet-rodzinny-runtime-v8');
+        for(const path of ['./__budget_runtime_v10__.json','./__budget_runtime_v8__.json']) await runtime.delete(new URL(path,location.href).href);
+      }
+      localStorage.setItem('budzet-last-dashboard-v1',JSON.stringify({timestamp:stamp,data:fresh}));
+      localStorage.setItem(verifiedKey,testFileId);
+    } catch (_) { /* Private mode can deny local storage. Current result still renders. */ }
     gate.hidden=true;
     document.documentElement.classList.remove('budget-locked');
     if(!started) {
@@ -87,9 +103,14 @@
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
         gate.querySelector('[data-file]').hidden=false;
-        status.textContent='Wybierz prywatny arkusz budżetu TEST.';
+        if(remembered()) {
+          try { await showBudget(); } catch(err) { report(err); gate.querySelector('[data-file]').hidden=false; }
+        } else status.textContent='Wybierz prywatny arkusz budżetu TEST.';
       }});
-    button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
+    button.onclick=()=>{button.disabled=true;client.requestAccessToken({prompt:''});};
+    if(remembered()) {
+      try { client.requestAccessToken({prompt:''}); } catch (_) { /* iOS may require a tap. */ }
+    }
     lock('Zaloguj się kontem właściciela budżetu.');
   }).catch(report);
 })();
