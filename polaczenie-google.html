@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Połączenie z budżetem TEST</title>
+<main>
+  <h1>Połączenie z budżetem TEST</h1>
+  <button type="button" id="connect" disabled>Sprawdź połączenie z Google</button>
+  <p id="status" role="status">Wczytuję logowanie Google…</p>
+</main>
+<script type="module">
+import { initializeLogin } from './test-oauth/login.js';
+const button = document.querySelector('#connect');
+const status = document.querySelector('#status');
+try {
+  const login = await initializeLogin();
+  button.disabled = false;
+  status.textContent = 'Możesz wybrać konto do testu.';
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      const profile = await login();
+      status.textContent = 'Google potwierdził konto ' + profile.email + '.';
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+} catch (error) {
+  status.textContent = error.message;
+}
+</script>
+</html>
