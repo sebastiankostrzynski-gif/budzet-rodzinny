@@ -86,6 +86,8 @@
           if(!check.ok)throw Error('Google Drive nie przyznał aplikacji dostępu do wybranego arkusza (HTTP '+check.status+').');
           const file=await check.json();
           if(file.id!==testFileId)throw Error('Odpowiedź Google Drive dotyczy innego arkusza.');
+          // The exact file was checked with Drive; remember this grant even if the budget API is temporarily unavailable.
+          try { localStorage.setItem(verifiedKey,testFileId); } catch (_) {}
           status.textContent='Arkusz TEST został rozpoznany; łączenie z budżetem…';
           await showBudget();
         }catch(err){report(err);}
@@ -102,9 +104,9 @@
       callback:async result=>{
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;
-        gate.querySelector('[data-file]').hidden=false;
+        gate.querySelector('[data-file]').hidden=remembered();
         if(remembered()) {
-          try { await showBudget(); } catch(err) { report(err); gate.querySelector('[data-file]').hidden=false; }
+          try { await showBudget(); } catch(err) { report(err); }
         } else status.textContent='Wybierz prywatny arkusz budżetu TEST.';
       }});
     button.onclick=()=>{button.disabled=true;client.requestAccessToken({prompt:''});};
