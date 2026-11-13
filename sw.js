@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v55-category-warmup-session';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v56-session-migration';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
