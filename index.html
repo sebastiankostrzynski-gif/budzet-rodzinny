@@ -3286,16 +3286,7 @@ const budgetDisk = (() => {
       
       
       
-      setTimeout(function() {
-        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') {
-          return;
-        }
-
-        preloadCategoryDetailsForMonth(
-          selectedYear,
-          selectedMonth
-        );
-      }, 5000);
+      // Szczegóły pobieramy na żądanie: równoległy pakiet blokował klikniętą kategorię.
     }
 
 
@@ -3371,11 +3362,7 @@ const budgetDisk = (() => {
           });
         }, 120);
 
-        setTimeout(function() {
-          if (document.visibilityState === 'visible') {
-            preloadCategoryDetailsForMonth(year, month);
-          }
-        }, 1200);
+        // Kliknięta kategoria ma pierwszeństwo przed odczytem szczegółów.
 
         return;
       }
