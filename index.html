@@ -3289,7 +3289,6 @@ const budgetDisk = (() => {
     }
 
     function startInitialBackgroundPreload() {
-      scheduleBalanceReads_();
       
       
       
@@ -3607,6 +3606,7 @@ function formatHistoryValue(value) {
 
           renderDashboard(data);
           persistCurrentDashboard_(data);
+          if (isInitialLoad) startInitialBackgroundPreload();
 
           // V23 odpowiedź zawiera już revision/day/build. Nie wykonuj drugiego RPC przy starcie.
           if (!data.sync) {
@@ -5546,6 +5546,7 @@ function toggleHolidayTrips() {
       if (startupCompleted_) return;
 
       startupCompleted_ = true;
+      startInitialBackgroundPreload();
       setTimeout(function() {
         requestBackgroundFreshDashboard_(true);
       }, 250);
