@@ -84,7 +84,121 @@
 #pending-count{position:absolute;top:2px;left:calc(50% + 5px);border-radius:14px;padding:1px 4px;min-width:16px;font:700 10px/14px system-ui;background:#943c25;color:white;box-shadow:0 0 0 2px #f4f6f8}
 @media(max-width:480px){.budget-tabs{gap:2px;padding-inline:4px}.budget-tabs button{font-size:clamp(9px,2.7vw,12px);padding-inline:0;gap:4px;letter-spacing:-.15px}}
 `;
+    style.textContent += '.phone-expense{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;margin:10px 0;padding:16px;background:white;border:1px solid #dfdfd4;border-radius:16px}.phone-expense small,.phone-expense select,.phone-expense button,.phone-expense p{grid-column:1/-1}.phone-expense select{max-width:100%;font-size:16px;padding:8px}.phone-expense b{white-space:nowrap}.assignment-wrap button{min-height:42px}.assignment-wrap button[aria-pressed=true]{background:#175a48;color:white}';
     document.head.append(style);
+  }
+  async function queueSheets(path, options = {}) {
+    if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
+      throw Error('Zaloguj się ponownie jako właściciel budżetu.');
+    const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + testFileId + '/values/' + path, {
+      ...options, cache:'no-store', redirect:'error', headers:{Authorization:'Bearer ' + token,'Content-Type':'application/json'}
+    });
+    if (!response.ok) throw Error('Nie udało się połączyć z kolejką (HTTP ' + response.status + ').');
+    return response.json();
+  }
+  const queueRange = range => encodeURIComponent("'Kolejka iPhone TEST'!" + range);
+  async function phoneQueue() {
+    const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
+    const [tag, stamp, parts, ...chunks] = snapshot.values[0];
+    if (tag !== 'QUEUE_V1' || !Number.isInteger(+parts) || +parts < 1 || chunks.length < +parts)
+      throw Error('Niepełny odczyt kolejki.');
+    const bytes = Uint8Array.from(atob(chunks.slice(0,+parts).join('')), c => c.charCodeAt(0));
+    const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+    const byKey = new Map();
+    for (const [kind,id,body,result] of commands.values || []) {
+      if (kind === 'ASSIGN_V1') {
+        const request = JSON.parse(body);
+        byKey.set(request.key,{request,result});
+      }
+    }
+    const rows = data.rows.filter(r => !r.bridgeArchived);
+    const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
+      (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
+    return {data,rows,pending,byKey,stamp};
+  }
+  function installAssignmentView() {
+    const original = window.openAssignments_;
+    window.openAssignments_ = function() {
+      if (window.budgetViewerRole !== 'owner') return;
+      original();
+      const root = document.querySelector('#app .assignment-wrap');
+      if (!root) return;
+      const urls = [...root.querySelectorAll('a')];
+      root.replaceChildren();
+      function make(tag,text) {
+        const el = document.createElement(tag);
+        if (text != null) el.textContent = text;
+        return el;
+      }
+      const head = make('h1','Przypisz wydatki'), status = make('p'), list = make('section');
+      status.setAttribute('role','status');
+      const tabs = make('div'), pendingTab = make('button','Do przypisania'), historyTab = make('button','Historia'), refresh = make('button','Odśwież');
+      tabs.append(pendingTab,historyTab,refresh);
+      const advanced = make('details'); advanced.append(make('summary','Więcej opcji'));
+      const links = make('div'); links.className='assignment-links';
+      urls.forEach((a,i)=>{if(i===0)a.textContent='Podział, nowa pozycja lub korekta';links.append(a);});
+      advanced.append(links);root.append(head,tabs,status,list,advanced);
+      let state, history=false, saving=false, generation=0;
+      function render() {
+        if (!state || !root.isConnected) return;
+        list.replaceChildren();
+        const pending = new Set(state.pending);
+        const saved = state.rows.filter(r=>!pending.has(r));
+        pendingTab.textContent='Do przypisania · '+pending.size;
+        historyTab.textContent='Historia · '+saved.length;
+        pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
+        const visible = history?saved:state.pending;
+        if (!visible.length) list.append(make('p',history?'Historia jest pusta.':'Wszystkie wydatki są przypisane.'));
+        for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
+          const card=make('article'), command=state.byKey.get(row.key);
+          card.className='phone-expense';
+          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',row.date));
+          if(history) {
+            card.append(make('p',row.postedEvidence?'Zaksięgowano':row.bridgeBlocked?'Do sprawdzenia':row.decision?.action==='DEFER'?'Odłożone':'Oczekuje na zaksięgowanie'));
+            const category=row.decision?.sheetName || command?.request.sheetName;
+            if(category)card.append(make('small',category));
+          } else {
+            if(command?.result)card.append(make('p',command.result));
+            const category=make('select'),target=make('select'),save=make('button','Zapisz przypisanie');
+            category.setAttribute('aria-label','Kategoria');target.setAttribute('aria-label','Pozycja budżetu');
+            category.add(new Option('Wybierz kategorię',''));
+            for(const sheet of state.data.expenseSheets)category.add(new Option(sheet.replace(/^T\d+\s+/,''),sheet));
+            category.onchange=()=>{
+              target.replaceChildren(new Option('Wybierz pozycję',''));
+              for(const t of state.data.existingRows.filter(t=>t.sheet===category.value&&t.month===row.date.slice(0,7)))
+                target.add(new Option([t.sectionName,t.label].filter(Boolean).join(' · '),t.key));
+              target.disabled=target.length<=1; save.disabled=true;
+            };
+            category.onchange();target.onchange=()=>save.disabled=!target.value;
+            save.onclick=async()=>{
+              if(saving||!target.value)return;
+              saving=true;save.disabled=true;status.textContent='Zapisywanie przypisania…';
+              const req={key:row.key,date:row.date,amountCents:row.amountCents,sheetName:category.value,targetManualKey:target.value};
+              try{
+                const receipt=await queueSheets(queueRange('A2:D')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+                  method:'POST',body:JSON.stringify({values:[['ASSIGN_V1',crypto.randomUUID(),JSON.stringify(req)]]})
+                });
+                if(receipt.updates?.updatedRows!==1)throw Error();
+                await reload('Przypisanie zapisane. Automat sprawdzi je przy następnym odczycie.');
+              } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
+              finally{saving=false;}
+            };
+            card.append(category,target,save);
+          }
+          list.append(card);
+        }
+      }
+      async function reload(message) {
+        const seq=++generation;status.textContent='Pobieranie kolejki…';
+        try {
+          const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
+          state=next;render();status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
+          lastCountRead=0;refreshExpenseCount();
+        }catch(e){if(seq===generation){list.replaceChildren();state=null;status.textContent=e.message;}}
+      }
+      refresh.onclick=()=>{if(!saving)reload();};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
+      reload();
+    };
   }
   let countBusy = false;
   let lastCountRead = 0;
@@ -96,21 +210,10 @@
     lastCountRead = Date.now();
     const tab = badge.closest('button');
     try {
-      if (!token || expires <= Date.now()) throw Error();
-      const range = encodeURIComponent("'Kolejka iPhone TEST'!1:1");
-      const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' +
-        testFileId + '/values/' + range, {
-        headers:{Authorization:'Bearer ' + token}, cache:'no-store', redirect:'error'
-      });
-      if (!response.ok) throw Error();
-      const [tag, stamp, parts, ...chunks] = (await response.json()).values[0];
-      const age = Date.now() - Date.parse(stamp);
-      if (tag !== 'QUEUE_V1' || !Number.isFinite(age) || age > 20*60000 ||
-          !Number.isInteger(Number(parts)) || Number(parts)<1 || chunks.length < Number(parts)) throw Error();
-      const bytes = Uint8Array.from(atob(chunks.slice(0, Number(parts)).join('')), c => c.charCodeAt(0));
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-      const {rows} = await new Response(stream).json();
-      const count = rows.filter(r => !r.bridgeArchived && !r.decision && !r.postedEvidence && !r.bridgeBlocked).length;
+      const snapshot = await phoneQueue();
+      const {stamp} = snapshot;
+      if(Date.now()-Date.parse(stamp)>20*60000)throw Error();
+      const count=snapshot.pending.length;
       badge.textContent = String(count);
       badge.hidden = count === 0;
       tab.setAttribute('aria-label','Przypisz. Wydatki do przypisania: ' + count);
@@ -134,6 +237,7 @@
       const app=document.createElement('script');
       app.textContent=document.getElementById('budget-app-source').textContent;
       document.body.append(app);
+      installAssignmentView();
       prepareTestNavigation();
       document.addEventListener('visibilitychange',refreshExpenseCount);
       window.addEventListener('focus',refreshExpenseCount);

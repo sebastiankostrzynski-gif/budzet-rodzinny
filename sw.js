@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v76-glass-list-icons';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v77-inline-expense-queue';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
