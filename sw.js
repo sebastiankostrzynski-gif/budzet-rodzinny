@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v68-mobile-navigation';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v69-mobile-budget-header';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
