@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v81-green-wallet';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v82-login-copy';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
