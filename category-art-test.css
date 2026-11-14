@@ -144,3 +144,19 @@ body.debts-theme {
 .split-row small,.split-row label {display:block;margin-top:8px}
 .split-row :is(input,select,button){box-sizing:border-box;width:100%;padding:10px 12px;min-height:44px;margin:4px 0 8px;border-radius:10px;border:1px solid #d5c8d1;background:white;font:inherit}
 .split-row button{background:#66345e;color:white;font-weight:650}
+
+#app .balance-card .glass-mini {
+  width:40px;height:40px;flex:0 0 40px;padding:0;border-radius:9px;
+  background: url("./icons/credit-savings-atlas.webp") var(--glass-cell,66.6667% 100%) / 400% 300% no-repeat;
+  mix-blend-mode:multiply;
+}
+.glass-mini[data-art="cash"] { --glass-cell:0% 0%; }
+.glass-mini[data-art="bonds"] { --glass-cell:33.33333% 0%; }
+.glass-mini[data-art="investments"] { --glass-cell:66.66667% 0%; }
+.glass-mini[data-art="retirement"] { --glass-cell:100% 0%; }
+.glass-mini[data-art="children"] { --glass-cell:0% 50%; }
+.glass-mini[data-art="hipoteka"] { --glass-cell:33.33333% 50%; }
+.glass-mini[data-art="sprzet"] { --glass-cell:66.66667% 50%; }
+.glass-mini[data-art="samochody"] { --glass-cell:100% 50%; }
+.glass-mini[data-art="factor"] { --glass-cell:0% 100%; }
+.glass-mini[data-art="garmin"] { --glass-cell:33.33333% 100%; }
