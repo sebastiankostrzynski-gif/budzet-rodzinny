@@ -1,11 +1,11 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v83-loan-terms';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v84-mortgage-payments';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
   './icons/start-wallet.webp',
-  './loan-terms.js', './loan-terms.css',
+  './mortgage-payments.js', './loan-terms.js', './loan-terms.css',
   './category-art-test.css', './icons/credit-savings-atlas.webp',
   './icons/glass-savings.webp', './icons/glass-credit.webp', './icons/glass-wallet.webp',
   './queue.html',
