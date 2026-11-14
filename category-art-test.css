@@ -108,3 +108,26 @@ nav.budget-tabs button svg {width:21px;height:21px;stroke-linecap:round;stroke-l
 .wallet-row strong {color:#13452f;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:clamp(15px,4vw,20px)}
 .wallet-group:first-child .wallet-row:first-of-type {background:linear-gradient(115deg,#052e22,#096347);color:#fffdf5}
 .wallet-group:first-child .wallet-row:first-of-type strong {color:#fffdf5}
+
+body.savings-theme {
+  --section-ink:#173e72;
+  --section-tint:#dceafa;
+  --section-depth:#102e55;
+  --section-light:#286097;
+}
+body.debts-theme {
+  --section-ink:#66345e;
+  --section-tint:#f2dfed;
+  --section-depth:#3d203e;
+  --section-light:#78476f;
+}
+:is(.savings-theme,.debts-theme) #app .sav-wrap .sav-hero {
+  background:radial-gradient(ellipse at 105% 150%,#ffffff21 0 27%,transparent 27.5% 36%,#ffffff12 36.5% 37%,transparent 37.5%),linear-gradient(115deg,var(--section-depth),var(--section-light));
+}
+:is(.savings-theme,.debts-theme) #app .sav-wrap :is(.unified-header h1,h1,h2,.unified-period select,.sav-name,.sav-chevron,.sav-card>strong,.debt-card>strong) {
+  color:var(--section-ink);
+}
+:is(.savings-theme,.debts-theme) nav.budget-tabs button[data-tab].selected {
+  color:var(--section-ink)!important;
+  background:var(--section-tint)!important;
+}
