@@ -31,3 +31,5 @@
   flex-shrink: 0;
   border-radius: 0;
 }
+
+.detail-header .detail-title-row .detail-icon { display: flex; }
