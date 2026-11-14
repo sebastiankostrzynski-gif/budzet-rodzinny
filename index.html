@@ -6134,6 +6134,12 @@ function historyTouchV24_(event,svg){
 </script>
 
 
+<script>
+  // The Google bridge accepts messages only from the top-level budget window.
+  window.sendAssignmentBridgeMessage = function (peer, message, origin) {
+    peer.postMessage(message, origin);
+  };
+</script>
 <script src="./private-budget.js"></script></body>
 </html>
 
