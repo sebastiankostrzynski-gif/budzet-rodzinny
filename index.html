@@ -5728,9 +5728,15 @@ function openBalances_() {
   setBudgetTab_('balances');
   const app=document.getElementById('app');
   app.innerHTML='<div class="sav-wrap"><h1>Salda kont</h1><p id="balances-status">Odczytuję…</p><div id="balances-list"></div><button onclick="openBalances_()">Odśwież</button></div>';
-  budgetApi.script.run.withSuccessHandler(data=>{
-    if(activeView_!=='balances')return;
-    const list=document.getElementById('balances-list');
+  const status=document.getElementById('balances-status');
+  const list=document.getElementById('balances-list');
+  let reading=false;
+  function refresh(){
+    if(!status.isConnected || document.hidden || reading || !navigator.onLine)return;
+    reading=true;
+    budgetApi.script.run.withSuccessHandler(data=>{
+      reading=false;
+      if(!status.isConnected)return;
     list.replaceChildren();
     for(const row of data.accounts){
       const p=document.createElement('p');
@@ -5742,10 +5748,24 @@ function openBalances_() {
       p.append(label,value);
       list.append(p);
     }
-    document.getElementById('balances-status').textContent='Odczyt z '+new Date(data.readAt).toLocaleString('pl-PL');
-  }).withFailureHandler(e=>{
-    document.getElementById('balances-status').textContent='Nie udało się odczytać sald: '+(e.message||e);
-  }).getAccountBalances();
+      status.textContent='Odczyt z '+new Date(data.readAt).toLocaleString('pl-PL');
+    }).withFailureHandler(()=>{
+      reading=false;
+      if(status.isConnected)status.textContent='Nie udało się odświeżyć sald. Ponowię odczyt automatycznie.';
+    }).getAccountBalances();
+  }
+  const timer=setInterval(refresh,60000);
+  document.addEventListener('visibilitychange',refresh);
+  window.addEventListener('online',refresh);
+  const observer=new MutationObserver(()=>{
+    if(status.isConnected)return;
+    clearInterval(timer);
+    document.removeEventListener('visibilitychange',refresh);
+    window.removeEventListener('online',refresh);
+    observer.disconnect();
+  });
+  observer.observe(app,{childList:true});
+  refresh();
 }
 function openSavings_(){
  cleanupDetailSticky_();activeView_='savings';activeCategory_=null;setBudgetTab_('savings');
