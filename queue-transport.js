@@ -74,7 +74,9 @@ const budgetTransport = (() => {
     const item = {id,method,args,success,failure,sent:false};
     item.timer = setTimeout(() => {
       finish(id,false,'Nie udało się połączyć z Google. Zapisane dane pozostają dostępne.');
-      if (!connected && pending.size === 0 && frame) { frame.remove(); frame = null; client = null; }
+      if (pending.size === 0 && frame) {
+        frame.remove(); frame = null; client = null; connected = false; origin = null;
+      }
     },60000);
     pending.set(id,item);
     start(); send(item);
