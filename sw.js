@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v79-inline-assignment-forms';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v80-cash-form';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

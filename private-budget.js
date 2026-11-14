@@ -118,7 +118,7 @@
   }
   const formMethods = {
     'expense-editor.html': ['ebListSectionsDev','ebQueueListDev','ebQueueReviseDev','pkDecideDevV1','kzGetDevV1','kzPreviewDevV1','kzPostDevV1'],
-    'manual-entry.html': ['krGetDEV','krSaveDEV','kkListaTest','kkPrzeniesTest']
+    'manual-entry.html': ['krGetDEV','krRefreshDEV','krSaveDEV','kkListaTest','kkPrzeniesTest']
   };
   const formWrites = new Set(['ebQueueReviseDev','pkDecideDevV1','kzPostDevV1','krSaveDEV','kkPrzeniesTest']);
   const formSheet = range => encodeURIComponent("'Formularze iPhone TEST'!" + range);
@@ -137,7 +137,7 @@
     }
     const until = Date.now() + 240000;
     while (Date.now() < until) {
-      const result = await queueSheets(formSheet(receipt.row + ':' + receipt.row));
+      const result = await queueSheets(formSheet(row + ':' + row));
       const [id,,,status,,...chunks] = result.values?.[0] || [];
       if (id !== receipt.id) throw Error('Nie można potwierdzić operacji. Sprawdź historię.');
       if (status === 'ERROR' || status === 'OK') {
@@ -154,6 +154,25 @@
     const frame=activeForm;
     if (!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
         !formMethods[frame.dataset.form]?.includes(method)) throw Error('Brak dostępu do formularza.');
+    if (method === 'krGetDEV') {
+      const [methods, results] = await Promise.all([queueSheets(formSheet('B2:B')), queueSheets(formSheet('D2:E'))]);
+      const entries = results.values || [];
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const [status, stamp] = entries[i];
+        const operation = methods.values?.[i]?.[0];
+        if (status !== 'OK') continue;
+        if (operation === 'kkPrzeniesTest') break;
+        if (operation !== 'krGetDEV' && operation !== 'krSaveDEV') continue;
+        const row = i + 2;
+        const result = await queueSheets(formSheet(row + ':' + row));
+        const [id, source,, confirmed, asOf, ...chunks] = result.values?.[0] || [];
+        if (!id || source !== operation || confirmed !== 'OK' || asOf !== stamp) continue;
+        const bytes = Uint8Array.from(atob(chunks.join('')), c => c.charCodeAt(0));
+        const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+        if (Array.isArray(data.accounts) && Array.isArray(data.expenseSheets)) return {...data, manualAsOf: asOf};
+      }
+    }
+    if (method === 'krRefreshDEV') method = 'krGetDEV';
     if ((method==='ebListSectionsDev' || method==='ebQueueListDev') && !refreshEditor) {
       const snapshot=await phoneQueue();
       if (lastEditorData && Date.parse(snapshot.stamp)<lastEditorData.time) return lastEditorData.data;
