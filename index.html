@@ -5689,37 +5689,7 @@ function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><button type="button" onclick="openAssignmentView_('queue')">Przypisz wydatki <span aria-hidden="true">›</span></button><button type="button" onclick="openAssignmentView_('inflows')">Przypisz wpływy <span aria-hidden="true">›</span></button><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
-  window.scrollTo(0,0);
-}
-
-function openAssignmentView_(kind) {
-  if (viewerRole_ !== 'owner' || !['queue','inflows'].includes(kind)) return;
-  cleanupDetailSticky_();
-  activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  const app=document.getElementById('app');
-  app.innerHTML='<div class="assignment-wrap assignment-embedded"><div class="assignment-toolbar"><button type="button" onclick="showMainDashboard()">← Budżet</button><button type="button" onclick="openAssignments_()">Inne opcje</button></div><iframe id="assignment-frame" title="Przypisywanie transakcji" loading="eager"></iframe></div>';
-  const frame=document.getElementById('assignment-frame');
-  frame.addEventListener('load',()=>{
-    // Keep navigation in the frame so the authenticated budget stays mounted.
-    // The two assignment pages have ordinary links (one also has <base target="_top">).
-    try {
-      frame.contentDocument.addEventListener('click',event=>{
-        const link=event.target.closest('a[href]');
-        if(!link)return;
-        const target=new URL(link.getAttribute('href'),frame.contentWindow.location.href);
-        if(target.origin!==location.origin)return;
-        if(target.pathname===new URL('./',location.href).pathname){
-          event.preventDefault();
-          showMainDashboard();
-        }else if(target.pathname.endsWith('/queue.html')||target.pathname.endsWith('/inflows.html')){
-          event.preventDefault();
-          frame.src=target.href;
-        }
-      },true);
-    }catch(_){}
-  });
-  frame.src=kind==='queue'?'./queue.html':'./inflows.html';
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue" target="_blank" rel="noopener">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=inflows" target="_blank" rel="noopener">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Kolejka otworzy się w osobnym widoku Google. Po zapisaniu wróć do budżetu, aby sprawdzić saldo.</p></div>`;
   window.scrollTo(0,0);
 }
 
