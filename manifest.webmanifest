@@ -6,9 +6,12 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
-  "background_color": "#f4f6f7",
-  "theme_color": "#2f9e63",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "background_color": "#071b2b",
+  "theme_color": "#071b2b",
   "orientation": "portrait-primary",
   "lang": "pl-PL",
   "dir": "ltr",
