@@ -173,7 +173,10 @@
         } catch(err) { report(err); }
       }});
     // Google requires a user gesture for browser token authorization on iOS.
-    button.onclick=()=>{button.disabled=true;client.requestAccessToken({});};
+    button.onclick=()=>{
+      button.disabled=true;
+      client.requestAccessToken({prompt: remembered() ? '' : 'select_account'});
+    };
     if(restoreSession() && remembered()) {
       gate.querySelector('[data-file]').hidden=true;
       status.textContent='Otwieranie budżetu…';
