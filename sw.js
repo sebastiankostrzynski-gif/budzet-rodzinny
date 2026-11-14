@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v65-test-queue-navigation';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v66-returning-login';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
