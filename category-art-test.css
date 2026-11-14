@@ -131,3 +131,16 @@ body.debts-theme {
   color:var(--section-ink)!important;
   background:var(--section-tint)!important;
 }
+
+#app .sav-hero.savings-hero::before,#app .sav-hero.debt-hero::before,.wallet-group:first-child .wallet-row:first-of-type::before {
+ content:"";display:block;width:clamp(52px,15vw,76px);aspect-ratio:1;background:#fff9f2 center/cover no-repeat;border-radius:14px;box-shadow:0 3px 10px #0002;
+}
+#app .sav-hero.savings-hero::before,#app .sav-hero.debt-hero::before {float:right;margin:0 0 6px 9px}
+#app .sav-hero.savings-hero::before {background-image:url('./icons/glass-savings.webp')}
+#app .sav-hero.debt-hero::before {background-image:url('./icons/glass-credit.webp')}
+.wallet-group:first-child .wallet-row:first-of-type::before {width:44px;flex:none;background-image:url('./icons/glass-wallet.webp')}
+.wallet-group:first-child .wallet-row:first-of-type div {flex:1}
+.split-row {padding:14px 0;border-top:1px solid #e5dbe2}
+.split-row small,.split-row label {display:block;margin-top:8px}
+.split-row :is(input,select,button){box-sizing:border-box;width:100%;padding:10px 12px;min-height:44px;margin:4px 0 8px;border-radius:10px;border:1px solid #d5c8d1;background:white;font:inherit}
+.split-row button{background:#66345e;color:white;font-weight:650}

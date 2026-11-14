@@ -1,10 +1,11 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v74-section-colors';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v75-glass-installments';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
   './category-art-test.css',
+  './icons/glass-savings.webp', './icons/glass-credit.webp', './icons/glass-wallet.webp',
   './queue.html',
   './inflows.html',
   './queue-transport.js',
