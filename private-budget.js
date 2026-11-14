@@ -76,7 +76,10 @@
     badge.hidden = true;
     assignments.append(badge);
     const style = document.createElement('style');
-    style.textContent = `.budget-tabs button{position:relative;flex:1 1 0;min-width:0}
+    style.textContent = `@media(max-width:760px){
+  #app .unified-header.dashboard-month-sticky{position:relative;top:auto;margin-bottom:12px}
+}
+.budget-tabs button{position:relative;flex:1 1 0;min-width:0}
 .budget-tabs button[data-tab="balances"].selected{background:#287c54;color:white}
 #pending-count{position:absolute;top:2px;left:calc(50% + 5px);border-radius:14px;padding:1px 4px;min-width:16px;font:700 10px/14px system-ui;background:#943c25;color:white;box-shadow:0 0 0 2px #f4f6f8}
 @media(max-width:480px){.budget-tabs{gap:2px;padding-inline:4px}.budget-tabs button{font-size:clamp(9px,2.7vw,12px);padding-inline:0;gap:4px;letter-spacing:-.15px}}
