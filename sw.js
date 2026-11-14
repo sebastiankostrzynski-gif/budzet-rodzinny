@@ -1,9 +1,10 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v69-mobile-budget-header';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v70-premium-category-art';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
+  './category-art-test.css',
   './queue.html',
   './inflows.html',
   './queue-transport.js',
