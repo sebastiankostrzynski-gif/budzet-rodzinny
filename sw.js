@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v78-inline-income-queue';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v79-inline-assignment-forms';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -7,6 +7,10 @@ const APP_SHELL = [
   './category-art-test.css', './icons/credit-savings-atlas.webp',
   './icons/glass-savings.webp', './icons/glass-credit.webp', './icons/glass-wallet.webp',
   './queue.html',
+  './expense-editor.html',
+  './manual-entry.html',
+  './assignment-form.css',
+  './assignment-form.js',
   './inflows.html',
   './queue-transport.js',
   './manifest.webmanifest',
@@ -145,5 +149,3 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
-
-

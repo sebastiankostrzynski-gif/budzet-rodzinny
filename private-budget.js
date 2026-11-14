@@ -116,6 +116,72 @@
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     return {data,rows,pending,byKey,incomeCommands,stamp};
   }
+  const formMethods = {
+    'expense-editor.html': ['ebListSectionsDev','ebQueueListDev','ebQueueReviseDev','pkDecideDevV1','kzGetDevV1','kzPreviewDevV1','kzPostDevV1'],
+    'manual-entry.html': ['krGetDEV','krSaveDEV','kkListaTest','kkPrzeniesTest']
+  };
+  const formWrites = new Set(['ebQueueReviseDev','pkDecideDevV1','kzPostDevV1','krSaveDEV','kkPrzeniesTest']);
+  const formSheet = range => encodeURIComponent("'Formularze iPhone TEST'!" + range);
+  const receiptKey = 'budget-test-form-receipt-v1';
+  let activeForm, formNotice, lastEditorData, refreshEditor = false;
+  async function waitForForm(receipt) {
+    let row = receipt.row;
+    if (!row) {
+      const ids = await queueSheets(formSheet('A:A'));
+      row = (ids.values || []).findIndex(values => values[0] === receipt.id) + 1;
+      if (row < 2) {
+        if (Date.now() - receipt.startedAt > 60000 && localStorage.getItem(receiptKey) === JSON.stringify(receipt))
+          localStorage.removeItem(receiptKey);
+        throw Error('Brak potwierdzenia wysyłki. Sprawdź historię przed ponowieniem.');
+      }
+    }
+    const until = Date.now() + 240000;
+    while (Date.now() < until) {
+      const result = await queueSheets(formSheet(receipt.row + ':' + receipt.row));
+      const [id,,,status,,...chunks] = result.values?.[0] || [];
+      if (id !== receipt.id) throw Error('Nie można potwierdzić operacji. Sprawdź historię.');
+      if (status === 'ERROR' || status === 'OK') {
+        if (localStorage.getItem(receiptKey) === JSON.stringify(receipt)) localStorage.removeItem(receiptKey);
+        if (status === 'ERROR') throw Error(chunks[0] || 'Zapis wymaga sprawdzenia.');
+        const bytes = Uint8Array.from(atob(chunks.join('')), c=>c.charCodeAt(0));
+        return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      }
+      await new Promise(resolve=>setTimeout(resolve,4500));
+    }
+    throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
+  }
+  window.callBudgetForm = async (caller, method, args) => {
+    const frame=activeForm;
+    if (!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
+        !formMethods[frame.dataset.form]?.includes(method)) throw Error('Brak dostępu do formularza.');
+    if ((method==='ebListSectionsDev' || method==='ebQueueListDev') && !refreshEditor) {
+      const snapshot=await phoneQueue();
+      if (lastEditorData && Date.parse(snapshot.stamp)<lastEditorData.time) return lastEditorData.data;
+      return snapshot.data;
+    }
+    const write=formWrites.has(method);
+    if (write && localStorage.getItem(receiptKey)) throw Error('Poprzedni zapis czeka na potwierdzenie. Wróć do formularza i sprawdź jego wynik.');
+    const id=crypto.randomUUID();
+    formNotice.textContent=write?'Przekazuję zapis do TEST…':'Pobieram dane formularza…';
+    if (write) localStorage.setItem(receiptKey,JSON.stringify({id,startedAt:Date.now()}));
+    const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+      method:'POST',body:JSON.stringify({values:[[id,method,JSON.stringify(args)]]})
+    });
+    const row=Number(res.updates?.updatedRange?.match(/!A(\d+):C\d+$/)?.[1]);
+    if (!row || row<2 || res.updates.updatedRows!==1) throw Error('Brak potwierdzenia. Sprawdź historię przed ponowieniem.');
+    const receipt={id,row};
+    if(write)localStorage.setItem(receiptKey,JSON.stringify(receipt));
+    formNotice.textContent='Oczekiwanie na wynik z TEST…';
+    try {
+      const data=await waitForForm(receipt);
+      if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets))lastEditorData={data,time:Date.now()};
+      if(method==='ebListSectionsDev')refreshEditor=false;
+      if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
+      if(frame===activeForm)formNotice.textContent=write?'Zapis potwierdzony.':'';
+      return data;
+    }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
+  };
+
   function installAssignmentView() {
     const original = window.openAssignments_;
     window.openAssignments_ = function() {
@@ -123,7 +189,6 @@
       original();
       const root = document.querySelector('#app .assignment-wrap');
       if (!root) return;
-      const urls = [...root.querySelectorAll('a')];
       root.replaceChildren();
       function make(tag,text) {
         const el = document.createElement(tag);
@@ -134,12 +199,25 @@
       status.setAttribute('role','status');
       const tabs = make('div'), pendingTab = make('button','Do przypisania'), historyTab = make('button','Historia'), refresh = make('button','Odśwież');
       tabs.append(pendingTab,historyTab,refresh);
-      const advanced = make('details'); advanced.append(make('summary','Więcej opcji'));
+      const advanced = make('div');
       const links = make('div'); links.className='assignment-links';
-      for (const a of urls) {
-        if (new URL(a.href).searchParams.get('view') === 'inflows') continue;
-        if (new URL(a.href).searchParams.get('view') === 'queue') a.textContent='Podział, nowa pozycja lub korekta';
-        links.append(a);
+      async function openForm(file,title) {
+        const panel=make('section'), back=make('button','← Przypisz'), notice=make('p');
+        back.onclick=()=>window.openAssignments_();notice.setAttribute('role','status');
+        root.replaceChildren(panel);panel.append(back,notice);formNotice=notice;
+        const prior=localStorage.getItem(receiptKey);
+        if(prior){
+          notice.textContent='Sprawdzam poprzedni zapis…';
+          try{await waitForForm(JSON.parse(prior));notice.textContent='Poprzedni zapis potwierdzony.';}
+          catch(err){notice.textContent=err.message;}
+        }
+        if(!panel.isConnected)return;
+        const frame=make('iframe');frame.title=title;frame.dataset.form=file;frame.src='./'+file;
+        frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
+        activeForm=frame;panel.append(frame);
+      }
+      for (const [file,title] of [['expense-editor.html','Podział, nowa pozycja lub korekta'],['manual-entry.html','Dodaj wydatek ręcznie']]) {
+        const btn=make('button',title);btn.type='button';btn.onclick=()=>openForm(file,title);links.append(btn);
       }
       const modes=make('div'), expenses=make('button','Wydatki'), incomes=make('button','Wpływy');
       modes.append(expenses,incomes); advanced.append(links);root.append(head,modes,tabs,status,list,advanced);
