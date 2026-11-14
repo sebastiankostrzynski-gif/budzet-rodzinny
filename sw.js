@@ -1,9 +1,10 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v80-cash-form';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v81-green-wallet';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
+  './icons/start-wallet.webp',
   './category-art-test.css', './icons/credit-savings-atlas.webp',
   './icons/glass-savings.webp', './icons/glass-credit.webp', './icons/glass-wallet.webp',
   './queue.html',
@@ -38,9 +39,21 @@ self.addEventListener('install', event => {
     const authResponse = await fetch(authUrl, {cache:'no-store'});
     if (!authResponse.ok) throw new Error('Nie udało się pobrać modułu logowania.');
     await cache.put(authUrl,authResponse);
-    await cache.put(criticalUrl, criticalResponse.clone());
+    const viewUrl = new URL('./launch-screen.html', self.registration.scope);
+    const view = await fetch(viewUrl, {cache:'no-store'});
+    if (!view.ok) throw Error('Nie udało się pobrać ekranu startowego.');
+    const shell = await criticalResponse.text();
+    const start = shell.indexOf('<section id="budget-login"');
+    const end = shell.indexOf('</section>', start);
+    if (start < 0 || end < 0) throw Error('Brak ekranu startowego w aplikacji.');
+    const html = shell.slice(0,start) + await view.text() + shell.slice(end + '</section>'.length);
+    const headers = new Headers(criticalResponse.headers);
+    for (const key of ['content-length','content-encoding','etag']) headers.delete(key);
+    const themedShell = new Response(html,{headers});
+    await cache.put(criticalUrl, themedShell.clone());
+    await cache.put(self.registration.scope, themedShell);
 
-    const optionalPaths = APP_SHELL.filter(path => path !== './index.html');
+    const optionalPaths = APP_SHELL.filter(path => path !== './index.html' && path !== './');
     await Promise.all(
       optionalPaths.map(async path => {
         try {

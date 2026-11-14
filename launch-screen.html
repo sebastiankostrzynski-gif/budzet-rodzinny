@@ -1,0 +1,31 @@
+<style>
+#budget-login:before,#budget-login:after{display:none}
+#budget-login .gate-card{border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;text-align:left}
+#budget-login{box-sizing:border-box;min-height:100svh;margin:0;max-width:none;display:grid;place-items:center;background:#082519;color:#fff0cd;padding: max(18px,env(safe-area-inset-top)) 0 max(12px,env(safe-area-inset-bottom))}
+#budget-login .gate-card{width:min(100%,440px);display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}
+#budget-login header{padding:0 8%;position:static;background:none;box-shadow:none}
+#budget-login .gate-eyebrow{color:#e0d7ba;font:16px Georgia,serif;margin:0 0 12px}
+#budget-login h1{font:normal clamp(42px,9svh,80px)/.91 Georgia,serif;letter-spacing:-.045em;text-align:left;color:#fff0cd;margin:0}
+#budget-login h1 span{display:block}
+#budget-login .gate-wallet{width:100%;height:min(49svh,445px);object-fit:contain;display:block;margin:4px 0;mask-image:linear-gradient(to bottom,transparent,#000 8%,#000 88%,transparent);-webkit-mask-image:linear-gradient(to bottom,transparent,#000 8%,#000 88%,transparent)}
+#budget-login .gate-actions{min-height:66px;padding:0 8%;text-align:center}
+#budget-login [role=status]{font:14px/1.4 system-ui;color:#d3decd;margin:4px auto;max-width:36ch;overflow-wrap:anywhere}
+#budget-login [role=status]:empty{display:none}
+#budget-login button{width:auto;min-height:44px;padding:8px 16px;margin:3px auto;border:1px solid #698171;border-radius:24px;background:transparent;color:#eee8d6;font:500 14px/1.2 system-ui;box-shadow:none;cursor:pointer}
+#budget-login button:disabled{display:none}
+#budget-login button:focus-visible{outline:2px solid #f5df9f;outline-offset:3px}
+</style>
+<section id="budget-login" aria-label="Otwieranie prywatnego budżetu"><div class="gate-card">
+<header><p class="gate-eyebrow">Budżet rodzinny</p><h1>Budżet <span id="budget-gate-year"></span></h1></header>
+<img class="gate-wallet" src="./icons/start-wallet.webp" alt="" fetchpriority="high" width="800" height="822">
+<div class="gate-actions"><p role="status" id="wallet-login-status">Otwieranie budżetu…</p><button type="button" disabled>Zaloguj przez Google</button><button type="button" data-file hidden>Wybierz arkusz budżetu TEST</button></div></div></section>
+<script>
+(() => {
+  const status = document.getElementById('wallet-login-status');
+  const update = () => {
+    status.hidden = status.textContent.startsWith('Dotknij „Zaloguj przez Google”');
+  };
+  new MutationObserver(update).observe(status, { childList: true, subtree: true, characterData: true });
+  update();
+})();
+</script>
