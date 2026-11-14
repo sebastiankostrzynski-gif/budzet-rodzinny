@@ -1715,7 +1715,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 
 
 <body>
-<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 11 9-8 9 8v9h-6v-6H9v6H3z"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9 4 5l5 1a9 9 0 0 1 11 5l2 1v4l-3 1-1 3h-3l-1-2H9l-1 2H5l-1-4a6 6 0 0 1 1-7zM10 8h4"/><circle cx="17" cy="11" r=".7"/></svg><span aria-label="Oszczędności">Oszczędn.</span></button><button data-tab="debts" aria-label="Zobowiązania" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v5m8-5v5M4 10h16M8 15h4"/></svg><span>Raty</span></button><button data-tab="balances" aria-pressed="false" onclick="openBalances_()"><span>Salda kont</span></button><button data-tab="assignments" style="display:none" aria-pressed="false" onclick="openAssignments_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 14 3-9h12l3 9v5H3zm0 0h5l2 3h4l2-3h5"/></svg><span>Przypisz</span></button></nav>
+<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 11 9-8 9 8v9h-6v-6H9v6H3z"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9 4 5l5 1a9 9 0 0 1 11 5l2 1v4l-3 1-1 3h-3l-1-2H9l-1 2H5l-1-4a6 6 0 0 1 1-7zM10 8h4"/><circle cx="17" cy="11" r=".7"/></svg><span aria-label="Oszczędności">Oszczędn.</span></button><button data-tab="debts" aria-label="Kredyty" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v5m8-5v5M4 10h16M8 15h4"/></svg><span>Kredyty</span></button><button data-tab="balances" aria-pressed="false" onclick="openBalances_()"><span>Salda kont</span></button><button data-tab="assignments" style="display:none" aria-pressed="false" onclick="openAssignments_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 14 3-9h12l3 9v5H3zm0 0h5l2 3h4l2-3h5"/></svg><span>Przypisz</span></button></nav>
 
   <div id="app">
 
@@ -4438,6 +4438,7 @@ function alerty24Start_() {
       // Current card alerts are handled by the bank cycle, not a dashboard request.
       sendPwaDashboardSnapshot_(data);
       notifyPwaReady_('dashboard');
+      scheduleBalanceReads_();
     }
 
 
@@ -5637,7 +5638,7 @@ function savingsValid_(x) {
 }
 function balanceNeedsRead_(data, error) {
  const age=data ? Date.now()-data.fetchedAt : Infinity;
- return !!error || age<0 || age>=45000;
+ return !!error || age<0 || age>=300000;
 }
 function scheduleBalanceReads_(){
  if(scheduleBalanceReads_.started)return;
@@ -5693,10 +5694,13 @@ function openAssignments_() {
 }
 
 function openBalances_() {
+  window.scrollTo(0,0);
   activeView_='balances';
   setBudgetTab_('balances');
   const app=document.getElementById('app');
-  app.innerHTML='<div class="sav-wrap"><h1>Salda kont</h1><p id="balances-status">Odczytuję…</p><div id="balances-list"></div><button onclick="openBalances_()">Odśwież</button></div>';
+  app.innerHTML=`<section class="sav-wrap wallet-view"><header class="wallet-header"><h1>Salda kont</h1>${privacyButton_()}</header><div class="sav-status"><span role="status" id="balances-status">Pobieranie sald…</span><button type="button" aria-label="Odśwież salda" id="wallet-refresh">↻</button></div><div id="balances-list"></div></section>`;
+  document.getElementById('wallet-refresh').onclick=refresh;
+  applyAmountPrivacy_();
   const status=document.getElementById('balances-status');
   const list=document.getElementById('balances-list');
   let reading=false;
@@ -5706,17 +5710,28 @@ function openBalances_() {
     budgetApi.script.run.withSuccessHandler(data=>{
       reading=false;
       if(!status.isConnected)return;
-    list.replaceChildren();
+    const groups=new Map();
     for(const row of data.accounts){
-      const p=document.createElement('p');
-      const label=document.createElement('span');
-      const value=document.createElement('strong');
-      label.textContent=row.name;
-      value.textContent=row.amount==null?'Brak danych':new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amount);
-      p.style.cssText='display:flex;justify-content:space-between;gap:12px;padding:12px;background:#fff;border-bottom:1px solid #ddd';
-      p.append(label,value);
-      list.append(p);
+      const [name, ...details]=String(row.name).split(/\s+·\s+/);
+      const group=/karta kredytowa/i.test(name)?'Limit karty':/Trade Republic/i.test(name)?'Trade Republic':/gotówka/i.test(name)?'Gotówka':'Rachunki';
+      if(!groups.has(group))groups.set(group,[]);
+      groups.get(group).push({name,details:details.join(' · '),amount:row.amount});
     }
+    const fragment=document.createDocumentFragment();
+    for(const title of ['Rachunki','Gotówka','Limit karty','Trade Republic']){
+      if(!groups.has(title))continue;
+      const section=document.createElement('section'),heading=document.createElement('h2');
+      section.className='wallet-group';heading.textContent=title;section.append(heading);
+      for(const row of groups.get(title)){
+        const card=document.createElement('div'),label=document.createElement('div'),value=document.createElement('strong');
+        card.className='wallet-row';label.textContent=row.name;
+        if(row.details){const detail=document.createElement('small');detail.textContent=row.details;label.append(detail);}
+        value.textContent=row.amount==null?'Brak danych':formatPLN(row.amount);
+        card.append(label,value);section.append(card);
+      }
+      fragment.append(section);
+    }
+    list.replaceChildren(fragment);applyAmountPrivacy_();
       status.textContent='Odczyt z '+new Date(data.readAt).toLocaleString('pl-PL');
     }).withFailureHandler(()=>{
       reading=false;
@@ -5898,20 +5913,20 @@ function renderDebtsContentV24_(){
  if(activeView_!=='debts')return;
  const app=document.getElementById('app'),same=app.dataset.debtView===(debtId_||'all'),open=same?Array.from(app.querySelectorAll('details[open][data-debt-open]'),el=>el.dataset.debtOpen):[],focus=same&&app.contains(document.activeElement)?document.activeElement.id:'',scroll=window.scrollY;
  app.dataset.debtView=debtId_||'all';
- if(!debtData_){app.innerHTML=`<div class="sav-wrap debt-wrap"><h1>Zobowiązania</h1><section class="sav-panel"><h2>${debtError_?'Nie udało się pobrać zobowiązań':'Przygotowujemy Twoje zobowiązania'}</h2><p>${debtError_?'Sprawdź połączenie. Jeśli problem trwa, sprawdź wdrożenie i kompletność danych w arkuszu.':'Przy kolejnych otwarciach pokażemy zapisane kwoty od razu.'}</p>${debtError_?'<button class="back-button" onclick="debtRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;return;}
+ if(!debtData_){app.innerHTML=`<div class="sav-wrap debt-wrap"><h1>Kredyty</h1><section class="sav-panel"><h2>${debtError_?'Nie udało się pobrać kredytów':'Wczytywanie kredytów'}</h2><p>${debtError_?'Sprawdź połączenie. Jeśli problem trwa, sprawdź wdrożenie i kompletność danych w arkuszu.':'Przy kolejnych otwarciach pokażemy zapisane kwoty od razu.'}</p>${debtError_?'<button class="back-button" onclick="debtRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;return;}
  const at=debtData_.periods.findIndex(p=>p.key===debtPeriod_),p=debtData_.periods[at],prev=debtData_.periods[at-1],item=debtId_?p.items.find(i=>i.id===debtId_):p;
- const title=debtId_?(item?item.name:'Zobowiązanie'):'Zobowiązania';
+ const title=debtId_?(item?item.name:'Zobowiązanie'):'Kredyty';
  const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
  const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
  const change=item?balanceChange_(item.total,last,prev,true):'';
 
  app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
- <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież zobowiązania">↻</button></div>
+ <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież kredyty">↻</button></div>
  ${item?`<section class="sav-hero debt-hero"><div>${debtId_?'Pozostało do spłaty':'Pozostało do spłaty łącznie'}</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section>${!debtId_?debtComposition_(active):''}${item.asOf&&item.asOf<p.key?'<p class="sav-muted debt-note">Ostatni zapis: '+savingsLabel_(item.asOf)+'.</p>':''}`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
- ${!debtId_?`<section class="debt-active"><h2>Aktywne zobowiązania <span class="debt-count">${active.length}</span></h2>${active.length?'<div class="sav-grid debt-grid">'+active.slice().sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join('')+'</div>':'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
+ ${!debtId_?`<section class="debt-active"><h2>Aktywne kredyty <span class="debt-count">${active.length}</span></h2>${active.length?'<div class="sav-grid debt-grid">'+active.slice().sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join('')+'</div>':'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
  ${debtChart_()}
- ${!debtId_&&closed.length?`<details class="sav-panel" data-debt-open="closed"><summary id="debt-closed">Spłacone zobowiązania (${closed.length})</summary>${closed.map(i=>debtCard_(i,p.key)).join('')}</details>`:''}</div>`;
+ ${!debtId_&&closed.length?`<details class="sav-panel" data-debt-open="closed"><summary id="debt-closed">Spłacone kredyty (${closed.length})</summary>${closed.map(i=>debtCard_(i,p.key)).join('')}</details>`:''}</div>`;
  for(const el of app.querySelectorAll('[data-debt-open]'))el.open=open.includes(el.dataset.debtOpen);
  if(focus){const el=document.getElementById(focus);if(el&&!el.disabled)el.focus({preventScroll:true});}
  if(same&&window.scrollY!==scroll)window.scrollTo(0,scroll);debtStatus_();
