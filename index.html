@@ -3630,7 +3630,7 @@ function formatHistoryValue(value) {
           isMonthLoading = false;
           app.classList.remove('month-refreshing');
 
-          renderDashboard(data);
+          if (activeView_ === 'dashboard') renderDashboard(data);
           persistCurrentDashboard_(data);
           if (isInitialLoad) startInitialBackgroundPreload();
 
@@ -3806,7 +3806,7 @@ function formatHistoryValue(value) {
           dashboardData = data;
           lastRefreshSuccessAt = Date.now();
 
-          renderDashboard(data);
+          if (activeView_ === 'dashboard') renderDashboard(data);
           persistCurrentDashboard_(data);
 
           // Szczegóły kategorii pozostają zapisane i odświeżają się po otwarciu.
@@ -5445,6 +5445,7 @@ function toggleHolidayTrips() {
 
     function showMainDashboard() {
       const returning=['category','income'].includes(activeView_);
+      const fromAssignments = activeView_ === 'assignments';
       setBudgetTab_('budget');
       activeView_ = 'dashboard';
       activeCategory_ = null;
@@ -5456,6 +5457,7 @@ function toggleHolidayTrips() {
           dashboardData
         );
 
+        if (fromAssignments) refreshDashboardSilently_();
         if(returning)window.scrollTo(0,budgetReturnY_);
         return;
       }
@@ -5689,7 +5691,7 @@ function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><button type="button" onclick="openAssignmentView_('queue')">Przypisz wydatki <span aria-hidden="true">›</span></button><button type="button" onclick="openAssignmentView_('inflows')">Przypisz wpływy <span aria-hidden="true">›</span></button><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu odśwież dane, żeby zobaczyć zaksięgowane pozycje.</p></div>`;
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><button type="button" onclick="openAssignmentView_('queue')">Przypisz wydatki <span aria-hidden="true">›</span></button><button type="button" onclick="openAssignmentView_('inflows')">Przypisz wpływy <span aria-hidden="true">›</span></button><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Po powrocie do budżetu dane odświeżą się automatycznie.</p></div>`;
   window.scrollTo(0,0);
 }
 
