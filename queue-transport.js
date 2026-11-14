@@ -6,6 +6,15 @@ const budgetTransport = (() => {
   const pending = new Map();
   const channel = crypto.randomUUID();
   let frame, client, origin, connected = false, sequence = 0;
+  let host = window;
+  try {
+    if (window.parent === window.top && window.parent.location.origin === location.origin &&
+        typeof window.parent.sendAssignmentBridgeMessage === 'function') host = window.parent;
+  } catch (_) {}
+  function post(message) {
+    if (host === window) client.postMessage(message, origin);
+    else host.sendAssignmentBridgeMessage(client, message, origin);
+  }
   function trusted(e) {
     if (!frame || !/^https:\/\/(?:script\.google\.com|[a-z0-9-]+\.googleusercontent\.com)$/.test(e.origin)) return false;
     try {
@@ -21,7 +30,7 @@ const budgetTransport = (() => {
   function send(item) {
     if (!connected || item.sent) return;
     item.sent = true;
-    client.postMessage({protocol:'budget-queue-rpc-v1',type:'call',channel,id:item.id,method:item.method,args:item.args},origin);
+    post({protocol:'budget-queue-rpc-v1',type:'call',channel,id:item.id,method:item.method,args:item.args});
   }
   function start() {
     if (frame || !navigator.onLine) return;
@@ -39,13 +48,13 @@ const budgetTransport = (() => {
     clearTimeout(item.timer);
     (ok ? item.success : item.failure)(ok ? value : new Error(String(value || 'Nie udało się odświeżyć danych.')));
   }
-  addEventListener('message', e => {
+  function onBridgeMessage(e) {
     const m = e.data;
     if (!m || m.protocol !== 'budget-queue-rpc-v1' || !trusted(e)) return;
     if (m.type === 'ready') {
       if (connected && e.source === client) return;
       client = e.source; origin = e.origin;
-      client.postMessage({protocol:'budget-queue-rpc-v1',type:'connect',channel},origin);
+      post({protocol:'budget-queue-rpc-v1',type:'connect',channel});
     } else if (e.source === client && e.origin === origin && m.channel === channel) {
       if (m.type === 'connected') {
         connected = true;
@@ -54,7 +63,10 @@ const budgetTransport = (() => {
         finish(m.id,m.ok,m.ok ? m.data : m.error);
       }
     }
-  });
+  }
+  host.addEventListener('message', onBridgeMessage);
+  addEventListener('pagehide', () => host.removeEventListener('message', onBridgeMessage));
+  addEventListener('pageshow', () => host.addEventListener('message', onBridgeMessage));
   function call(method,args,success,failure) {
     if (!allowed.has(method)) { failure(new Error('Niedozwolona operacja.')); return; }
     if (!navigator.onLine) { failure(new Error('Brak internetu. Pokazuję zapisane dane.')); return; }
