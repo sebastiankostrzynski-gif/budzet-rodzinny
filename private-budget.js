@@ -76,28 +76,11 @@
     badge.hidden = true;
     assignments.append(badge);
     const style = document.createElement('style');
-    style.textContent = `
-html.budget-locked,html.budget-locked body{min-height:100%;background:#071b2b;color:#edf8f7}
-html.budget-locked body>.budget-tabs,html.budget-locked body>#app{display:none!important}
-#budget-login[hidden],#budget-login [hidden]{display:none!important}
-#budget-login{position:relative;isolation:isolate;min-height:100dvh;max-width:none;margin:0;padding:max(env(safe-area-inset-top),24px) 24px max(env(safe-area-inset-bottom),24px);display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(ellipse 70% 38% at 50% 39%,#17475a 0%,transparent 80%),linear-gradient(150deg,#061725,#0b2634 60%,#04151f);color:#e9f8f6;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:center}
-#budget-login:before,#budget-login:after{content:"";position:absolute;pointer-events:none;border-radius:50%;filter:blur(42px);opacity:.3;z-index:-1}
-#budget-login:before{width:260px;height:260px;background:#19b7aa;top:15%;left:-180px;animation:budgetGlow 9s ease-in-out infinite alternate}
-#budget-login:after{width:250px;height:250px;background:#6b9ba8;bottom:8%;right:-190px;animation:budgetGlow 11s ease-in-out infinite alternate-reverse}
-#budget-login .gate-card{width:min(100%,430px);padding:36px 24px 30px;border:1px solid rgba(178,233,227,.17);border-radius:32px;background:linear-gradient(145deg,rgba(255,255,255,.085),rgba(255,255,255,.025));box-shadow:0 24px 70px #0006,inset 0 1px 0 #ffffff1a;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-#budget-login .gate-logo{display:block;width:112px;height:112px;margin:0 auto 26px;filter:drop-shadow(0 0 25px #40c9b555);animation:budgetBreathe 3.6s ease-in-out infinite alternate}
-#budget-login .gate-eyebrow{margin:0 0 6px;color:#91d8d2;font-size:11px;font-weight:750;letter-spacing:.28em;text-transform:uppercase}
-#budget-login h1{margin:0;color:#f5fbfa;font-size:clamp(34px,9vw,52px);font-weight:760;line-height:1.04;letter-spacing:-.055em}
-#budget-login .gate-caption{margin:12px 0 34px;color:#b7cdd1;font-size:14px;letter-spacing:.025em}
-#budget-login [role=status]{min-height:2.8em;max-width:36ch;margin:0 auto 18px;color:#bed4d6;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
-#budget-login button{display:block;width:100%;min-height:54px;padding:12px 17px;margin:10px 0 0;border:1px solid #5de2d3;border-radius:16px;background:linear-gradient(135deg,#55d8c9,#27aa9d);color:#052b34;font:inherit;font-size:16px;font-weight:700;line-height:1.2;box-shadow:0 12px 30px #20cbb43d;cursor:pointer}
-#budget-login button:disabled{opacity:.55;cursor:default}
-#budget-login button[data-file]{border-color:#91c7c5;background:transparent;color:#d8f3f0;box-shadow:none}
-#budget-login .gate-footer{margin:27px 0 0;color:#8ca9b0;font-size:11px;letter-spacing:.08em}
-@keyframes budgetBreathe{to{transform:translateY(-4px) scale(1.025);filter:drop-shadow(0 0 32px #55e8cc88)}}
-@keyframes budgetGlow{to{transform:translate(80px,-30px);opacity:.5}}
-@media(prefers-reduced-motion:reduce){#budget-login:before,#budget-login:after,#budget-login .gate-logo{animation:none}}
-  `;
+    style.textContent = `.budget-tabs button{position:relative;flex:1 1 0;min-width:0}
+.budget-tabs button[data-tab="balances"].selected{background:#287c54;color:white}
+#pending-count{position:absolute;top:2px;left:calc(50% + 5px);border-radius:14px;padding:1px 4px;min-width:16px;font:700 10px/14px system-ui;background:#943c25;color:white;box-shadow:0 0 0 2px #f4f6f8}
+@media(max-width:480px){.budget-tabs{gap:2px;padding-inline:4px}.budget-tabs button{font-size:clamp(9px,2.7vw,12px);padding-inline:0;gap:4px;letter-spacing:-.15px}}
+`;
     document.head.append(style);
   }
   let countBusy = false;
