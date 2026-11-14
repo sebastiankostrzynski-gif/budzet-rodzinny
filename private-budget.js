@@ -104,17 +104,17 @@
       throw Error('Niepełny odczyt kolejki.');
     const bytes = Uint8Array.from(atob(chunks.slice(0,+parts).join('')), c => c.charCodeAt(0));
     const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
-    const byKey = new Map();
+    const byKey = new Map(), incomeCommands = new Map();
     for (const [kind,id,body,result] of commands.values || []) {
-      if (kind === 'ASSIGN_V1') {
+      if (kind === 'ASSIGN_V1' || kind === 'INCOME_V1') {
         const request = JSON.parse(body);
-        byKey.set(request.key,{request,result});
+        (kind === 'INCOME_V1' ? incomeCommands : byKey).set(request.key,{request,result});
       }
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
-    return {data,rows,pending,byKey,stamp};
+    return {data,rows,pending,byKey,incomeCommands,stamp};
   }
   function installAssignmentView() {
     const original = window.openAssignments_;
@@ -136,12 +136,27 @@
       tabs.append(pendingTab,historyTab,refresh);
       const advanced = make('details'); advanced.append(make('summary','Więcej opcji'));
       const links = make('div'); links.className='assignment-links';
-      urls.forEach((a,i)=>{if(i===0)a.textContent='Podział, nowa pozycja lub korekta';links.append(a);});
-      advanced.append(links);root.append(head,tabs,status,list,advanced);
+      for (const a of urls) {
+        if (new URL(a.href).searchParams.get('view') === 'inflows') continue;
+        if (new URL(a.href).searchParams.get('view') === 'queue') a.textContent='Podział, nowa pozycja lub korekta';
+        links.append(a);
+      }
+      const modes=make('div'), expenses=make('button','Wydatki'), incomes=make('button','Wpływy');
+      modes.append(expenses,incomes); advanced.append(links);root.append(head,modes,tabs,status,list,advanced);
+      let income=false;
+      function switchMode(next) {
+        if(saving)return;
+        income=next;history=false;head.textContent=income?'Przypisz wpływy':'Przypisz wydatki';
+        incomes.setAttribute('aria-pressed',String(income));expenses.setAttribute('aria-pressed',String(!income));
+        advanced.hidden=income;list.replaceChildren();reload();
+      }
+      incomes.onclick=()=>switchMode(true);expenses.onclick=()=>switchMode(false);
+      expenses.setAttribute('aria-pressed','true');incomes.setAttribute('aria-pressed','false');
       let state, history=false, saving=false, generation=0;
       function render() {
         if (!state || !root.isConnected) return;
         list.replaceChildren();
+        if(income){renderIncome();return;}
         const pending = new Set(state.pending);
         const saved = state.rows.filter(r=>!pending.has(r));
         pendingTab.textContent='Do przypisania · '+pending.size;
@@ -186,6 +201,44 @@
             card.append(category,target,save);
           }
           list.append(card);
+        }
+      }
+      function renderIncome() {
+        const data=state.data.income;
+        if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
+        const waiting=row=>{const cmd=state.incomeCommands.get(row.key);return cmd && !cmd.result;};
+        const pending=data.rows.filter(row=>!row.decision&&!waiting(row));
+        const saved=data.rows.filter(row=>row.decision||waiting(row));
+        pendingTab.textContent='Do przypisania · '+pending.length;historyTab.textContent='Zapisane · '+saved.length;
+        pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
+        const visible=history?saved:pending;
+        if(!visible.length)list.append(make('p',history?'Brak zapisanych wpływów.':'Brak wpływów do przypisania.'));
+        for(const row of visible) {
+          const card=make('article'), command=state.incomeCommands.get(row.key);
+          card.className='phone-expense';list.append(card);
+          card.append(make('strong',row.merchant),make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100)),make('small',row.date+' · '+row.account));
+          if(waiting(row)){card.append(make('p','Oczekuje na potwierdzenie'),make('small',command.request.sheetName+' · '+command.request.description));continue;}
+          if(command?.result?.startsWith('Błąd'))card.append(make('p',command.result));
+          if(row.decision)card.append(make('p',row.decision.sheetName+' · '+row.decision.description));
+          const form=make('details');form.style.gridColumn='1 / -1';card.append(form);
+          form.append(make('summary',row.decision?'Zmień przypisanie':'Przypisz wpływ'));
+          const category=make('select'),desc=make('input'),save=make('button','Zapisz przypisanie');
+          category.setAttribute('aria-label','Rodzaj wpływu');desc.setAttribute('aria-label','Opis wpływu');desc.placeholder='Czego dotyczy wpływ?';desc.maxLength=200;
+          category.add(new Option('Wybierz kategorię',''));
+          for(const name of data.categories)category.add(new Option(name.replace(/^T\d+\s+/,''),name));
+          category.value=row.decision?.sheetName||'';desc.value=row.decision?.description||'';
+          const validate=()=>save.disabled=saving||!category.value||!desc.value.trim();
+          category.onchange=validate;desc.oninput=validate;validate();form.append(category,desc,save);
+          save.onclick=async()=>{
+            if(saving||!category.value||!desc.value.trim())return;
+            saving=true;save.disabled=true;
+            const req={key:row.key,account:row.account,date:row.date,amountCents:row.amountCents,previous:row.decision||null,sheetName:category.value,description:desc.value.trim()};
+            try {
+              const receipt=await queueSheets(queueRange('A2:D')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',body:JSON.stringify({values:[['INCOME_V1',crypto.randomUUID(),JSON.stringify(req)]]})});
+              if(receipt.updates?.updatedRows!==1)throw Error();
+              saving=false;history=true;await reload('Przyjęto decyzję do sprawdzenia w następnym cyklu.');
+            } catch {saving=false;await reload('Sprawdź historię przed ponowieniem zapisu.');}
+          };
         }
       }
       async function reload(message) {
