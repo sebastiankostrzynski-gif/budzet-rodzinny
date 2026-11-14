@@ -256,12 +256,29 @@ showQueue(true);
     notice.append(button('Pokaż',()=>{tab='pending';opened=null;draft=null;render();notice.hidden=true;}));notice.hidden=false;
   }
   const originalRender=render;render=function(){originalRender();refreshNotice();};
-  setInterval(()=>{
-    if(busy||opened||!state)return;
-    google.script.run.withSuccessHandler(next=>{
-      if(!next||!next.revision||next.revision===state.revision)return;state=next;render();
-    }).withFailureHandler(()=>{}).ebQueueListDev();
-  },60000);
+  let polling = false;
+  function refreshQueue() {
+    if (polling || busy || opened || document.hidden || $('queueScreen').hidden || !navigator.onLine) return;
+    if (!state) { api('list'); return; }
+    const requestSequence = sequence;
+    const previous = state;
+    polling = true;
+    google.script.run.withSuccessHandler(next => {
+      polling = false;
+      if (busy || opened || state !== previous || requestSequence !== sequence || !Array.isArray(next?.rows)) return;
+      state = next;
+      render();
+      announce('Lista aktualna.');
+    }).withFailureHandler(() => {
+      polling = false;
+      if (!busy && !opened && requestSequence === sequence)
+        announce('Pokazuję ostatnią listę. Ponowię odczyt automatycznie.');
+    }).ebListSectionsDev();
+  }
+  setInterval(refreshQueue, 60000);
+  document.addEventListener('visibilitychange', refreshQueue);
+  window.addEventListener('online', refreshQueue);
+  window.addEventListener('pageshow', refreshQueue);
 })();
 </script>
 <!-- Paste this whole script immediately before </body> in the EXISTING KolejkaProsta.html.
