@@ -63,6 +63,42 @@
     return data.response.result;
   }
   window.budgetRpc=rpc;
+  let countBusy = false;
+  let lastCountRead = 0;
+  async function refreshExpenseCount() {
+    const badge = document.getElementById('pending-count');
+    if (!badge || window.budgetViewerRole !== 'owner' || !gate.hidden ||
+        document.hidden || countBusy || Date.now() - lastCountRead < 4000) return;
+    countBusy = true;
+    lastCountRead = Date.now();
+    const tab = badge.closest('button');
+    try {
+      if (!token || expires <= Date.now()) throw Error();
+      const range = encodeURIComponent("'Kolejka iPhone TEST'!1:1");
+      const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' +
+        testFileId + '/values/' + range, {
+        headers:{Authorization:'Bearer ' + token}, cache:'no-store', redirect:'error'
+      });
+      if (!response.ok) throw Error();
+      const [tag, stamp, parts, ...chunks] = (await response.json()).values[0];
+      const age = Date.now() - Date.parse(stamp);
+      if (tag !== 'QUEUE_V1' || !Number.isFinite(age) || age > 20*60000 ||
+          !Number.isInteger(Number(parts)) || Number(parts)<1 || chunks.length < Number(parts)) throw Error();
+      const bytes = Uint8Array.from(atob(chunks.slice(0, Number(parts)).join('')), c => c.charCodeAt(0));
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const {rows} = await new Response(stream).json();
+      const count = rows.filter(r => !r.bridgeArchived && !r.decision && !r.postedEvidence && !r.bridgeBlocked).length;
+      badge.textContent = String(count);
+      badge.hidden = count === 0;
+      tab.setAttribute('aria-label','Przypisz. Wydatki do przypisania: ' + count);
+      tab.title = 'Wydatki do przypisania: ' + count + ' · stan z ' + new Date(stamp).toLocaleTimeString('pl-PL');
+    } catch (_) {
+      badge.hidden = false;
+      badge.textContent = '…';
+      tab.title = 'Aktualna liczba wydatków niedostępna';
+      tab.setAttribute('aria-label','Przypisz. ' + tab.title);
+    } finally { countBusy = false; }
+  }
   function startBudgetApp() {
     gate.hidden=true;
     document.documentElement.classList.remove('budget-locked');
@@ -71,6 +107,10 @@
       const app=document.createElement('script');
       app.textContent=document.getElementById('budget-app-source').textContent;
       document.body.append(app);
+      document.addEventListener('visibilitychange',refreshExpenseCount);
+      window.addEventListener('focus',refreshExpenseCount);
+      window.addEventListener('pageshow',refreshExpenseCount);
+      setInterval(refreshExpenseCount,60000);
     }
   }
   async function showBudget() {
@@ -92,7 +132,7 @@
     }catch(_){}
     // The app renders this verified snapshot immediately and its existing startup
     // routine checks for a newer bank cycle in the background.
-    if(cached) { startBudgetApp(); return; }
+    if(cached) { startBudgetApp(); refreshExpenseCount(); return; }
     status.textContent='Pobieranie aktualnych danych z TEST…';
     const fresh=await rpc('getBudgetDataFresh',[now.getFullYear(),now.getMonth()+1]);
     if(!fresh || !Array.isArray(fresh.categories) || Number(fresh.year)!==now.getFullYear() || Number(fresh.monthNumber)!==now.getMonth()+1)
@@ -109,6 +149,7 @@
       localStorage.setItem(cacheKey,testFileId);
     } catch (_) { /* Private mode can deny local storage. Current result still renders. */ }
     startBudgetApp();
+    refreshExpenseCount();
   }
   function report(error){lock(error.message);button.disabled=false;}
   async function chooseFile(){
