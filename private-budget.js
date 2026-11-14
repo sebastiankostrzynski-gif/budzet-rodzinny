@@ -127,6 +127,10 @@
     document.documentElement.classList.remove('budget-locked');
     if(!started) {
       started=true;
+      const artwork = document.createElement('link');
+      artwork.rel = 'stylesheet';
+      artwork.href = './category-art-test.css';
+      document.head.append(artwork);
       const app=document.createElement('script');
       app.textContent=document.getElementById('budget-app-source').textContent;
       document.body.append(app);
