@@ -37,12 +37,19 @@ function api(method,request){
   const token=++sequence;
   let attempts=0;
   announce(method==='list'?'Odczyt listy…':'Zapisywanie decyzji…');
+  function showConnectionHelp(message) {
+    announce(message,true);
+    const link=element('a','Otwórz działającą kolejkę TEST');
+    link.href='https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue';
+    link.target='_blank';
+    link.rel='noopener';
+    $('status').append(document.createElement('br'),link);
+  }
   const timer=setTimeout(()=>{
     if(token!==sequence)return;
-    sequence++;busy=false;
-    document.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);
-    announce('Odczyt trwa dłużej. Odśwież listę za chwilę.',true);
-  },30000);
+    if(method==='list') showConnectionHelp('Nadal czekam na odpowiedź kolejki.');
+    else announce('Oczekuję na potwierdzenie zapisu.');
+  },15000);
   function done(error,result){
     if(token!==sequence)return;
     if(error&&method==='list'&&/Kolejka jest zaj[eę]ta/i.test(error.message||String(error))&&attempts<3){
@@ -54,7 +61,7 @@ function api(method,request){
     clearTimeout(timer);
     busy=false;
     document.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);
-    if(error){announce(error.message||String(error),true);return;}
+    if(error){if(method==='list')showConnectionHelp('Nie udało się połączyć z kolejką w aplikacji.');else announce(error.message||String(error),true);return;}
     state=result;opened=null;draft=null;render();
     announce(method==='list'?'Lista gotowa.':'Zapisano decyzję. Możesz przejść do kolejnego zakupu.');
   }
