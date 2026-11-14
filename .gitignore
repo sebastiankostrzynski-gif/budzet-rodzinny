@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+.clasprc.json
+.clasp.json
+node_modules/
+private-audit/
+backups/
+*.log
