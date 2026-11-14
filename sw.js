@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v63-assignment-auto-refresh';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v64-balance-refresh';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
