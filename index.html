@@ -4,8 +4,9 @@
 
   <meta charset="utf-8">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <meta name="theme-color" content="#071b2b">
+  <link rel="apple-touch-icon" href="./icons/wallet-180.png">
+  <meta name="theme-color" content="#064631">
+  <meta name="apple-mobile-web-app-title" content="Budżet TEST">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -1714,7 +1715,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 
 
 <body>
-<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16v13H4zM7 7V4h10v3M4 11h16M8 15h3"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5M4 19h17M7 15l5-5 4 2 5-7"/></svg><span>Oszczędności</span></button><button data-tab="debts" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><span>Zobowiązania</span></button><button data-tab="balances" aria-pressed="false" onclick="openBalances_()"><span>Salda kont</span></button><button data-tab="assignments" style="display:none" aria-pressed="false" onclick="openAssignments_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4zM8 10h8M8 14h5"/></svg><span>Przypisz</span></button></nav>
+<nav class="budget-tabs" aria-label="Główne zakładki"><button data-tab="budget" class="selected" aria-pressed="true" onclick="showMainDashboard()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 11 9-8 9 8v9h-6v-6H9v6H3z"/></svg><span>Budżet</span></button><button data-tab="savings" aria-pressed="false" onclick="openSavings_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9 4 5l5 1a9 9 0 0 1 11 5l2 1v4l-3 1-1 3h-3l-1-2H9l-1 2H5l-1-4a6 6 0 0 1 1-7zM10 8h4"/><circle cx="17" cy="11" r=".7"/></svg><span aria-label="Oszczędności">Oszczędn.</span></button><button data-tab="debts" aria-label="Zobowiązania" aria-pressed="false" onclick="openDebts_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v5m8-5v5M4 10h16M8 15h4"/></svg><span>Raty</span></button><button data-tab="balances" aria-pressed="false" onclick="openBalances_()"><span>Salda kont</span></button><button data-tab="assignments" style="display:none" aria-pressed="false" onclick="openAssignments_()"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 14 3-9h12l3 9v5H3zm0 0h5l2 3h4l2-3h5"/></svg><span>Przypisz</span></button></nav>
 
   <div id="app">
 
@@ -3954,7 +3955,7 @@ function alerty24CardHtml_() {
     <div class="alerty24-top"><div><div class="alerty24-title">Karta — dzisiejsze wydatki</div><div class="alerty24-caption">Alerty24 · autoryzacje, także oczekujące</div></div>
     <div class="alerty24-amount"><strong>${escapeHtml(alerty24Money_(spent))}</strong><span>z ${escapeHtml(alerty24Money_(limit))}</span></div></div>
     <div class="alerty24-progress" aria-hidden="true"><span style="width:${percent}%"></span></div>
-    <div class="alerty24-meta"><span>${over ? 'Przekroczono o ' + alerty24Money_(Math.abs(remaining)) : 'Pozostało ' + alerty24Money_(remaining)}</span><span>${Number(daily.itemCount) || 0} płatności</span><span>ostatni alert: ${escapeHtml(alerty24Time_(lastImport))}</span><button class="alerty24-refresh" type="button" onclick="alerty24Refresh_(true)" ${alerty24Busy_ ? 'disabled' : ''}>${alerty24Busy_ ? 'Odświeżanie…' : 'Odśwież'}</button></div>
+    <div class="alerty24-meta"><span>${over ? 'Przekroczono o ' + alerty24Money_(Math.abs(remaining)) : 'Zostało ' + alerty24Money_(remaining)}</span><span>${Number(daily.itemCount) || 0} płatności</span><span>ostatni alert: ${escapeHtml(alerty24Time_(lastImport))}</span><button class="alerty24-refresh" type="button" onclick="alerty24Refresh_(true)" ${alerty24Busy_ ? 'disabled' : ''}>${alerty24Busy_ ? 'Odświeżanie…' : 'Odśwież'}</button></div>
     ${sessionText ? `<div class="alerty24-session ${session.status === 'WYGASLA' ? 'is-expired' : ''}">${escapeHtml(sessionText)}</div>` : ''}
     ${alerty24Error_ ? `<div class="alerty24-session is-expired">Pokazujemy ostatnie zapisane dane: ${escapeHtml(alerty24Error_)}</div>` : ''}
   </section></div>`;
@@ -4119,6 +4120,9 @@ function alerty24Start_() {
 
       const sortedCategories = [...data.categories].sort(categoryCompare_);
 
+      const today = new Date();
+      const currentPeriod = Number(selectedYear) === today.getFullYear() && Number(selectedMonth) === today.getMonth()+1;
+      const monthProgress = 100 * today.getDate() / new Date(selectedYear, selectedMonth, 0).getDate();
       let categoriesHtml = '';
 
 
@@ -4162,6 +4166,7 @@ function alerty24Start_() {
               : '#39aa6b';
 
 
+          const showPace = budget > 0 && currentPeriod && ['Wyżywienie i chemia','Transport'].includes(category.name);
           const isNonExpandable = false;
 
 
@@ -4204,13 +4209,19 @@ function alerty24Start_() {
                       ${escapeHtml(category.name)}
                     </div>
 
+                  <span class="category-remaining">
                     ${
-                      budget > 0
-                        ? `<div class="category-status ${execution > budget ? 'over' : 'within'}">
-                            ${execution > budget ? 'Przekroczono' : 'W budżecie'}
-                          </div>`
-                        : ''
+                      budget<=0 ? 'Bez ustalonego budżetu' : execution > budget
+                        ? 'Przekroczono o ' +
+                          formatPLN(
+                            Math.abs(remaining)
+                          )
+                        : 'Zostało ' +
+                          formatPLN(
+                            remaining
+                          )
                     }
+                  </span>
 
                   </div>
 
@@ -4238,7 +4249,7 @@ function alerty24Start_() {
               <div class="category-progress ${budget<=0?'no-limit':''}">
 
                 <div class="progress-background">
-
+                  ${showPace ? `<i class="month-marker" style="left:${monthProgress}%" title="Minęło ${Math.round(monthProgress)}% miesiąca"></i>` : ''}
                   <div
                     class="progress-bar"
                     style="
@@ -4253,23 +4264,11 @@ function alerty24Start_() {
 
                 <div class="category-bottom">
 
-                  <span>
-                    ${
-                      budget<=0 ? 'Bez ustalonego budżetu' : execution > budget
-                        ? 'Przekroczono o ' +
-                          formatPLN(
-                            Math.abs(remaining)
-                          )
-                        : 'Pozostało ' +
-                          formatPLN(
-                            remaining
-                          )
-                    }
-                  </span>
+
 
 
                   <span class="category-bottom-percent">
-                    ${budget>0?Math.round(execution/budget*100)+'%':''}
+                    ${budget>0?Math.round(execution/budget*100)+'%':''}${showPace ? ` · miesiąc ${Math.round(monthProgress)}%` : ''}
                   </span>
 
                 </div>
@@ -4389,7 +4388,7 @@ function alerty24Start_() {
           <button type="button" class="summary-card income income-entry-button" onclick="openIncomeEntriesV22_()" aria-controls="entry-panel" aria-label="Pokaż źródła wpływów">
 
             <div class="summary-label">
-              Wpływy w miesiącu
+              Wpływy
             </div>
 
             <div class="summary-value">
@@ -4402,7 +4401,7 @@ function alerty24Start_() {
           <div class="summary-card expense">
 
             <div class="summary-label">
-              Wydatki w miesiącu
+              Wydatki
             </div>
 
             <div class="summary-value">

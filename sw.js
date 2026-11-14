@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v71-category-detail-art';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v72-malachite-test';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -9,9 +9,9 @@ const APP_SHELL = [
   './inflows.html',
   './queue-transport.js',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-512-maskable.png'
+  './icons/wallet-192.png',
+  './icons/wallet-512.png',
+  './icons/wallet-180.png'
 ];
 
 self.addEventListener('install', event => {

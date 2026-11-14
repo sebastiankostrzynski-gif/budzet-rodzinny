@@ -33,3 +33,57 @@
 }
 
 .detail-header .detail-title-row .detail-icon { display: flex; }
+
+/* Malachite palette for the signed-in TEST dashboard. */
+body { background:#f8f7f2; color:#183a2b; }
+#app .dashboard-month-sticky { padding:5px 0 2px; background:transparent; border:0; box-shadow:none; }
+.dashboard-month-sticky .unified-title-row {grid-template-columns:1fr auto}
+.dashboard-month-sticky .unified-spacer {display:none}
+#app .dashboard-month-sticky h1 {text-align:left;font-size:28px;letter-spacing:-.045em;color:#103c2b}
+.dashboard-month-sticky .unified-period {justify-content:flex-start;margin:0}
+.dashboard-month-sticky .unified-period .month-nav-label {flex:0 1 auto}
+.dashboard-month-sticky .unified-period select {background:transparent;text-align:left;border:0;padding:0 4px;color:#285440}
+#app .main-card {isolation:isolate;overflow:hidden;position:relative;border-radius:19px;padding:20px;box-shadow:0 5px 16px #18342518}
+#app .main-card:not(.main-card-negative):not(.main-card-neutral) {background:linear-gradient(118deg,#052e22,#07543b 73%,#146b4f);color:#fffdf5}
+#app .main-card::after {content:"";position:absolute;pointer-events:none;z-index:-1;width:80%;height:220%;right:-24%;bottom:-115%;border-radius:50%;transform:rotate(-23deg);background:repeating-radial-gradient(ellipse at center,transparent 0 14%,#def8d829 14.4%,#003b2814 15%,transparent 16%);}
+#app .main-card-value {letter-spacing:-.045em}
+#app :is(.summary-card,.category-card,.subcategory-card) {border:1px solid #dddcd0;border-radius:17px;background:#fffefa;box-shadow:0 2px 6px #3b46340a}
+#app .summary-card {padding:14px 12px;text-align:left}
+#app .summary-card::before {display:none}
+.summary-card .summary-label {display:flex;align-items:center;gap:6px;color:#314a3b;font-weight:600}
+.summary-card .summary-label::before {content:"↘";color:#157651;font-size:20px;line-height:1}
+.summary-card.expense .summary-label::before {content:"↗";color:#b75937}
+#app .summary-value {color:#163d2b;font-size:clamp(16px,4.2vw,26px);letter-spacing:-.045em;overflow-wrap:anywhere}
+#app .category-card {padding:14px 15px;position:relative}
+#app .category-card .category-top {gap:10px}
+#app .category-name {color:#163c2b;line-height:1.2}
+#app .category-amount {color:#526258;font-size:13px}
+#app .category-status.within {display:none}
+#app .category-card .category-progress {margin-top:10px}
+#app .category-bottom {align-items:baseline;gap:8px;color:#254b37}
+#app .category-bottom>span:first-child {font-size:15px;font-weight:700}
+#app .category-bottom-percent {font-size:11px;color:#58675c;font-weight:600;text-align:right}
+#app .progress-background {position:relative;background:#e3e6dc;height:6px;border-radius:9px}
+#app .progress-bar {border-radius:inherit}
+#app .month-marker {position:absolute;top:0;bottom:0;width:2px;transform:translateX(-100%);z-index:1;background:#273c2c;box-shadow:0 0 0 1px #fff}
+nav.budget-tabs {background:#faf9f4!important;border-color:#dedfd4;box-shadow:0 -2px 15px #253f2b0c}
+nav.budget-tabs button {color:#526258;border-radius:14px}
+nav.budget-tabs button[data-tab].selected {color:#064631!important;background:#dcebdd!important}
+nav.budget-tabs button svg {width:21px;height:21px;stroke-linecap:round;stroke-linejoin:round}
+#pending-count {background:#a6492e;box-shadow:0 0 0 2px #faf9f4}
+
+#app .category-card {display:grid;grid-template-columns:48px minmax(0,1fr);column-gap:12px}
+#app .category-top {display:contents}
+#app .category-icon {grid-row:1 / span 2;align-self:center}
+#app .category-content,#app .category-progress {grid-column:2}
+#app .category-arrow {display:none}
+#app .category-bottom {flex-wrap:wrap}
+#app .subcategory-progress {height:6px;border-radius:8px;background:#e3e6dc}
+#app .subcategory-progress-bar {border-radius:inherit}
+#app .subcategory-name {color:#143d2c}
+#app .subcategory-budget {color:#59685e}
+
+#app .category-header-row {align-items:baseline;flex-wrap:wrap;gap:3px 10px}
+#app .category-remaining {margin-left:auto;font-size:14px;font-weight:700;color:#174331}
+#app .category-amount {text-align:right}
+#app .category-bottom {justify-content:flex-end}

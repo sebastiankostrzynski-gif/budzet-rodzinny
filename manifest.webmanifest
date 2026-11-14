@@ -1,7 +1,7 @@
 {
   "id": "budzet-rodzinny",
-  "name": "Budżet rodzinny",
-  "short_name": "Budżet",
+  "name": "Budżet rodzinny TEST",
+  "short_name": "Budżet TEST",
   "description": "Dashboard domowych finansów i miesięcznego budżetu.",
   "start_url": "./",
   "scope": "./",
@@ -10,29 +10,23 @@
     "window-controls-overlay",
     "standalone"
   ],
-  "background_color": "#071b2b",
-  "theme_color": "#071b2b",
+  "background_color": "#f8f7f2",
+  "theme_color": "#064631",
   "orientation": "portrait-primary",
   "lang": "pl-PL",
   "dir": "ltr",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/wallet-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512-maskable.png",
+      "src": "icons/wallet-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
