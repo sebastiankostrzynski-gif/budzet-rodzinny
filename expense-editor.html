@@ -27,28 +27,28 @@ let serial=0;function input(value,label){const x=element('input');x.id='input-'+
 function select(options,value,label){const x=element('select');x.id='select-'+(++serial);x.setAttribute('aria-label',label);options.forEach(([v,t])=>x.add(new Option(t,v)));x.value=value||'';return x;}
 function button(text,fn,cls){const b=element('button',text);b.type='button';b.onclick=fn;if(cls)b.className=cls;return b;}
 function announce(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' notice error-box':'');}
-let lastAssignmentIntent;
-function prepareAssignment(request) {
+async function prepareAssignment(request) {
   const row = state.rows.find(item => item.key === request.key);
   if (!row) throw Error('Odśwież listę i ponownie wybierz zakup.');
   const target = state.existingRows.find(item => item.key === request.targetManualKey);
   if (request.action === 'EXISTING_ROW' && !target) throw Error('Odśwież listę i ponownie wybierz pozycję.');
   request.expected = {
+    epoch: row.assignmentEpoch || 0,
     row: [row.key, row.amountCents, row.currency, row.date, row.accountLabel, row.decision || null, !!row.targetNeedsReview],
     target: target ? [target.key, target.sheet, target.label, target.month, target.sectionName || ''] : null
   };
   const signature = JSON.stringify({...request,revision:undefined});
-  if (lastAssignmentIntent?.signature !== signature)
-    lastAssignmentIntent = {signature, id:crypto.randomUUID()};
-  request.operationId = lastAssignmentIntent.id;
+  const hash = await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature));
+  const hex = Array.from(new Uint8Array(hash).slice(0,16),byte=>byte.toString(16).padStart(2,'0')).join('');
+  request.operationId = [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
 }
-function api(method,request){
+async function api(method,request){
   if(busy)return;
-  if(method==='save'){
-    try { prepareAssignment(request); }
-    catch(error){ announce(error.message,true); return; }
-  }
   busy=true;
+  if(method==='save'){
+    try { await prepareAssignment(request); }
+    catch(error){ busy=false; announce(error.message,true); return; }
+  }
   document.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
   const token=++sequence;
   let attempts=0;
@@ -73,6 +73,15 @@ function api(method,request){
       const detail=error.message||String(error);
       announce(/STALE_REVISION/.test(detail)?'Dane zmieniły się. Odśwież listę i sprawdź wybór.':'Zapis nie powiódł się. '+detail,true);
       if(method==='list')announce('Nie udało się pobrać listy. '+detail,true);
+      if(method==='save' && /Odśwież listę|STALE_REVISION/.test(detail)){
+        busy=true;
+        google.script.run.withSuccessHandler(latest=>{
+          busy=false;state=latest;opened=null;draft=null;render();
+          announce('Wystąpił konflikt. Sprawdź aktualną listę i wybierz pozycję ponownie.',true);
+        }).withFailureHandler(()=>{
+          busy=false;announce('Wystąpił konflikt. Odśwież listę przed kolejną próbą.',true);
+        }).ebListSectionsDev();
+      }
       return;
     }
     state=result;opened=null;draft=null;render();
