@@ -67,6 +67,15 @@ function buildEditor(row){const box=element('div');box.className='editor';const 
   if(!d.sheet)return box;const dance=!/^T12\b/.test(d.sheet);const groups=(state.sections||[]).filter(x=>x.sheet===d.sheet).map(x=>x.name);if(groups.length===1)d.danceSection=groups[0];
   const targets=state.existingRows.filter(x=>x.sheet===d.sheet&&x.month===row.date.slice(0,7));
   const choices=element('div');choices.className='choice';for(const [value,label] of [['NEW_ROW','Osobny wpis'],['EXISTING_ROW','Dodaj do pozycji']]){const b=button(value==='EXISTING_ROW'?'Dodaj do istniejącej pozycji':'Dodaj nową pozycję',()=>{d.mode=value;render();});b.setAttribute('aria-pressed',d.mode===value);choices.append(b);}box.append(choices);
+  const competition = /^T10\b/.test(d.sheet) && groups.find(name=>/^Zawody\s*\//i.test(name));
+  if(competition){
+    const add=button('+ Dodaj nowe zawody Julki',()=>{
+      d.mode='NEW_ROW';d.danceSection=competition;d.target='';
+      render();
+      document.querySelector('input[aria-label="Nazwa zawodów"]')?.focus();
+    });
+    choices.append(add);
+  }
   if(dance&&d.mode==='NEW_ROW'){const sec=select([['','Wybierz sekcję'],...groups.map(x=>[x,x])],d.danceSection,'Sekcja nowej pozycji');sec.onchange=()=>{d.danceSection=sec.value;update();};box.append(field('Gdzie dodać nową pozycję?',sec));}
   let splitContainer, balance,save;
   function error(){if(!d.sheet)return 'Wybierz kategorię.';if(dance&&d.mode==='NEW_ROW'&&!d.danceSection)return 'Wybierz sekcję.';if(d.mode==='EXISTING_ROW')return targets.some(x=>x.key===d.target)?'':'Wybierz istniejącą pozycję.';if(/^T12\b/.test(d.sheet)){if(!d.section)return 'Wybierz rodzaj zakupu.';if(d.section==='CLOTHES'){if(d.split)return validateSplit(d.parts,row.amountCents);if(!d.person)return 'Wybierz osobę.';}}return d.description.trim()?'':'Napisz krótko, co kupiono.';}
@@ -86,7 +95,7 @@ function buildEditor(row){const box=element('div');box.className='editor';const 
         amount.oninput=()=>{part.amount=amount.value;part.auto=false;fillRemainder(d.parts,row.amountCents);const autoInput=splitContainer.querySelector('[data-auto-amount]');if(autoInput){autoInput.value=d.parts.at(-1).amount;if(index===d.parts.length-1)autoInput.removeAttribute('data-auto-amount');}update();};if(part.auto)amount.dataset.autoAmount='1';grid.append(amountField);
         const desc=input(part.description,'Opis — pozycja '+(index+1));desc.maxLength=200;desc.placeholder='Np. buty, sukienka';desc.oninput=()=>{part.description=desc.value;update();};const df=field('Co kupiono?',desc);df.classList.add('wide');grid.append(df);line.append(grid);splitContainer.append(line);});}
       renderSplits();const add=button('+ Dodaj pozycję',()=>{addSplit(d.parts,row.amountCents);renderSplits();update();});add.disabled=d.parts.length>=20;box.append(add);balance=element('div');balance.setAttribute('aria-live','polite');box.append(balance);
-    }else{const desc=input(d.description,'Co kupiono');desc.maxLength=200;desc.placeholder='Krótka nazwa wydatku';desc.oninput=()=>{d.description=desc.value;update();};box.append(field(dance?'Nazwa nowej pozycji':'Co kupiono?',desc));}
+    }else{const isCompetition=competition && d.danceSection===competition;const desc=input(d.description,isCompetition?'Nazwa zawodów':'Co kupiono');desc.maxLength=200;desc.placeholder='Krótka nazwa wydatku';desc.oninput=()=>{d.description=desc.value;update();};box.append(field(isCompetition?'Nazwa zawodów':dance?'Nazwa nowej pozycji':'Co kupiono?',desc));}
   }
   if(row.sourceLabel==='Bank')box.append(element('p','Po przypisaniu automat zapisze wydatek w wybranej kategorii w kopii TEST.'));
   const actions=element('div');actions.className='actions';save=button(row.decision?'Zapisz zmianę':'Zapisz przypisanie',()=>{const problem=error();if(problem){announce(problem,true);return;}const split=d.mode==='NEW_ROW'&&/^T12\b/.test(d.sheet)&&d.section==='CLOTHES'&&d.split;api('save',{revision:state.revision,key:row.key,action:d.mode,sheetName:d.sheet,targetManualKey:d.target||undefined,description:split?'Zakup podzielony':d.description.trim(),person:d.person||undefined,budgetSection:dance&&d.mode==='NEW_ROW'?d.danceSection:undefined,t12Section:d.section||undefined,splits:split?d.parts.map(x=>({person:x.person,description:x.description.trim(),amountCents:parseCents(x.amount)})):undefined});},'primary');actions.append(save,button('Później',()=>api('save',{revision:state.revision,key:row.key,action:'DEFER'}),'quiet'),button('Anuluj',()=>{opened=null;draft=null;render();},'quiet'));box.append(actions);update();return box;
