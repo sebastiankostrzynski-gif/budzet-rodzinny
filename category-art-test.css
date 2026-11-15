@@ -175,7 +175,7 @@ body.debts-theme {
 .settlement-body {background:#f4f3eb;border:1px solid #deded3;border-top:0;border-radius:0 0 19px 19px;padding:12px}
 #app .monthly-settlement[open]>summary {border-radius:19px 19px 0 0}
 .settlement-body .summary-grid {margin:0;gap:8px}
-#app .settlement-body .summary-card {display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;font-family:inherit;cursor:pointer}
+#app .settlement-body .summary-card {display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;font-family:inherit}
 .settlement-body .income-entry-hint {margin-top:auto;width:100%}
 #app .settlement-body .disposition-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border:0;margin-top:8px}
 .settlement-body .disposition-item {flex-direction:column;align-items:flex-start;gap:6px;padding:12px;background:linear-gradient(145deg,#ffffff,#fafaf4);border:1px solid #deded3;border-radius:14px}
