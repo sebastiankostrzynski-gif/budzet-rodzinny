@@ -250,9 +250,32 @@
       incomes.onclick=()=>switchMode(true);expenses.onclick=()=>switchMode(false);
       expenses.setAttribute('aria-pressed','true');incomes.setAttribute('aria-pressed','false');
       let state, history=false, saving=false, generation=0;
+      function renderNotices() {
+        const old = root.querySelector('.account-notice-list');
+        if (old) old.remove();
+        if (history) return;
+        const notices = (state.data.bridge?.accountNoticesTEST || [])
+          .filter(row => row.direction === (income ? 'CRDT' : 'DBIT'))
+          .sort((a,b) => b.received.localeCompare(a.received));
+        if (!notices.length) return;
+        const section = make('section');
+        section.className = 'account-notice-list';
+        section.append(make('h2', 'Powiadomienia z banku'));
+        for (const row of notices) {
+          const card = make('article');
+          card.className = 'phone-expense';
+          const amount = row.currency === 'PLN' && Number.isSafeInteger(row.amountCents) && row.amountCents > 0
+            ? new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100) : '';
+          card.append(make('strong',row.label),make('b',amount),make('small',row.date),
+            make('p',row.status === 'OCZEKUJE NA POTWIERDZENIE API' ? 'Alert odebrany · oczekuje na uzgodnienie z bankiem' : 'Wymaga sprawdzenia'));
+          section.append(card);
+        }
+        root.insertBefore(section,list);
+      }
       function render() {
         if (!state || !root.isConnected) return;
         list.replaceChildren();
+        renderNotices();
         if(income){renderIncome();return;}
         const pending = new Set(state.pending);
         const saved = state.rows.filter(r=>!pending.has(r));
