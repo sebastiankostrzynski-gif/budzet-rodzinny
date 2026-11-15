@@ -274,6 +274,29 @@
             ? new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100) : '';
           card.append(make('strong',row.label),make('b',amount),make('small',row.date),
             make('p',row.status === 'OCZEKUJE NA POTWIERDZENIE API' ? 'Alert odebrany · oczekuje na uzgodnienie z bankiem' : 'Wymaga sprawdzenia'));
+          if (row.account === 'R2' && row.currency === 'PLN' && row.date >= '2026-11-15' &&
+              row.status === 'OCZEKUJE NA POTWIERDZENIE API' && /^[a-f0-9]{16}$/.test(row.id) &&
+              Number.isSafeInteger(row.amountCents) && row.amountCents > 0) {
+            const choose = make('button', income ? 'Przenieś do przypisania wpływów' : 'Przenieś do przypisania wydatków');
+            choose.type = 'button';
+            choose.onclick = async () => {
+              if (choose.disabled || !window.confirm('Potwierdzasz operację zewnętrzną na ' + amount +
+                '? Przelewy między własnymi kontami, wypłaty z bankomatu i spłaty karty rozlicza się osobno.')) return;
+              choose.disabled = true;
+              try {
+                const path = encodeURIComponent("'Klasyfikacja alertów R2 TEST'!A:G");
+                const values = [[row.id,row.date,row.direction,row.amountCents,row.account,row.currency,'EXTERNAL']];
+                const ack = await queueSheets(path + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+                  {method:'POST',body:JSON.stringify({values})});
+                if (ack.updates?.updatedRows !== 1) throw Error();
+                choose.textContent = 'Przyjęto · oczekuje na synchronizację';
+              } catch {
+                choose.disabled = false;
+                choose.textContent = 'Brak potwierdzenia · ponów';
+              }
+            };
+            card.append(choose);
+          }
           section.append(card);
         }
         list.after(section);
