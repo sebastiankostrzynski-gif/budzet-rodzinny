@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v84-mortgage-payments';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v85-dance-events';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
