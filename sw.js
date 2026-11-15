@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v85-dance-events';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v86-record-assignment';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
