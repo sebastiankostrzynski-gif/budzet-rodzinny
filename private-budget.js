@@ -207,6 +207,51 @@
     }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
   };
 
+  function mountSettlementControl(root) {
+    // showBudget checks getViewerRole on the server before installing this view.
+    if (window.budgetViewerRole !== 'owner') return;
+    const panel = document.createElement('section');
+    panel.className = 'u47-control';
+    panel.setAttribute('aria-label', 'Kontrola rozliczenia');
+    panel.innerHTML = `<div class="u47-heading"><span>Kontrola rozliczenia</span><small>U47</small></div>
+      <div class="u47-result" role="status"><strong>—</strong><span>Sprawdzanie…</span></div>
+      <div class="u47-footer"><time></time><button type="button" aria-label="Odśwież kontrolę U47">Odśwież</button></div>`;
+    root.append(panel);
+    const amount = panel.querySelector('strong');
+    const status = panel.querySelector('.u47-result span');
+    const time = panel.querySelector('time');
+    const button = panel.querySelector('button');
+    async function read() {
+      if (button.disabled) return;
+      button.disabled = true;
+      panel.dataset.state = 'loading';
+      amount.textContent = '—';
+      status.textContent = 'Sprawdzanie…';
+      time.textContent = '';
+      try {
+        const range = encodeURIComponent("'Wykonanie 2026'!U47");
+        const result = await queueSheets(range + '?valueRenderOption=UNFORMATTED_VALUE');
+        const value = result.values?.[0]?.[0];
+        if (!Number.isFinite(value)) throw Error('Brak kwoty');
+        if (!panel.isConnected) return;
+        const cents = Math.sign(value) * Math.round(Math.abs(value) * 100);
+        amount.textContent = new Intl.NumberFormat('pl-PL', {style:'currency',currency:'PLN'}).format((cents || 0) / 100);
+        panel.dataset.state = cents === 0 ? 'ok' : 'difference';
+        status.textContent = cents === 0 ? 'Rozliczenie zgodne' : 'Różnica do wyjaśnienia';
+        const now = new Date();
+        time.dateTime = now.toISOString();
+        time.textContent = 'Odczyt ' + now.toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      } catch {
+        panel.dataset.state = 'unknown';
+        status.textContent = 'Brak aktualnych danych';
+      } finally {
+        button.disabled = false;
+      }
+    }
+    button.onclick = read;
+    read();
+  }
+
   function installAssignmentView() {
     const original = window.openAssignments_;
     window.openAssignments_ = function() {
@@ -245,7 +290,9 @@
         const btn=make('button',title);btn.type='button';btn.onclick=()=>openForm(file,title);links.append(btn);
       }
       const modes=make('div'), expenses=make('button','Wydatki'), incomes=make('button','Wpływy');
-      modes.append(expenses,incomes); advanced.append(links);root.append(head,modes,tabs,status,list,advanced);
+      modes.append(expenses,incomes); advanced.append(links);root.append(head);
+      mountSettlementControl(root);
+      root.append(modes,tabs,status,list,advanced);
       let income=false;
       function switchMode(next) {
         if(saving)return;

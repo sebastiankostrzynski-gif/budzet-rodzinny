@@ -192,3 +192,14 @@ body.debts-theme {
 .settlement-body .disposition-item:only-child {grid-column:1/-1;display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:12px}
 .settlement-body .disposition-item:only-child .glass-mini {grid-row:1/span 2;align-self:center}
 .settlement-wallet {border-radius:12px}
+
+.u47-control {margin:12px 0 16px;padding:16px 18px 8px;border-radius:18px;background:linear-gradient(115deg,#123e32,#205543);color:#fffdf4}
+.u47-control[data-state="difference"] {background:linear-gradient(115deg,#43311e,#644525)}
+.u47-heading,.u47-footer,.u47-result {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.u47-heading {font-size:14px;font-weight:650}
+.u47-heading small {color:#f3dbab;letter-spacing:.08em}
+.u47-result {margin:10px 0;justify-content:flex-start}
+.u47-result strong {font-size:26px;font-variant-numeric:tabular-nums}
+.u47-result span,.u47-footer {font-size:13px}
+.u47-footer {border-top:1px solid #ffffff36}
+.u47-footer button {min-height:44px;margin-left:auto;border:0;background:transparent;color:inherit;font:inherit;text-decoration:underline}
