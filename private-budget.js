@@ -116,6 +116,12 @@
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     return {data,rows,pending,byKey,incomeCommands,stamp};
   }
+  function pendingIncome(state) {
+    return (state.data.income?.rows || []).filter(row => {
+      const command = state.incomeCommands.get(row.key);
+      return !row.decision && (!command || Boolean(command.result));
+    });
+  }
   const formMethods = {
     'expense-editor.html': ['ebListSectionsDev','ebQueueListDev','ebQueueReviseDev','pkDecideDevV1','kzGetDevV1','kzPreviewDevV1','kzPostDevV1'],
     'manual-entry.html': ['krGetDEV','krRefreshDEV','krSaveDEV','kkListaTest','kkPrzeniesTest']
@@ -258,9 +264,9 @@
           .filter(row => row.direction === (income ? 'CRDT' : 'DBIT'))
           .sort((a,b) => b.received.localeCompare(a.received));
         if (!notices.length) return;
-        const section = make('section');
+        const section = make('details');
         section.className = 'account-notice-list';
-        section.append(make('h2', 'Powiadomienia z banku'));
+        section.append(make('summary', 'Powiadomienia oczekujące na uzgodnienie · ' + notices.length));
         for (const row of notices) {
           const card = make('article');
           card.className = 'phone-expense';
@@ -270,7 +276,7 @@
             make('p',row.status === 'OCZEKUJE NA POTWIERDZENIE API' ? 'Alert odebrany · oczekuje na uzgodnienie z bankiem' : 'Wymaga sprawdzenia'));
           section.append(card);
         }
-        root.insertBefore(section,list);
+        list.after(section);
       }
       function render() {
         if (!state || !root.isConnected) return;
@@ -327,7 +333,7 @@
         const data=state.data.income;
         if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
         const waiting=row=>{const cmd=state.incomeCommands.get(row.key);return cmd && !cmd.result;};
-        const pending=data.rows.filter(row=>!row.decision&&!waiting(row));
+        const pending=pendingIncome(state);
         const saved=data.rows.filter(row=>row.decision||waiting(row));
         pendingTab.textContent='Do przypisania · '+pending.length;historyTab.textContent='Zapisane · '+saved.length;
         pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
@@ -367,7 +373,7 @@
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
           state=next;render();status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
           lastCountRead=0;refreshExpenseCount();
-        }catch(e){if(seq===generation){list.replaceChildren();state=null;status.textContent=e.message;}}
+        }catch(e){if(seq===generation){list.replaceChildren();root.querySelector('.account-notice-list')?.remove();state=null;status.textContent=e.message;}}
       }
       refresh.onclick=()=>{if(!saving)reload();};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
       reload();
@@ -386,15 +392,15 @@
       const snapshot = await phoneQueue();
       const {stamp} = snapshot;
       if(Date.now()-Date.parse(stamp)>20*60000)throw Error();
-      const count=snapshot.pending.length;
+      const count=snapshot.pending.length + pendingIncome(snapshot).length;
       badge.textContent = String(count);
       badge.hidden = count === 0;
-      tab.setAttribute('aria-label','Przypisz. Wydatki do przypisania: ' + count);
-      tab.title = 'Wydatki do przypisania: ' + count + ' · stan z ' + new Date(stamp).toLocaleTimeString('pl-PL');
+      tab.setAttribute('aria-label','Przypisz. Operacje do przypisania: ' + count);
+      tab.title = 'Operacje do przypisania: ' + count + ' · stan z ' + new Date(stamp).toLocaleTimeString('pl-PL');
     } catch (_) {
       badge.hidden = false;
       badge.textContent = '…';
-      tab.title = 'Aktualna liczba wydatków niedostępna';
+      tab.title = 'Aktualna liczba operacji niedostępna';
       tab.setAttribute('aria-label','Przypisz. ' + tab.title);
     } finally { countBusy = false; }
   }
