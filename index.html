@@ -4286,61 +4286,9 @@ function alerty24Start_() {
 
         ${unifiedHeader_('budget','Budżet',budgetPeriods_(),selectedYear+'-'+String(selectedMonth).padStart(2,'0'),null)}
         <div class="sav-status budget-status"><div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div><button id="budget-refresh" onclick="refreshDashboardSilently_()" aria-label="Odśwież budżet">↻</button></div>
-        <!-- ROZLICZENIE MIESIĄCA -->
-
-        <details class="surplus-card disposition-card" open><summary>Rozliczenie miesiąca</summary>
-
-          
-
-          <div class="disposition-grid">
-            ${[
-              mortgageOverpayment ? {label:'Nadpłata kredytu',value:mortgageOverpayment} : null,
-              hasInvestmentBreakdown
-                ? (retirement ? {label:'Emerytura',value:retirement} : null)
-                : {label:'Inwestycje / IKZE',value:investments},
-              hasInvestmentBreakdown && childrenCapital
-                ? {label:'Kapitał na start dla dzieci',value:childrenCapital}
-                : null,
-              hasInvestmentBreakdown && personalInvestments
-                ? {label:'Inwestycje własne',value:personalInvestments}
-                : null,
-              savings ? {label:savingsLabel,value:savings,kind:savingsValueClass} : null
-            ].filter(Boolean).map(function(item) {
-              return `<div class="disposition-item ${item.kind || ''}">
-                <div class="disposition-item-label">${item.label}</div>
-                <div class="disposition-item-value">${formatPLN(item.value)}</div>
-              </div>`;
-            }).join('')}
-          </div>
-
-          <div class="disposition-total">
-            <div class="disposition-total-label">
-              Razem rozdysponowano
-            </div>
-            <div
-              class="disposition-total-value"
-              style="
-                color: ${
-                  dispositionBalance < 0
-                    ? '#e74c3c'
-                    : dispositionBalance > 0
-                      ? '#39aa6b'
-                      : '#777'
-                };
-              "
-            >
-              ${formatPLN(dispositionBalance)}
-            </div>
-          </div>
-
-        </details>
-
-        <!-- WOLNE ŚRODKI -->
-
-        <div
-          class="main-card ${mainCardClass}"
-        >
-
+        <details class="disposition-card monthly-settlement">
+          <summary class="main-card ${mainCardClass}">
+            <img class="settlement-wallet" src="./icons/glass-wallet.webp" alt="" width="56" height="56">
           <div class="main-card-header">
 
             <div class="main-card-label">
@@ -4378,12 +4326,10 @@ function alerty24Start_() {
             }
           </div>
 
-        </div>
-
-
-        <!-- WPŁYWY / WYDATKI -->
-
-        <div class="summary-grid">
+            <span class="settlement-toggle">Rozliczenie miesiąca <span aria-hidden="true">⌄</span></span>
+          </summary>
+          <div class="settlement-body">
+<div class="summary-grid">
 
           <button type="button" class="summary-card income income-entry-button" onclick="openIncomeEntriesV22_()" aria-controls="entry-panel" aria-label="Pokaż źródła wpływów">
 
@@ -4398,7 +4344,7 @@ function alerty24Start_() {
           <span class="income-entry-hint">Zobacz źródła <span aria-hidden="true">›</span></span></button>
 
 
-          <div class="summary-card expense">
+          <button type="button" class="summary-card expense" onclick="document.getElementById('budget-categories').focus()" aria-controls="budget-categories">
 
             <div class="summary-label">
               Wydatki
@@ -4408,18 +4354,56 @@ function alerty24Start_() {
               ${formatPLN(wydatki)}
             </div>
 
-          </div>
+          <span class="income-entry-hint">Zobacz kategorie <span aria-hidden="true">›</span></span></button>
 
         </div>
+          <div class="disposition-grid">
+            ${[
+              mortgageOverpayment ? {label:'Nadpłata kredytu',value:mortgageOverpayment} : null,
+              hasInvestmentBreakdown
+                ? (retirement ? {label:'Emerytura',value:retirement} : null)
+                : {label:'Inwestycje / IKZE',value:investments},
+              hasInvestmentBreakdown && childrenCapital
+                ? {label:'Kapitał na start dla dzieci',value:childrenCapital}
+                : null,
+              hasInvestmentBreakdown && personalInvestments
+                ? {label:'Inwestycje własne',value:personalInvestments}
+                : null,
+              savings ? {label:savingsLabel,value:savings,kind:savingsValueClass} : null
+            ].filter(item => item && item.value !== 0).map(function(item) {
+              return `<div class="disposition-item ${item.kind || ''}">
+                <div class="disposition-item-label">${item.label}</div>
+                <div class="disposition-item-value">${item.value > 0 ? '+' : ''}${formatPLN(item.value)}</div>
+              </div>`;
+            }).join('')}
+          </div>
 
+          <div class="disposition-total">
+            <div class="disposition-total-label">
+              Razem rozdysponowano
+            </div>
+            <div
+              class="disposition-total-value"
+              style="
+                color: ${
+                  dispositionBalance < 0
+                    ? '#e74c3c'
+                    : dispositionBalance > 0
+                      ? '#39aa6b'
+                      : '#777'
+                };
+              "
+            >
+              ${formatPLN(dispositionBalance)}
+            </div>
+          </div>
 
-        
+          </div>
+        </details>
 
         <!-- KATEGORIE -->
 
-        <div class="categories-title">
-          Wydatki według kategorii
-        </div>
+        <h2 id="budget-categories" class="categories-title" tabindex="-1">Wydatki według kategorii</h2>
 
 
         ${categoryControls_()}

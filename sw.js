@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v90-verify-external';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v91-monthly-settlement';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
