@@ -5672,11 +5672,28 @@ function savingsRefresh_(automatic=false){
 }
 function setBudgetTab_(tab){document.body.classList.toggle('debts-theme',tab==='debts');document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
 
+function goldenControlMarkup_(){
+  // The live U47 endpoint must be implemented and authorized in private Apps Script first.
+  // Never show a fabricated zero or a green status while that endpoint is absent.
+  return '<details class="golden-control"><summary><span><span class="gold-title">✦ GOLDEN CONTROL · U47</span><br><span class="gold-status">Odczyt jeszcze niepodłączony</span></span><span class="gold-value">—</span></summary><div class="gold-detail"><strong>Status: niezweryfikowany</strong><p>Wynik U47 wymaga bezpośredniego, autoryzowanego odczytu z prywatnego arkusza. Brak danych nie oznacza zgodności. Ten panel nie zmienia formuł ani sald.</p></div></details>';
+}
+
+
+/* Golden Control: owner-only presentation; never infer U47 from account balances */
+.golden-control{margin:0 0 18px;padding:18px;border-radius:22px;background:linear-gradient(135deg,#07382b,#105d43);color:#f5f8ee;box-shadow:0 12px 32px #07382b25}
+.golden-control summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
+.golden-control summary::-webkit-details-marker{display:none}
+.golden-control .gold-title{font-weight:750;letter-spacing:.06em;color:#ecd29a;font-size:12px}
+.golden-control .gold-status{font-size:13px;color:#d4dfd7}
+.golden-control .gold-value{font-size:27px;font-weight:780;font-variant-numeric:tabular-nums}
+.golden-control .gold-detail{margin:15px 0 0;padding-top:14px;border-top:1px solid #ffffff35;color:#e0e9e3;font-size:13px;line-height:1.5}
+.golden-control .gold-detail button{margin-top:12px;border:1px solid #b4d8c8;border-radius:12px;padding:10px 14px;background:#ffffff13;color:white;font-weight:650}
+
 function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue" target="_blank" rel="noopener">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=inflows" target="_blank" rel="noopener">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Kolejka otworzy się w osobnym widoku Google. Po zapisaniu wróć do budżetu, aby sprawdzić saldo.</p></div>`;
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap">${goldenControlMarkup_()}<h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue" target="_blank" rel="noopener">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=inflows" target="_blank" rel="noopener">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Kolejka otworzy się w osobnym widoku Google. Po zapisaniu wróć do budżetu, aby sprawdzić saldo.</p></div>`;
   window.scrollTo(0,0);
 }
 
