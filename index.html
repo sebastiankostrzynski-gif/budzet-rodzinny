@@ -4333,6 +4333,7 @@ function alerty24Start_() {
 
           <button type="button" class="summary-card income income-entry-button" onclick="openIncomeEntriesV22_()" aria-controls="entry-panel" aria-label="Pokaż źródła wpływów">
 
+            <span class="glass-mini" data-art="cash" aria-hidden="true"></span>
             <div class="summary-label">
               Wpływy
             </div>
@@ -4346,6 +4347,7 @@ function alerty24Start_() {
 
           <button type="button" class="summary-card expense" onclick="document.getElementById('budget-categories').focus()" aria-controls="budget-categories">
 
+            <span class="glass-mini" data-art="wallet" aria-hidden="true"></span>
             <div class="summary-label">
               Wydatki
             </div>
@@ -4359,19 +4361,20 @@ function alerty24Start_() {
         </div>
           <div class="disposition-grid">
             ${[
-              mortgageOverpayment ? {label:'Nadpłata kredytu',value:mortgageOverpayment} : null,
+              mortgageOverpayment ? {art:'hipoteka',label:'Nadpłata kredytu',value:mortgageOverpayment} : null,
               hasInvestmentBreakdown
-                ? (retirement ? {label:'Emerytura',value:retirement} : null)
-                : {label:'Inwestycje / IKZE',value:investments},
+                ? (retirement ? {art:'retirement',label:'Emerytura',value:retirement} : null)
+                : {art:'investments',label:'Inwestycje / IKZE',value:investments},
               hasInvestmentBreakdown && childrenCapital
-                ? {label:'Kapitał na start dla dzieci',value:childrenCapital}
+                ? {art:'children',label:'Kapitał na start dla dzieci',value:childrenCapital}
                 : null,
               hasInvestmentBreakdown && personalInvestments
-                ? {label:'Inwestycje własne',value:personalInvestments}
+                ? {art:'investments',label:'Inwestycje własne',value:personalInvestments}
                 : null,
-              savings ? {label:savingsLabel,value:savings,kind:savingsValueClass} : null
+              savings ? {art:'cash',label:savingsLabel,value:savings,kind:savingsValueClass} : null
             ].filter(item => item && item.value !== 0).map(function(item) {
               return `<div class="disposition-item ${item.kind || ''}">
+                <span class="glass-mini" data-art="${item.art}" aria-hidden="true"></span>
                 <div class="disposition-item-label">${item.label}</div>
                 <div class="disposition-item-value">${item.value > 0 ? '+' : ''}${formatPLN(item.value)}</div>
               </div>`;

@@ -181,3 +181,14 @@ body.debts-theme {
 .settlement-body .disposition-item {flex-direction:column;align-items:flex-start;gap:6px;padding:12px;background:linear-gradient(145deg,#ffffff,#fafaf4);border:1px solid #deded3;border-radius:14px}
 .settlement-body .disposition-item-value {font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
 #budget-categories {scroll-margin-top:110px}
+
+.settlement-body .glass-mini {
+  display:block;width:44px;height:44px;flex:none;border-radius:10px;
+  background:url('./icons/credit-savings-atlas.webp') var(--glass-cell) / 400% 300% no-repeat;
+  mix-blend-mode:multiply;
+}
+.settlement-body .glass-mini[data-art="wallet"] {background:url('./icons/glass-wallet.webp') center / cover no-repeat}
+.settlement-body .summary-label::before {display:none}
+.settlement-body .disposition-item:only-child {grid-column:1/-1;display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:12px}
+.settlement-body .disposition-item:only-child .glass-mini {grid-row:1/span 2;align-self:center}
+.settlement-wallet {border-radius:12px}
