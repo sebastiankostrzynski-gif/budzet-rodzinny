@@ -305,7 +305,8 @@ api('list');
         if(!data||!Array.isArray(data.current)||!Number.isSafeInteger(data.amountCents))
           throw Error('Odczyt zwrócił niekompletne dane.');
         loaded=data;loadError='';
-        lines=[{sheetName:'',targetManualKey:'',amount:formatInput(data.amountCents),auto:true}];render();
+        const forEwa=data.current.length && data.current.every(p=>p.sheetName==='T12 Ubrania i prezenty' && /^(?:dla Ewa|Ewa)\b/i.test(p.label));
+        lines=[{sheetName:forEwa?'T12 Ubrania i prezenty':'',newClothing:!!forEwa,targetManualKey:'',amount:formatInput(data.amountCents),auto:true}];render();
       }catch(err){loaded=null;loadError='Nie udało się wyświetlić korekty: '+(err.message||String(err));render();}
     }
     try{google.script.run.withSuccessHandler(data=>finish(data,null))
@@ -332,10 +333,21 @@ api('list');
     function rerender(){list.replaceChildren();lines.forEach((part,i)=>{
       const group=element('div');group.className='split';group.append(element('h3','Część '+(i+1)));
       const category=select([['','Wybierz kategorię'],...state.expenseSheets.map(s=>[s,s.replace(/^T\d+\s+/, '')])],part.sheetName,'Kategoria '+(i+1));
-      category.onchange=()=>{part.sheetName=category.value;part.targetManualKey='';rerender();};group.append(field('Kategoria',category));
-      const choices=state.existingRows.filter(x=>x.sheet===part.sheetName&&x.month==='2026-11');
-      const target=select([['','Wybierz pozycję'],...choices.map(x=>[x.key,x.label])],part.targetManualKey,'Pozycja '+(i+1));
-      target.onchange=()=>{part.targetManualKey=target.value;update();};group.append(field('Pozycja budżetu',target));
+      category.onchange=()=>{part.sheetName=category.value;part.newClothing=false;part.targetManualKey='';rerender();};group.append(field('Kategoria',category));
+      if(part.sheetName==='T12 Ubrania i prezenty'){
+        const mode=select([['existing','Istniejąca pozycja'],['new','Nowe ubranie dla Ewy']],part.newClothing?'new':'existing','Sposób przypisania');
+        mode.onchange=()=>{part.newClothing=mode.value==='new';rerender();};
+        group.append(field('Sposób przypisania',mode));
+      }
+      if(part.newClothing){
+        const name=input(part.description,'Nazwa ubrania '+(i+1));name.maxLength=100;
+        name.oninput=()=>{part.description=name.value;update();};
+        group.append(field('Nazwa ubrania',name));
+      }else{
+        const choices=state.existingRows.filter(x=>x.sheet===part.sheetName&&x.month==='2026-11');
+        const target=select([['','Wybierz pozycję'],...choices.map(x=>[x.key,x.label])],part.targetManualKey,'Pozycja '+(i+1));
+        target.onchange=()=>{part.targetManualKey=target.value;update();};group.append(field('Pozycja budżetu',target));
+      }
       const amount=input(part.amount,'Kwota '+(i+1));amount.inputMode='decimal';
       amount.oninput=()=>{part.amount=amount.value;part.auto=false;remaining();
         const auto=list.querySelector('[data-kz-auto]');if(auto)auto.value=lines.at(-1).amount;update();};
@@ -347,14 +359,15 @@ api('list');
     function problem(){
       if(!lines.length)return 'Dodaj pozycję.';
       let sum=0;for(const p of lines){const c=parseCents(p.amount);
-        if(!p.targetManualKey)return 'Wybierz pozycję każdej części.';
+        if(p.newClothing && !p.description?.trim())return 'Wpisz nazwę każdego ubrania.';
+        if(!p.newClothing && !p.targetManualKey)return 'Wybierz pozycję każdej części.';
         if(c===null||c<=0)return 'Wpisz dodatnią kwotę każdej części.';sum+=c;}
       return sum===loaded.amountCents?'':'Suma części musi wynosić '+money(loaded.amountCents)+'.';
     }
     const save=button('Sprawdź i zapisz korektę',()=>{
       const error=problem();if(error){announce(error,true);return;}
       const req={revision:state.revision,key:openedKey,correctionVersion:loaded.version,
-        parts:lines.map(p=>({mode:'EXISTING_ROW',targetManualKey:p.targetManualKey,amountCents:parseCents(p.amount)}))};
+        parts:lines.map(p=>({...p.newClothing?{mode:'NEW_ROW',sheetName:p.sheetName,person:'Ewa',description:p.description.trim()}:{mode:'EXISTING_ROW',targetManualKey:p.targetManualKey},amountCents:parseCents(p.amount)}))};
       if(working)return;working=true;save.disabled=true;announce('Sprawdzam korektę…');
       google.script.run.withSuccessHandler(()=>{
         google.script.run.withSuccessHandler(result=>{
@@ -367,8 +380,8 @@ api('list');
       status.replaceChildren(element('span',left===0?'Cała kwota rozpisana':'Pozostało / nadwyżka'),element('strong',money(Math.abs(left))));
       status.className='balance '+(left===0?'good':'error');save.disabled=!!problem()||working;}
     box.append(button('+ Dodaj część',()=>{if(lines.length>=20)return;
-      if(lines.length===1&&lines[0].auto)lines[0].amount=formatInput(Math.floor(loaded.amountCents/2));
-      lines.at(-1).auto=false;lines.push({sheetName:'',targetManualKey:'',amount:'',auto:true});remaining();rerender();}),status);
+      if(lines.length===1&&lines[0].auto)lines[0].amount='';
+      const previous=lines.at(-1);previous.auto=false;lines.push({sheetName:previous.sheetName,newClothing:previous.newClothing,targetManualKey:'',amount:'',auto:true});remaining();rerender();}),status);
     const actions=element('div');actions.className='actions';actions.append(save,button('Anuluj',close,'quiet'));box.append(actions);
     rerender();return box;
   }

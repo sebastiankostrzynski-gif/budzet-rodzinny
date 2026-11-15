@@ -160,24 +160,6 @@
     const frame=activeForm;
     if (!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
         !formMethods[frame.dataset.form]?.includes(method)) throw Error('Brak dostępu do formularza.');
-    if (method === 'krGetDEV') {
-      const [methods, results] = await Promise.all([queueSheets(formSheet('B2:B')), queueSheets(formSheet('D2:E'))]);
-      const entries = results.values || [];
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const [status, stamp] = entries[i];
-        const operation = methods.values?.[i]?.[0];
-        if (status !== 'OK') continue;
-        if (operation === 'kkPrzeniesTest') break;
-        if (operation !== 'krGetDEV' && operation !== 'krSaveDEV') continue;
-        const row = i + 2;
-        const result = await queueSheets(formSheet(row + ':' + row));
-        const [id, source,, confirmed, asOf, ...chunks] = result.values?.[0] || [];
-        if (!id || source !== operation || confirmed !== 'OK' || asOf !== stamp) continue;
-        const bytes = Uint8Array.from(atob(chunks.join('')), c => c.charCodeAt(0));
-        const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
-        if (Array.isArray(data.accounts) && Array.isArray(data.expenseSheets)) return {...data, manualAsOf: asOf};
-      }
-    }
     if (method === 'krRefreshDEV') method = 'krGetDEV';
     if ((method==='ebListSectionsDev' || method==='ebQueueListDev') && !refreshEditor) {
       const snapshot=await phoneQueue();
