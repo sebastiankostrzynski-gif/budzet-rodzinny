@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v89-assignment-notices';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v90-verify-external';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
