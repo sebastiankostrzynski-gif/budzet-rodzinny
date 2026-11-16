@@ -116,6 +116,16 @@
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     return {data,rows,pending,byKey,incomeCommands,stamp};
   }
+  function applyPublishedTargets(manual, published) {
+    if (!Array.isArray(published.existingRows) || !Array.isArray(published.expenseSheets))
+      throw Error('Lista pozycji budżetu jest chwilowo niedostępna.');
+    const months = new Set(published.existingRows.map(row => row.month));
+    const sheets = new Set(published.expenseSheets);
+    return {...manual, existingRows: [
+      ...manual.existingRows.filter(row => !months.has(row.month) || !sheets.has(row.sheet)),
+      ...published.existingRows
+    ]};
+  }
   function pendingIncome(state) {
     return (state.data.income?.rows || []).filter(row => {
       const command = state.incomeCommands.get(row.key);
@@ -180,7 +190,13 @@
     if(write)localStorage.setItem(receiptKey,JSON.stringify(receipt));
     formNotice.textContent='Oczekiwanie na wynik z TEST…';
     try {
-      const data=await waitForForm(receipt);
+      let data;
+      if (method === 'krGetDEV') {
+        const [manual, snapshot] = await Promise.all([waitForForm(receipt), phoneQueue()]);
+        data = applyPublishedTargets(manual, snapshot.data);
+      } else {
+        data = await waitForForm(receipt);
+      }
       if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets))lastEditorData={data,time:Date.now()};
       if(method==='ebListSectionsDev')refreshEditor=false;
       if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
