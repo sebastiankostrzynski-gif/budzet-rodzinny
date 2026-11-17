@@ -1770,13 +1770,9 @@ function makeRunner(success=()=>{}, failure=()=>{}) {
     return (...args)=>window.budgetRpc(name,args).then(success,failure);
   }});
 }
-let viewerRole_ = null;
-budgetApi.script.run.withSuccessHandler(role => {
-  viewerRole_ = role === 'owner' ? 'owner' : 'viewer';
-  const assignmentTab = document.querySelector('.budget-tabs button[data-tab="assignments"]');
-  if (assignmentTab) assignmentTab.style.display = viewerRole_ === 'owner' ? 'flex' : 'none';
-}).withFailureHandler(() => { viewerRole_ = 'viewer'; }).getViewerRole();
-
+const viewerRole_ = window.budgetViewerRole;
+const assignmentTab = document.querySelector('.budget-tabs button[data-tab="assignments"]');
+if (assignmentTab) assignmentTab.style.display = viewerRole_ === 'owner' ? 'flex' : 'none';
 
 // Alerty24 is a separate, read-only DEV bridge from the “Budżet — Erste ODCZYT” project.
 // It is intentionally opt-in: production is unchanged until the query parameter is supplied.
@@ -2556,6 +2552,7 @@ const budgetDisk = (() => {
 
         Object.keys(categories).forEach(function(categoryName) {
           if (categories[categoryName]) {
+            categories[categoryName].fetchedAt ||= categories[categoryName].timestamp;
             categories[categoryName].timestamp = 0;
           }
         });
@@ -2852,6 +2849,7 @@ const budgetDisk = (() => {
       }
 
       return {
+        fetchedAt: item.fetchedAt || item.timestamp,
         data: item.data || null,
         error: item.error || null,
         isFresh:
@@ -2881,6 +2879,7 @@ const budgetDisk = (() => {
       if (!data && categoryDetailsCache[key].categories[categoryName] &&
           categoryDetailsCache[key].categories[categoryName].data) return;
       categoryDetailsCache[key].categories[categoryName] = {
+        fetchedAt: Date.now(),
         data: data || null,
         error: error || null,
         timestamp: Date.now()
@@ -3315,37 +3314,6 @@ const budgetDisk = (() => {
       });
     }
 
-    function startInitialBackgroundPreload() {
-      
-      
-      
-      
-      
-      // Keep the current month responsive before fetching adjacent months.
-
-      
-      
-      
-      // One batch warms every category. A click joins this request instead of
-      // opening another slow execution; the result survives PWA restarts.
-      setTimeout(function() {
-        if (!selectedYear || !selectedMonth || document.visibilityState !== 'visible') return;
-        const year=Number(selectedYear), month=Number(selectedMonth);
-        if (Object.keys(categoryDetailsInflight).length) {
-          const waitForDetails=setInterval(function() {
-            if (Object.keys(categoryDetailsInflight).length) return;
-            clearInterval(waitForDetails);
-            if (document.visibilityState === 'visible' && Number(selectedYear)===year && Number(selectedMonth)===month)
-              preloadCategoryDetailsForMonth(year, month);
-          }, 1000);
-          setTimeout(function(){ clearInterval(waitForDetails); }, 45000);
-          return;
-        }
-        preloadCategoryDetailsForMonth(year, month);
-      }, 3500);
-    }
-
-
     function refreshMonthInBackground(year, month) {
       fetchMonthData(
         year,
@@ -3633,7 +3601,6 @@ function formatHistoryValue(value) {
 
           renderDashboard(data);
           persistCurrentDashboard_(data);
-          if (isInitialLoad) startInitialBackgroundPreload();
 
           // V23 odpowiedź zawiera już revision/day/build. Nie wykonuj drugiego RPC przy starcie.
           if (!data.sync) {
@@ -3642,10 +3609,7 @@ function formatHistoryValue(value) {
             updateFreshnessIndicator_('ok');
           }
 
-          if (!opts.silent && data.sync) {
-            // Jedno lekkie sprawdzenie po renderze zamiast drugiego pełnego odczytu.
-            setTimeout(function() { requestBackgroundFreshDashboard_(true); }, 1000);
-          }
+
         },
         function(error) {
           if (requestToken !== dashboardRequestToken_) return;
@@ -3680,12 +3644,20 @@ function formatHistoryValue(value) {
     // LEKKIE SPRAWDZENIE STANU ŹRÓDŁA
     // ========================================================
 
-    function checkRefreshState_(force) {
+    let manualRefreshRequested_ = false;
+    let expenseChangePending_ = false;
+    function checkRefreshState_(force, manual = false) {
+      if (manual && !silentRefreshInFlight) manualRefreshRequested_ = true;
 
-      if (!dashboardData || refreshStateRequestInFlight) {
+      if (!dashboardData || refreshStateRequestInFlight || silentRefreshInFlight) {
         return;
       }
 
+      if (expenseChangePending_) {
+        manualRefreshRequested_ = false;
+        refreshDashboardSilently_();
+        return;
+      }
       const now = Date.now();
 
       if (
@@ -3707,8 +3679,10 @@ function formatHistoryValue(value) {
         .withSuccessHandler(function(state) {
 
           refreshStateRequestInFlight = false;
-
+          const userRequested = manualRefreshRequested_;
+          manualRefreshRequested_ = false;
           if (!state) {
+            if (userRequested) refreshDashboardSilently_();
             return;
           }
 
@@ -3733,7 +3707,11 @@ function formatHistoryValue(value) {
           if (
             dayChanged ||
             sourceChanged ||
-            buildChanged
+            buildChanged ||
+            expenseChangePending_ ||
+            (dashboardData.sync && ['sourceUpdatedMs', 'dayKey', 'buildVersion'].some(
+              key => String(dashboardData.sync[key]) !== String(state[key]))) ||
+            (userRequested && (!dashboardData.sync || !Number(state.sourceUpdatedMs)))
           ) {
             updateFreshnessIndicator_('updating');
 
@@ -3742,7 +3720,7 @@ function formatHistoryValue(value) {
             // wersji lub dnia użytkownik widzi cache od razu, a świeże dane
             // są dogrywane w tle (stale-while-revalidate).
             const categoryCacheMode = 'stale';
-            markCategoryDetailsStale_();
+            invalidateExpenseDetails_();
 
             // Zmiana źródła lub wersji może dotyczyć także starszych miesięcy.
             // Nie usuwamy ich (żeby nadal otwierały się natychmiast), tylko
@@ -3762,6 +3740,11 @@ function formatHistoryValue(value) {
         })
         .withFailureHandler(function() {
           refreshStateRequestInFlight = false;
+          if (manualRefreshRequested_) {
+            manualRefreshRequested_ = false;
+            refreshDashboardSilently_();
+            return;
+          }
           updateFreshnessIndicator_('error');
         })
         .getRefreshState();
@@ -3771,6 +3754,19 @@ function formatHistoryValue(value) {
     // ========================================================
     // PEŁNE DANE – TYLKO PO WYKRYCIU ZMIANY
     // ========================================================
+
+    function invalidateExpenseDetails_() {
+      markCategoryDetailsStale_();
+      for (const state of entryViewsV22_.values()) state.requested = 0;
+    }
+
+    window.addEventListener('budget-assignment-saved', () => {
+      expenseChangePending_ = true;
+      invalidateExpenseDetails_();
+      markMonthDashboardCacheStale_();
+      lastRefreshCheckAt = 0;
+      lastBackgroundFreshAt_ = 0;
+    });
 
     function refreshDashboardSilently_(options) {
 
@@ -3786,6 +3782,8 @@ function formatHistoryValue(value) {
         return;
       }
 
+      const pendingAtStart = expenseChangePending_;
+      expenseChangePending_ = false;
       silentRefreshInFlight = true;
       updateFreshnessIndicator_('updating');
       const refreshYear_ = selectedYear, refreshMonth_ = selectedMonth;
@@ -3799,6 +3797,7 @@ function formatHistoryValue(value) {
         function(data) {
 
           silentRefreshInFlight = false;
+          if (!options) invalidateExpenseDetails_();
           if (selectedYear !== refreshYear_ || selectedMonth !== refreshMonth_) return;
 
           maxYear = Number(data.maxYear);
@@ -3817,6 +3816,7 @@ function formatHistoryValue(value) {
         function() {
 
           silentRefreshInFlight = false;
+          expenseChangePending_ ||= pendingAtStart;
           updateFreshnessIndicator_('error');
 
           // Przy błędzie zachowujemy ostatni poprawny ekran.
@@ -4287,7 +4287,7 @@ function alerty24Start_() {
       app.innerHTML = `
 
         ${unifiedHeader_('budget','Budżet',budgetPeriods_(),selectedYear+'-'+String(selectedMonth).padStart(2,'0'),null)}
-        <div class="sav-status budget-status"><div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div><button id="budget-refresh" onclick="refreshDashboardSilently_()" aria-label="Odśwież budżet">↻</button></div>
+        <div class="sav-status budget-status"><div class="data-freshness ${lastRefreshSuccessAt ? 'is-ok' : 'is-checking'}" aria-live="polite">${escapeHtml(getFreshnessLabel_())}</div><button id="budget-refresh" onclick="checkRefreshState_(true, true)" aria-label="Odśwież budżet">↻</button></div>
         <details class="disposition-card monthly-settlement">
           <summary class="main-card ${mainCardClass}">
             <img class="settlement-wallet" src="./icons/glass-wallet.webp" alt="" width="56" height="56">
@@ -4688,10 +4688,22 @@ function alerty24Start_() {
             year,
             month,
             function(data) {
-              if (categoryName === foodCategory_) updateVisibleDailyLimit_(data, year, month);
+              if (!data || activeView_ !== 'category' || activeCategory_ !== categoryName ||
+                  Number(selectedYear) !== year || Number(selectedMonth) !== month) return;
+              renderCategoryDetails(data, true);
+              if (dailyLimitIsStale_(data, year, month)) updateVisibleDailyLimit_(null, year, month);
             },
             function() {
-              if (dailyLimitIsStale_(cached.data, year, month)) updateVisibleDailyLimit_(null, year, month);
+              if (activeView_ !== 'category' || activeCategory_ !== categoryName ||
+                  Number(selectedYear) !== year || Number(selectedMonth) !== month) return;
+              const notice = document.createElement('p');
+              notice.setAttribute('role', 'status');
+              notice.textContent = cached.fetchedAt ? 'Ostatni odczyt: ' + formatRefreshClock_(cached.fetchedAt) + '. ' : 'Wyświetlam zapisane dane. ';
+              const retry = document.createElement('button');
+              retry.textContent = 'Ponów odczyt';
+              retry.onclick = () => openCategory(categoryName);
+              notice.append(retry);
+              app.prepend(notice);
             }
           );
         }
@@ -4699,7 +4711,7 @@ function alerty24Start_() {
         return;
       }
 
-      const summary = dashboardData && Array.isArray(dashboardData.categories)
+      const summary = dashboardData && Number(dashboardData.year) === year && Number(dashboardData.monthNumber) === month && Array.isArray(dashboardData.categories)
         ? dashboardData.categories.find(item => item.name === categoryName) : null;
       const monthLabel = new Intl.DateTimeFormat('pl-PL', {month:'long',year:'numeric'}).format(new Date(year,month-1,1));
       const spent = summary ? Number(summary.execution)||0 : 0;
@@ -4731,6 +4743,7 @@ function alerty24Start_() {
           );
         },
         function(error) {
+          if (Number(selectedYear) !== year || Number(selectedMonth) !== month || activeCategory_ !== categoryName || activeView_ !== 'category') return;
           showCategoryError(
             error &&
             error.message
@@ -4746,7 +4759,8 @@ function alerty24Start_() {
     // SZCZEGÓŁY KATEGORII
     // ========================================================
 
-    function renderCategoryDetails(data) {
+    function renderCategoryDetails(data, keepPosition = false) {
+      const previousY = window.scrollY;
       if (activeView_ !== 'category' || activeCategory_ !== data.category) return;
 
 
@@ -5276,7 +5290,8 @@ tripsHtml = `
 
       initSubEntriesV23_();
       initDetailSticky_();
-      forceScrollToTop_();
+      if (keepPosition) window.scrollTo(0, previousY);
+      else forceScrollToTop_();
       notifyPwaReady_('category');
     }
 
@@ -5580,6 +5595,7 @@ function toggleHolidayTrips() {
           <div class="error-title">
             Nie udało się pobrać szczegółów.
           </div>
+          <button onclick="openCategory(activeCategory_)">Ponów odczyt</button>
 
           <div>
             ${escapeHtml(message)}
@@ -5617,10 +5633,10 @@ function toggleHolidayTrips() {
       if (startupCompleted_) return;
 
       startupCompleted_ = true;
-      startInitialBackgroundPreload();
-      setTimeout(function() {
-        requestBackgroundFreshDashboard_(true);
-      }, 250);
+      if (!window.budgetStartupSnapshot || !dashboardData?.sync ||
+          ['dayKey','sourceUpdatedMs','buildVersion'].some(key => !dashboardData.sync[key] || dashboardData.sync[key] !== window.budgetStartupSnapshot[key])) {
+        setTimeout(function() { requestBackgroundFreshDashboard_(true); }, 250);
+      }
 
       // Szczegóły i sąsiednie miesiące pobieramy dopiero po wejściu w widok.
     }
@@ -5663,9 +5679,7 @@ function toggleHolidayTrips() {
     addEventListener('online', function() {
       if (!dashboardData) { startupNetworkStarted_ = false; startNetworkDashboardOnce_(); }
     });
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').then(function(reg) { reg.update().catch(function() {}); }).catch(function() {});
-    }
+
 
 // Savings data is fetched on entering this tab, never on the budget startup path.
 const savingsMeta_ = {
@@ -6225,5 +6239,6 @@ function historyTouchV24_(event,svg){
 </script>
 <script src="./private-budget.js"></script></body>
 </html>
+
 
 
