@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v102-mortgage-rollforward';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v103-portfolio-quote';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
