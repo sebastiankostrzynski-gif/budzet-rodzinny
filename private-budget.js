@@ -96,6 +96,79 @@
     if (!response.ok) throw Error('Nie udało się połączyć z kolejką (HTTP ' + response.status + ').');
     return response.json();
   }
+  // Compare schedules from the same cutoff. Paid interest belongs to the old cash flow.
+  function scheduleSaving(before, after, charged) {
+    return before - after - charged;
+  }
+  function scheduleMoney(cents) {
+    return (cents / 100).toLocaleString('pl-PL', {style:'currency', currency:'PLN'});
+  }
+  function scheduleEditor(payment, key) {
+    const panel = document.createElement('details');
+    panel.dataset.scheduleComparison = key;
+    const summary = document.createElement('summary');
+    summary.textContent = 'Porównaj harmonogramy';
+    panel.append(summary);
+    panel.addEventListener('toggle', async () => {
+      if (!panel.open || panel.dataset.loaded) return;
+      panel.dataset.loaded = '1';
+      const form = document.createElement('form');
+      form.innerHTML = '<p>Porównaj harmonogramy na dzień nadpłaty, przy tych samych założeniach oprocentowania.</p><label>Odsetki pozostałe przed nadpłatą (zł)<input name="before" inputmode="decimal" required></label><label>Odsetki pozostałe po nadpłacie (zł)<input name="after" inputmode="decimal" required></label><p></p><output></output><button type="submit" class="back-button">Zapisz porównanie</button><small role="status"></small>';
+      panel.append(form);
+      const fields = form.elements, button = form.querySelector('button'), status = form.querySelector('small');
+      const charged = Number(payment.split[4]);
+      form.querySelectorAll('p')[1].textContent = 'Odsetki pobrane przy nadpłacie: ' + scheduleMoney(charged) + '. Są uwzględnione w porównaniu.';
+      const range = encodeURIComponent("'Harmonogramy nadpłat TEST'!A2:E");
+      function values() {
+        return [fields.before.value,fields.after.value].map(v => /^\d{1,10}([,.]\d{1,2})?$/.test(v.trim()) ? Math.round(Number(v.trim().replace(',', '.'))*100) : NaN);
+      }
+      function preview() {
+        const [a,b] = values(), valid = Number.isSafeInteger(a) && Number.isSafeInteger(b);
+        button.disabled = !valid;
+        const delta = scheduleSaving(a,b,charged);
+        form.querySelector('output').textContent = valid ? (delta < 0 ? 'Wzrost prognozowanych odsetek: ' : 'Oszczędność na odsetkach: ') + scheduleMoney(Math.abs(delta)) : '';
+      }
+      form.hidden = true;
+      try {
+        const rows = (await queueSheets(range+'?valueRenderOption=UNFORMATTED_VALUE')).values || [];
+        const last = rows.filter(row => row[0] === key).pop();
+        if (last) {
+          fields.before.value = (last[1]/100).toFixed(2);
+          fields.after.value = (last[2]/100).toFixed(2);
+        }
+      } catch (_) {
+        summary.textContent = 'Błąd odczytu porównania · zamknij i otwórz ponownie';
+        form.remove(); delete panel.dataset.loaded; return;
+      }
+      form.hidden = false; preview(); form.oninput = preview;
+      form.onsubmit = async event => {
+        event.preventDefault();
+        if (button.disabled) return;
+        const [a,b] = values();
+        if (![a,b].every(Number.isSafeInteger)) return;
+        button.disabled = fields.before.disabled = fields.after.disabled = true;
+        try {
+          await queueSheets(range+':append?valueInputOption=RAW', {method:'POST',body:JSON.stringify({values:[[key,a,b,charged,new Date().toISOString()]]})});
+          status.textContent = 'Zapisano porównanie.';
+        } catch (_) { status.textContent = 'Brak potwierdzenia zapisu. Otwórz ponownie zakładkę Kredyty i sprawdź wynik.'; }
+        finally { fields.before.disabled = fields.after.disabled = false; preview(); }
+      };
+    });
+    return panel;
+  }
+  function mountScheduleEditors() {
+    if (window.budgetViewerRole !== 'owner' || typeof debtData_ === 'undefined' || !debtData_) return;
+    const rows = document.querySelectorAll('.installment-panel .split-row');
+    if (!rows.length) return;
+    const payments = (debtData_.installments || []).filter(x => x.key === debtPeriod_);
+    rows.forEach((row,i) => {
+      const payment = payments[i];
+      if (!payment?.split || !/^mBank · nadpłata /.test(payment.bank) || row.querySelector('[data-schedule-comparison]')) return;
+      row.append(scheduleEditor(payment, payment.key+'|'+payment.bank));
+    });
+  }
+  new MutationObserver(mountScheduleEditors).observe(document.getElementById('app'), {childList:true});
+  mountScheduleEditors();
   const queueRange = range => encodeURIComponent("'Kolejka iPhone TEST'!" + range);
   async function phoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
