@@ -3830,6 +3830,7 @@ function formatHistoryValue(value) {
     // ========================================================
 
     function handleAppResume_() {
+      refreshVisibleDailyLimit_();
       requestBackgroundFreshDashboard_(false);
     }
 
@@ -3876,6 +3877,7 @@ function formatHistoryValue(value) {
         document.visibilityState ===
         'visible'
       ) {
+        refreshVisibleDailyLimit_();
         checkRefreshState_(false);
       }
 
@@ -4485,143 +4487,25 @@ function alerty24Start_() {
       setTimeout(scrollTop, 250);
     }
 
-    function openCategory(categoryName) {
-      if(activeView_==='dashboard')budgetReturnY_=window.scrollY;
-      activeView_ = 'category';
-      activeCategory_ = categoryName;
+    const foodCategory_ = 'Wyżywienie i chemia';
+    const budgetDateFormat_ = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit'
+    });
 
-
-      // Przy wejściu resetujemy pozycję od razu; po renderze wykonamy
-      // dodatkowy reset, ponieważ iOS/Safari może przywrócić poprzedni scroll.
-      forceScrollToTop_();
-
-      const app =
-        document.getElementById('app');
-
-      const year = Number(selectedYear);
-      const month = Number(selectedMonth);
-
-      const cached =
-        getCachedCategoryDetail(
-          categoryName,
-          year,
-          month
-        );
-
-      if (cached && cached.data) {
-        // Szczegóły są już przygotowane — pokazujemy je od razu.
-        renderCategoryDetails(cached.data);
-
-        // Stary cache może być nieświeży; odświeżamy tylko tę kategorię.
-        if (!cached.isFresh) {
-          fetchCategoryDetail(
-            categoryName,
-            year,
-            month,
-            function(data) {
-              // Nie nadpisujemy widoku, jeżeli użytkownik przeszedł już
-              // do innej kategorii. Cache został zaktualizowany niezależnie.
-            },
-            function() {}
-          );
-        }
-
-        return;
+    function dailyLimitIsStale_(data, year, month, now = new Date()) {
+      if (data.category !== foodCategory_ || !data.dailyBudget) return false;
+      const [day, currentMonth, currentYear] = budgetDateFormat_.format(now).split('/').map(Number);
+      if (Number(year) === currentYear && Number(month) === currentMonth) {
+        return Number(data.dailyBudget.dayOfMonth) !== day;
       }
-
-      const summary = dashboardData && Array.isArray(dashboardData.categories)
-        ? dashboardData.categories.find(item => item.name === categoryName) : null;
-      const monthLabel = new Intl.DateTimeFormat('pl-PL', {month:'long',year:'numeric'}).format(new Date(year,month-1,1));
-      const spent = summary ? Number(summary.execution)||0 : 0;
-      const limit = summary ? Number(summary.budget)||0 : 0;
-      app.innerHTML = `
-        <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
-        <section class="category-preview" style="padding:20px;margin:16px 0;border-radius:20px;background:#fff">
-          <h1 style="margin:0 0 8px">${escapeHtml(categoryName)}</h1>
-          <p style="margin:0 0 20px;color:#64726b">${escapeHtml(monthLabel)}</p>
-          ${summary ? `<p>Wydano <strong>${formatPLN(spent)}</strong></p><p>Budżet <strong>${formatPLN(limit)}</strong></p><p>Pozostało <strong>${formatPLN(limit-spent)}</strong></p>` : ''}
-          <p role="status" style="margin-top:24px;color:#64726b">Pobieranie podkategorii i historii…</p>
-        </section>
-      `;
-
-      fetchCategoryDetail(
-        categoryName,
-        year,
-        month,
-        function(data) {
-          if (data) {
-            renderCategoryDetails(data);
-            return;
-          }
-
-          showCategoryError(
-            'Nie znaleziono danych tej kategorii.'
-          );
-        },
-        function(error) {
-          showCategoryError(
-            error &&
-            error.message
-              ? error.message
-              : String(error)
-          );
-        }
-      );
+      return (Number(year) * 12 + Number(month) < currentYear * 12 + currentMonth) &&
+        Number(data.dailyBudget.dayOfMonth) < Number(data.dailyBudget.daysInMonth);
     }
 
-
-    // ========================================================
-    // SZCZEGÓŁY KATEGORII
-    // ========================================================
-
-    function renderCategoryDetails(data) {
-      if (activeView_ !== 'category' || activeCategory_ !== data.category) return;
-
-
-      const app =
-        document.getElementById('app');
-
-
-      const style =
-        categoryStyle[data.category] ||
-        {
-          icon: '📦',
-          color: '#7f8c8d'
-        };
-
-
-      const budget =
-        Number(data.budget) || 0;
-
-
-      const execution =
-        Number(data.execution) || 0;
-
-
-      const remaining =
-        Number(data.remaining) || 0;
-
-
-      const percent =
-        budget > 0
-          ? Math.min(
-              (execution / budget) * 100,
-              100
-            )
-          : 0;
-
-
-      const progressColor =
-        execution > budget
-          ? '#e74c3c'
-          : '#39aa6b';
-
-
-      const budgetExceeded = budget > 0 && execution > budget;
-      const statusLabel = budget<=0?'Bez ustalonego budżetu':budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
-      const statusBackground = budget<=0 ? '#eef0f2' : budgetExceeded ? '#fdeeee' : '#edf8f1';
-      const statusForeground = budget<=0 ? '#59636e' : budgetExceeded ? '#d84a3d' : '#2f9560';
-
+    function dailyLimitHtml_(data, year, month) {
+      if (dailyLimitIsStale_(data, year, month)) {
+        return '<p class="daily-limit-note" role="status">Aktualizuję limit dla wybranego dnia…</p>';
+      }
       let dailyBudgetHtml = '';
 
       if (
@@ -4735,6 +4619,180 @@ function alerty24Start_() {
         `;
       }
 
+
+      return dailyBudgetHtml;
+    }
+
+    function updateVisibleDailyLimit_(data, year, month) {
+      const slot = document.getElementById('food-daily-limit');
+      if (!slot || activeView_ !== 'category' || activeCategory_ !== foodCategory_ ||
+          Number(selectedYear) !== year || Number(selectedMonth) !== month) return;
+      if (!data || dailyLimitIsStale_(data, year, month)) {
+        slot.innerHTML = '<p role="status">Brak aktualnego limitu. <button type="button" onclick="refreshVisibleDailyLimit_()">Ponów odczyt</button></p>';
+      } else {
+        slot.innerHTML = dailyLimitHtml_(data, year, month);
+        slot.dataset.day = String(data.dailyBudget?.dayOfMonth);
+      }
+      if (typeof applyAmountPrivacy_ === 'function') applyAmountPrivacy_();
+    }
+
+    function refreshVisibleDailyLimit_() {
+      if (activeView_ !== 'category' || activeCategory_ !== foodCategory_) return;
+      const year = Number(selectedYear), month = Number(selectedMonth);
+      const slot = document.getElementById('food-daily-limit');
+      if (!slot) return;
+      const cached = getCachedCategoryDetail(foodCategory_, year, month);
+      if (cached && cached.data && !dailyLimitIsStale_(cached.data, year, month)) {
+        if (slot.dataset.day !== String(cached.data.dailyBudget?.dayOfMonth)) {
+          updateVisibleDailyLimit_(cached.data, year, month);
+        }
+        return;
+      }
+      slot.textContent = 'Aktualizuję limit dla wybranego dnia…';
+      fetchCategoryDetail(foodCategory_, year, month,
+        data => updateVisibleDailyLimit_(data, year, month),
+        () => updateVisibleDailyLimit_(null, year, month));
+    }
+
+    function openCategory(categoryName) {
+      if(activeView_==='dashboard')budgetReturnY_=window.scrollY;
+      activeView_ = 'category';
+      activeCategory_ = categoryName;
+
+
+      // Przy wejściu resetujemy pozycję od razu; po renderze wykonamy
+      // dodatkowy reset, ponieważ iOS/Safari może przywrócić poprzedni scroll.
+      forceScrollToTop_();
+
+      const app =
+        document.getElementById('app');
+
+      const year = Number(selectedYear);
+      const month = Number(selectedMonth);
+
+      const cached =
+        getCachedCategoryDetail(
+          categoryName,
+          year,
+          month
+        );
+
+      if (cached && cached.data) {
+        // Szczegóły są już przygotowane — pokazujemy je od razu.
+        renderCategoryDetails(cached.data);
+
+        // Stary cache może być nieświeży; odświeżamy tylko tę kategorię.
+        if (!cached.isFresh || dailyLimitIsStale_(cached.data, year, month)) {
+          fetchCategoryDetail(
+            categoryName,
+            year,
+            month,
+            function(data) {
+              if (categoryName === foodCategory_) updateVisibleDailyLimit_(data, year, month);
+            },
+            function() {
+              if (dailyLimitIsStale_(cached.data, year, month)) updateVisibleDailyLimit_(null, year, month);
+            }
+          );
+        }
+
+        return;
+      }
+
+      const summary = dashboardData && Array.isArray(dashboardData.categories)
+        ? dashboardData.categories.find(item => item.name === categoryName) : null;
+      const monthLabel = new Intl.DateTimeFormat('pl-PL', {month:'long',year:'numeric'}).format(new Date(year,month-1,1));
+      const spent = summary ? Number(summary.execution)||0 : 0;
+      const limit = summary ? Number(summary.budget)||0 : 0;
+      app.innerHTML = `
+        <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
+        <section class="category-preview" style="padding:20px;margin:16px 0;border-radius:20px;background:#fff">
+          <h1 style="margin:0 0 8px">${escapeHtml(categoryName)}</h1>
+          <p style="margin:0 0 20px;color:#64726b">${escapeHtml(monthLabel)}</p>
+          ${summary ? `<p>Wydano <strong>${formatPLN(spent)}</strong></p><p>Budżet <strong>${formatPLN(limit)}</strong></p><p>Pozostało <strong>${formatPLN(limit-spent)}</strong></p>` : ''}
+          <p role="status" style="margin-top:24px;color:#64726b">Pobieranie podkategorii i historii…</p>
+        </section>
+      `;
+
+      fetchCategoryDetail(
+        categoryName,
+        year,
+        month,
+        function(data) {
+          if (Number(selectedYear) !== year || Number(selectedMonth) !== month || activeCategory_ !== categoryName || activeView_ !== 'category') return;
+          if (data) {
+            renderCategoryDetails(data);
+            if (dailyLimitIsStale_(data, year, month)) updateVisibleDailyLimit_(null, year, month);
+            return;
+          }
+
+          showCategoryError(
+            'Nie znaleziono danych tej kategorii.'
+          );
+        },
+        function(error) {
+          showCategoryError(
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+          );
+        }
+      );
+    }
+
+
+    // ========================================================
+    // SZCZEGÓŁY KATEGORII
+    // ========================================================
+
+    function renderCategoryDetails(data) {
+      if (activeView_ !== 'category' || activeCategory_ !== data.category) return;
+
+
+      const app =
+        document.getElementById('app');
+
+
+      const style =
+        categoryStyle[data.category] ||
+        {
+          icon: '📦',
+          color: '#7f8c8d'
+        };
+
+
+      const budget =
+        Number(data.budget) || 0;
+
+
+      const execution =
+        Number(data.execution) || 0;
+
+
+      const remaining =
+        Number(data.remaining) || 0;
+
+
+      const percent =
+        budget > 0
+          ? Math.min(
+              (execution / budget) * 100,
+              100
+            )
+          : 0;
+
+
+      const progressColor =
+        execution > budget
+          ? '#e74c3c'
+          : '#39aa6b';
+
+
+      const budgetExceeded = budget > 0 && execution > budget;
+      const statusLabel = budget<=0?'Bez ustalonego budżetu':budgetExceeded ? 'Przekroczono budżet' : 'W budżecie';
+      const statusBackground = budget<=0 ? '#eef0f2' : budgetExceeded ? '#fdeeee' : '#edf8f1';
+      const statusForeground = budget<=0 ? '#59636e' : budgetExceeded ? '#d84a3d' : '#2f9560';
 
       let subcategoriesHtml = '';
 
@@ -5195,7 +5253,7 @@ tripsHtml = `
         </div>
 
 
-        ${dailyBudgetHtml}
+        ${data.category === foodCategory_ ? '<div id="food-daily-limit">' + dailyLimitHtml_(data, selectedYear, selectedMonth) + '</div>' : ''}
         
 
 
