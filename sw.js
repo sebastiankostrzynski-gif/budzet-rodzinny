@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v104-portfolio-split';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v105-etf-sum';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
