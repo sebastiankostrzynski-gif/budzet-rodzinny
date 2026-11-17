@@ -62,7 +62,55 @@
     if(!data.done || !data.response) throw Error('Google nie potwierdził wykonania operacji.');
     return data.response.result;
   }
-  window.budgetRpc=rpc;
+  const scheduleRange = encodeURIComponent("'Harmonogramy nadpłat TEST'!A2:E");
+  let scheduleVersion = 0;
+  let loadedSchedules = [];
+  const recentSchedules = new Map();
+
+  function scheduleCents(value) {
+    if (typeof value !== 'number' && !(typeof value === 'string' && /^\d+$/.test(value))) return null;
+    const cents = Number(value);
+    return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+  }
+
+  function applySchedules(snapshot, rows) {
+    const schedules = new Map();
+    for (const row of rows) {
+      if (scheduleCents(row[2]) !== null) schedules.set(row[0], row);
+    }
+    const periods = snapshot.periods.map(period => {
+      const payments = (snapshot.installments || []).filter(p => p.key === period.key &&
+        p.bank.startsWith('mBank · nadpłata ') && p.split?.[2] === 'hipoteka');
+      const matches = payments.map(p => schedules.get(p.key + '|' + p.bank)).filter(Boolean);
+      const mortgage = period.items.find(item => item.id === 'hipoteka');
+      if (!mortgage || !matches.length) return period;
+      const original = mortgage.scheduleBaseCents ?? Math.round(mortgage.interest * 100);
+      const matched = matches.filter(row => {
+        const before = scheduleCents(row[1]), charged = scheduleCents(row[3]);
+        return before !== null && charged !== null && before - charged === original;
+      });
+      if (matched.length !== 1) return period;
+      const after = scheduleCents(matched[0][2]);
+      const delta = after - Math.round(mortgage.interest * 100);
+      const adjust = amount => (Math.round(amount * 100) + delta) / 100;
+      const items = period.items.map(i => i === mortgage ? {...i, scheduleBaseCents:original,
+        interest:after / 100, total:adjust(i.total)} : i);
+      return {...period, items, interest:adjust(period.interest), total:adjust(period.total)};
+    });
+    return {...snapshot, periods};
+  }
+
+  window.budgetRpc = async (method, args) => {
+    if (!['getDebtsData','saveInstallmentSplit'].includes(method) || window.budgetViewerRole !== 'owner')
+      return rpc(method,args);
+    const version = scheduleVersion;
+    const snapshot = await rpc(method,args);
+    if (method === 'saveInstallmentSplit') return applySchedules(snapshot, loadedSchedules);
+    const rows = (await queueSheets(scheduleRange+'?valueRenderOption=UNFORMATTED_VALUE')).values || [];
+    const concurrent = [...recentSchedules.values()].filter(entry => entry.version > version);
+    loadedSchedules = rows.concat(concurrent.map(entry => entry.row));
+    return applySchedules(snapshot, loadedSchedules);
+  };
   function prepareTestNavigation() {
     const bar = document.querySelector('nav.budget-tabs');
     const balances = bar?.querySelector('[data-tab="balances"]');
@@ -106,7 +154,7 @@
   function interestBeforePayment(payment, rows, snapshot) {
     const key = payment.key + '|' + payment.bank;
     const saved = rows.filter(r => r[0] === key).pop();
-    if (saved && Number.isSafeInteger(saved[1])) return saved[1];
+    if (saved && scheduleCents(saved[1]) !== null) return Number(saved[1]);
     // The monthly mortgage figure can already include this payment's split.
     // Compare it with opening interest and all booked splits before reusing it.
     const period = snapshot.periods.find(p => p.key === payment.key);
@@ -140,13 +188,14 @@
       const fields = form.elements, button = form.querySelector('button'), status = form.querySelector('small');
       const charged = Number(payment.split[4]);
       form.querySelectorAll('p')[1].textContent = 'Odsetki pobrane przy nadpłacie: ' + scheduleMoney(charged) + '. Są uwzględnione w porównaniu.';
-      const range = encodeURIComponent("'Harmonogramy nadpłat TEST'!A2:E");
+      const range = scheduleRange;
+      let saved;
       function values() {
         return [fields.before.value,fields.after.value].map(v => /^\d{1,10}([,.]\d{1,2})?$/.test(v.trim()) ? Math.round(Number(v.trim().replace(',', '.'))*100) : NaN);
       }
       function preview() {
         const [a,b] = values(), valid = Number.isSafeInteger(a) && Number.isSafeInteger(b);
-        button.disabled = !valid;
+        button.disabled = !valid || (saved && a === saved[0] && b === saved[1]);
         const delta = scheduleSaving(a,b,charged);
         form.querySelector('output').textContent = valid ? (delta < 0 ? 'Wzrost prognozowanych odsetek: ' : 'Oszczędność na odsetkach: ') + scheduleMoney(Math.abs(delta)) : '';
       }
@@ -156,7 +205,10 @@
         const last = rows.filter(row => row[0] === key).pop();
         if (last) {
           fields.before.value = (last[1]/100).toFixed(2);
-          if (Number.isSafeInteger(last[2])) fields.after.value = (last[2]/100).toFixed(2);
+          if (scheduleCents(last[2]) !== null) {
+            fields.after.value = (Number(last[2])/100).toFixed(2);
+            saved = [Number(last[1]), Number(last[2])];
+          }
         }
         const baseline = interestBeforePayment(payment, rows, debtData_);
         if (baseline !== null) {
@@ -178,7 +230,16 @@
         if (![a,b].every(Number.isSafeInteger)) return;
         button.disabled = fields.before.disabled = fields.after.disabled = true;
         try {
-          await queueSheets(range+':append?valueInputOption=RAW', {method:'POST',body:JSON.stringify({values:[[key,a,b,charged,new Date().toISOString()]]})});
+          const row = [key,a,b,charged,new Date().toISOString()];
+          await queueSheets(range+':append?valueInputOption=RAW', {method:'POST',body:JSON.stringify({values:[row]})});
+          saved = [a,b];
+          recentSchedules.set(key,{row, version:++scheduleVersion});
+          loadedSchedules = loadedSchedules.filter(existing => existing[0] !== key).concat([row]);
+          const updated = applySchedules(debtData_, loadedSchedules);
+          if (debtAdopt_(updated)) {
+            try { localStorage.setItem(debtKey_, JSON.stringify(updated)); } catch (_) {}
+            if (activeView_ === 'debts') { renderDebts_(); applyAmountPrivacy_(); }
+          }
           status.textContent = 'Zapisano porównanie.';
         } catch (_) { status.textContent = 'Brak potwierdzenia zapisu. Otwórz ponownie zakładkę Kredyty i sprawdź wynik.'; }
         finally { fields.before.disabled = fields.after.disabled = false; preview(); }
