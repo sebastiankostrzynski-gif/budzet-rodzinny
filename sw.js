@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v97-daily-limit';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v98-category-on-demand';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -163,3 +163,4 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
+
