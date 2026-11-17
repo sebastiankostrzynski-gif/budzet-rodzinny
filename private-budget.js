@@ -127,6 +127,108 @@
     loadedSchedules = rows.concat(concurrent.map(entry => entry.row));
     return applySchedules(snapshot, loadedSchedules);
   };
+  const portfolioTab = 'Lokaty - środki własne';
+  const portfolioMonths = 'styczeń luty marzec kwiecień maj czerwiec lipiec sierpień wrzesień październik listopad grudzień'.split(' ');
+  async function portfolioRequest(path, options = {}) {
+    if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
+      throw Error('Zaloguj się ponownie jako właściciel budżetu.');
+    const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+testFileId+path, {
+      ...options,cache:'no-store',redirect:'error',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'}
+    });
+    if (!response.ok) throw Error('Nie udało się połączyć z arkuszem ('+response.status+').');
+    return response.json();
+  }
+  function portfolioQuote(sheet, period) {
+    const rows = sheet.data[0].rowData.map(r => r.values || []);
+    const labels = rows[0].map(c => String(c.formattedValue || '').trim().toLocaleLowerCase('pl-PL'));
+    const [year,month] = period.split('-');
+    const label = portfolioMonths[Number(month)-1]+' '+year;
+    const columns = labels.map((s,i) => s.split(/[\n(]/)[0].trim() === label ? i : -1).filter(i => i >= 0);
+    const names = rows[1].findIndex(c => c.formattedValue === 'Cena zakupu akcji i ETF');
+    if (columns.length !== 1 || names < 0 || rows[2][names]?.formattedValue !== 'Wycena')
+      throw Error('Brak pozycji wyceny dla tego miesiąca.');
+    const col = columns[0];
+    let letters = '', number = col+1;
+    while (number) { number--; letters = String.fromCharCode(65+number%26)+letters; number=Math.floor(number/26); }
+    const formula = rows[2][col]?.userEnteredValue?.formulaValue || '';
+    const match = /^=\(\s*(\d+(?:[.,]\d+)?)(\/100)?\s*-\s*([A-Z]+)66\s*\)\s*\*\s*(\d+(?:[.,]\d+)?)%$/.exec(formula);
+    if (!match || match[3] !== letters) throw Error('Ta pozycja ma inny sposób obliczania wyceny. Wybierz miesiąc z wyceną portfela.');
+    return {formula,col,sheetId:sheet.properties.sheetId,price:Math.round(Number(match[1].replace(',','.'))*(match[2] ? 1 : 100)),
+      rate:Number(match[4].replace(',','.'))/100};
+  }
+  async function readPortfolio(period) {
+    const params = new URLSearchParams({ranges:"'"+portfolioTab+"'!65:67",fields:'sheets(properties(sheetId),data(rowData(values(formattedValue,userEnteredValue))))'});
+    return portfolioQuote((await portfolioRequest('?'+params)).sheets[0],period);
+  }
+  function portfolioCents(input) {
+    const value = input.trim().replace(/[ \u00a0\u202f]/g,'');
+    return /^\d{1,10}([,.]\d{1,2})?$/.test(value) ? Math.round(Number(value.replace(',','.'))*100) : null;
+  }
+  function openPortfolioEditor(period) {
+    if (document.getElementById('portfolio-dialog') || document.body.classList.contains('amounts-hidden')) return;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'portfolio-dialog'; dialog.setAttribute('aria-labelledby','portfolio-heading');
+    dialog.style.cssText='box-sizing:border-box;width:min(92vw,420px);max-height:85dvh;border:1px solid #d9e3dc;border-radius:22px;padding:24px;color:#173d31;background:#fffcf6;font:inherit';
+    dialog.innerHTML='<form><small></small><h2 id="portfolio-heading">Wycena akcji i ETF</h2><p class="old-price"></p><label>Wartość portfela u brokera (zł)<input required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz wycenę</button> <button type="button" class="back-button">Zamknij</button></form>';
+    document.body.append(dialog);
+    const form=dialog.querySelector('form'), input=form.querySelector('input'), save=form.querySelector('[type=submit]'), close=form.querySelector('[type=button]'), status=form.querySelector('[role=status]');
+    form.querySelector('small').textContent=savingsLabel_(period);
+    dialog.onclose=()=>dialog.remove(); close.onclick=()=>dialog.close(); dialog.showModal();
+    const money=c=>scheduleMoney(c);
+    let quote, busy=false;
+    dialog.oncancel=e=>{if(busy)e.preventDefault();};
+    function preview() {
+      const amount=portfolioCents(input.value);
+      save.disabled=busy || !quote || amount===null || amount===quote.price;
+      if (!quote) return;
+      const change=amount===null ? null : amount-quote.price;
+      status.textContent=change===null ? 'Wpisz łączną wartość akcji i ETF w PLN.' :
+        'Zmiana wyceny: '+(change>0?'+':'')+money(change)+' · Wpływ na oszczędności: '+money(Math.round(change*quote.rate));
+    }
+    input.disabled=true; status.textContent='Pobieram zapisaną wycenę…';
+    readPortfolio(period).then(q=>{
+      if (!dialog.open) return;
+      quote=q; input.disabled=false;
+      form.querySelector('.old-price').textContent='Obecna wycena: '+money(q.price);
+      preview();
+    }).catch(e=>{status.textContent=e.message;});
+    input.oninput=preview;
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const cents=portfolioCents(input.value);
+      if (!quote || busy || save.disabled || cents===null) return;
+      busy=true; input.disabled=save.disabled=close.disabled=true;
+      status.textContent='Zapisuję wycenę…';
+      try {
+        // Whole grosze divided by 100 works in either spreadsheet locale.
+        const replacement=quote.formula.replace(/^(=\(\s*)\d+(?:[.,]\d+)?(?:\/100)?/, (_,prefix)=>prefix+cents+'/100');
+        const request={findReplace:{find:quote.formula,replacement,matchEntireCell:true,matchCase:true,includeFormulas:true,
+          range:{sheetId:quote.sheetId,startRowIndex:66,endRowIndex:67,startColumnIndex:quote.col,endColumnIndex:quote.col+1}}};
+        await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[request]})});
+        const verified=await readPortfolio(period);
+        if (verified.price!==cents) throw Error('Wycena w arkuszu uległa zmianie. Otwórz formularz ponownie.');
+        status.textContent='Zapisano wycenę: '+money(cents)+'.';
+        form.querySelector('.old-price').textContent=savingsLabel_(period);
+        if (activeView_==='savings') { savingsSerial_++; savingsBusy_=false; savingsRefresh_(); }
+      } catch(e) { status.textContent=e.message+' Przed ponowieniem sprawdź zapisaną wartość.'; }
+      finally {busy=false;close.disabled=false;}
+    };
+  }
+  function mountPortfolioEditor() {
+    if (window.budgetViewerRole!=='owner' || typeof savingsGroup_==='undefined' ||
+        activeView_!=='savings' || savingsGroup_!=='investments') return;
+    const hero=document.querySelector('#app .savings-hero');
+    if (!hero || hero.querySelector('[data-portfolio-edit]')) return;
+    const button=document.createElement('button');
+    button.type='button';button.dataset.portfolioEdit=''; button.className='back-button';
+    button.style.cssText='display:block;margin-top:16px;background:#fff;color:#25473b;padding:9px 16px;border-radius:20px';
+    button.textContent='Zaktualizuj wycenę'; button.onclick=()=>openPortfolioEditor(savingsPeriod_);
+    hero.append(button);
+  }
+  const portfolioStyle=document.createElement('style');
+  portfolioStyle.textContent='body.amounts-hidden [data-portfolio-edit]{display:none!important}#portfolio-dialog::backdrop{background:rgb(17 36 29 / 35%)}';
+  document.head.append(portfolioStyle);
+  new MutationObserver(mountPortfolioEditor).observe(document.getElementById('app'),{childList:true});
   function prepareTestNavigation() {
     const bar = document.querySelector('nav.budget-tabs');
     const balances = bar?.querySelector('[data-tab="balances"]');
