@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v103-portfolio-quote';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v104-portfolio-split';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
