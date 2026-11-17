@@ -200,6 +200,7 @@
       if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets))lastEditorData={data,time:Date.now()};
       if(method==='ebListSectionsDev')refreshEditor=false;
       if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
+      if(write) window.dispatchEvent(new Event('budget-assignment-saved'));
       if(frame===activeForm)formNotice.textContent=write?'Zapis potwierdzony.':'';
       return data;
     }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
@@ -388,6 +389,7 @@
                   method:'POST',body:JSON.stringify({values:[['ASSIGN_V1',crypto.randomUUID(),JSON.stringify(req)]]})
                 });
                 if(receipt.updates?.updatedRows!==1)throw Error();
+                window.dispatchEvent(new Event('budget-assignment-saved'));
                 await reload('Przypisanie zapisane. Automat sprawdzi je przy następnym odczycie.');
               } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
               finally{saving=false;}
@@ -430,6 +432,7 @@
             try {
               const receipt=await queueSheets(queueRange('A2:D')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',body:JSON.stringify({values:[['INCOME_V1',crypto.randomUUID(),JSON.stringify(req)]]})});
               if(receipt.updates?.updatedRows!==1)throw Error();
+                window.dispatchEvent(new Event('budget-assignment-saved'));
               saving=false;history=true;await reload('Przyjęto decyzję do sprawdzenia w następnym cyklu.');
             } catch {saving=false;await reload('Sprawdź historię przed ponowieniem zapisu.');}
           };
@@ -527,6 +530,7 @@
       localStorage.setItem(verifiedKey,testFileId);
       localStorage.setItem(cacheKey,testFileId);
     } catch (_) { /* Private mode can deny local storage. Current result still renders. */ }
+    window.budgetStartupSnapshot = fresh.sync;
     startBudgetApp();
     refreshExpenseCount();
   }
@@ -606,3 +610,4 @@
     }
   }).catch(report);
 })();
+
