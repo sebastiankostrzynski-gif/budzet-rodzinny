@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v96-category-choices';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v97-daily-limit';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
