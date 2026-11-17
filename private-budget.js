@@ -151,10 +151,14 @@
     let letters = '', number = col+1;
     while (number) { number--; letters = String.fromCharCode(65+number%26)+letters; number=Math.floor(number/26); }
     const formula = rows[2][col]?.userEnteredValue?.formulaValue || '';
-    const match = /^=\(\s*(\d+(?:[.,]\d+)?)(\/100)?\s*-\s*([A-Z]+)66\s*\)\s*\*\s*(\d+(?:[.,]\d+)?)%$/.exec(formula);
-    if (!match || match[3] !== letters) throw Error('Ta pozycja ma inny sposób obliczania wyceny. Wybierz miesiąc z wyceną portfela.');
-    return {formula,col,sheetId:sheet.properties.sheetId,price:Math.round(Number(match[1].replace(',','.'))*(match[2] ? 1 : 100)),
-      rate:Number(match[4].replace(',','.'))/100};
+    const match = /^=\(\s*(.+?)\s*(-\s*([A-Z]+)66\s*\)\s*\*\s*(\d+(?:[.,]\d+)?)%)$/.exec(formula);
+    const split = match && /^\((\d+)\s*\+\s*(\d+)\)\s*\/\s*100$/.exec(match[1]);
+    const legacy = match && /^(\d+(?:[.,]\d+)?)(\/100)?$/.exec(match[1]);
+    if (!match || match[3] !== letters || (!legacy && !split))
+      throw Error('Ta pozycja ma inny sposób obliczania wyceny.');
+    const stocks = split ? Number(split[1]) : null, etfs = split ? Number(split[2]) : null;
+    const price = split ? stocks + etfs : Math.round(Number(legacy[1].replace(',','.'))*(legacy[2] ? 1 : 100));
+    return {formula,col,sheetId:sheet.properties.sheetId,stocks,etfs,price,suffix:match[2],rate:Number(match[4].replace(',','.'))/100};
   }
   async function readPortfolio(period) {
     const params = new URLSearchParams({ranges:"'"+portfolioTab+"'!65:67",fields:'sheets(properties(sheetId),data(rowData(values(formattedValue,userEnteredValue))))'});
@@ -169,45 +173,49 @@
     const dialog = document.createElement('dialog');
     dialog.id = 'portfolio-dialog'; dialog.setAttribute('aria-labelledby','portfolio-heading');
     dialog.style.cssText='box-sizing:border-box;width:min(92vw,420px);max-height:85dvh;border:1px solid #d9e3dc;border-radius:22px;padding:24px;color:#173d31;background:#fffcf6;font:inherit';
-    dialog.innerHTML='<form><small></small><h2 id="portfolio-heading">Wycena akcji i ETF</h2><p class="old-price"></p><label>Wartość portfela u brokera (zł)<input required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz wycenę</button> <button type="button" class="back-button">Zamknij</button></form>';
+    dialog.innerHTML='<form><small></small><h2 id="portfolio-heading">Wycena akcji i ETF</h2><p class="old-price"></p><label>Akcje (zł)<input name="stocks" required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><label>ETF (zł)<input name="etfs" required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz wycenę</button> <button type="button" class="back-button">Zamknij</button></form>';
     document.body.append(dialog);
-    const form=dialog.querySelector('form'), input=form.querySelector('input'), save=form.querySelector('[type=submit]'), close=form.querySelector('[type=button]'), status=form.querySelector('[role=status]');
+    const form=dialog.querySelector('form'), stocks=form.querySelector('[name=stocks]'), etfs=form.querySelector('[name=etfs]'), save=form.querySelector('[type=submit]'), close=form.querySelector('[type=button]'), status=form.querySelector('[role=status]');
     form.querySelector('small').textContent=savingsLabel_(period);
     dialog.onclose=()=>dialog.remove(); close.onclick=()=>dialog.close(); dialog.showModal();
     const money=c=>scheduleMoney(c);
     let quote, busy=false;
     dialog.oncancel=e=>{if(busy)e.preventDefault();};
     function preview() {
-      const amount=portfolioCents(input.value);
-      save.disabled=busy || !quote || amount===null || amount===quote.price;
+      const a=portfolioCents(stocks.value), b=portfolioCents(etfs.value);
+      save.disabled=busy || !quote || a===null || b===null || (a===quote.stocks && b===quote.etfs);
       if (!quote) return;
-      const change=amount===null ? null : amount-quote.price;
-      status.textContent=change===null ? 'Wpisz łączną wartość akcji i ETF w PLN.' :
-        'Zmiana wyceny: '+(change>0?'+':'')+money(change)+' · Wpływ na oszczędności: '+money(Math.round(change*quote.rate));
+      status.textContent=a===null || b===null ? 'Podaj obie wartości. Jeśli jedna wynosi zero, wpisz 0.' :
+        'Razem: '+money(a+b)+' · Zmiana wyceny: '+money(a+b-quote.price)+' · Wpływ na oszczędności: '+money(Math.round((a+b-quote.price)*quote.rate));
     }
-    input.disabled=true; status.textContent='Pobieram zapisaną wycenę…';
+    stocks.disabled=etfs.disabled=true; status.textContent='Pobieram zapisaną wycenę…';
     readPortfolio(period).then(q=>{
       if (!dialog.open) return;
-      quote=q; input.disabled=false;
+      quote=q;
+      if (q.stocks!==null) {
+        stocks.value=(q.stocks/100).toFixed(2).replace('.',',');
+        etfs.value=(q.etfs/100).toFixed(2).replace('.',',');
+      }
+      stocks.disabled=etfs.disabled=false;
       form.querySelector('.old-price').textContent='Obecna wycena: '+money(q.price);
       preview();
     }).catch(e=>{status.textContent=e.message;});
-    input.oninput=preview;
+    stocks.oninput=etfs.oninput=preview;
     form.onsubmit=async event=>{
       event.preventDefault();
-      const cents=portfolioCents(input.value);
-      if (!quote || busy || save.disabled || cents===null) return;
-      busy=true; input.disabled=save.disabled=close.disabled=true;
+      const a=portfolioCents(stocks.value), b=portfolioCents(etfs.value);
+      if (!quote || busy || save.disabled || a===null || b===null) return;
+      busy=true; stocks.disabled=etfs.disabled=save.disabled=close.disabled=true;
       status.textContent='Zapisuję wycenę…';
       try {
         // Whole grosze divided by 100 works in either spreadsheet locale.
-        const replacement=quote.formula.replace(/^(=\(\s*)\d+(?:[.,]\d+)?(?:\/100)?/, (_,prefix)=>prefix+cents+'/100');
+        const replacement='=(('+a+'+'+b+')/100'+quote.suffix;
         const request={findReplace:{find:quote.formula,replacement,matchEntireCell:true,matchCase:true,includeFormulas:true,
           range:{sheetId:quote.sheetId,startRowIndex:66,endRowIndex:67,startColumnIndex:quote.col,endColumnIndex:quote.col+1}}};
         await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[request]})});
         const verified=await readPortfolio(period);
-        if (verified.price!==cents) throw Error('Wycena w arkuszu uległa zmianie. Otwórz formularz ponownie.');
-        status.textContent='Zapisano wycenę: '+money(cents)+'.';
+        if (verified.stocks!==a || verified.etfs!==b) throw Error('Wycena w arkuszu uległa zmianie. Otwórz formularz ponownie.');
+        status.textContent='Zapisano wycenę: '+money(a+b)+'.';
         form.querySelector('.old-price').textContent=savingsLabel_(period);
         if (activeView_==='savings') { savingsSerial_++; savingsBusy_=false; savingsRefresh_(); }
       } catch(e) { status.textContent=e.message+' Przed ponowieniem sprawdź zapisaną wartość.'; }
