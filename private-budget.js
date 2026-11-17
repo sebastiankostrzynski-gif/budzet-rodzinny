@@ -103,6 +103,28 @@
   function scheduleMoney(cents) {
     return (cents / 100).toLocaleString('pl-PL', {style:'currency', currency:'PLN'});
   }
+  function interestBeforePayment(payment, rows, snapshot) {
+    const key = payment.key + '|' + payment.bank;
+    const saved = rows.filter(r => r[0] === key).pop();
+    if (saved && Number.isSafeInteger(saved[1])) return saved[1];
+    // The monthly mortgage figure can already include this payment's split.
+    // Compare it with opening interest and all booked splits before reusing it.
+    const period = snapshot.periods.find(p => p.key === payment.key);
+    const [year, month] = payment.key.split('-').map(Number);
+    const previousKey = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0,7);
+    const previous = snapshot.periods.find(p => p.key === previousKey);
+    const opening = previous?.items.find(x => x.id === 'hipoteka')?.interest;
+    const current = period?.items.find(x => x.id === 'hipoteka')?.interest;
+    const group = snapshot.installments.filter(x => x.key === payment.key && x.split?.[2] === 'hipoteka');
+    const extra = group.filter(x => x.bank.includes('nadpłata'));
+    if (![current,opening].every(Number.isFinite) || extra.length !== 1) return null;
+    const cents = Math.round(opening * 100);
+    const regular = group.filter(x => !x.bank.includes('nadpłata'));
+    const base = cents - regular.reduce((sum,x) => sum + Number(x.split[4]),0);
+    if (!Number.isSafeInteger(base) || base < 0) return null;
+    const shown = Math.round(current * 100);
+    return shown === base || shown === base - Number(payment.split[4]) ? base : null;
+  }
   function scheduleEditor(payment, key) {
     const panel = document.createElement('details');
     panel.dataset.scheduleComparison = key;
@@ -134,7 +156,15 @@
         const last = rows.filter(row => row[0] === key).pop();
         if (last) {
           fields.before.value = (last[1]/100).toFixed(2);
-          fields.after.value = (last[2]/100).toFixed(2);
+          if (Number.isSafeInteger(last[2])) fields.after.value = (last[2]/100).toFixed(2);
+        }
+        const baseline = interestBeforePayment(payment, rows, debtData_);
+        if (baseline !== null) {
+          fields.before.value = (baseline/100).toFixed(2);
+          fields.before.readOnly = Boolean(last);
+          form.querySelector('p').textContent = last ? 'Odsetki przed nadpłatą pobrano z zapisanego porównania. Wpisz pozostałe odsetki z nowego harmonogramu.' : 'Podstawiono odsetki z budżetu. Jeśli miesięczna rata została zapłacona później niż nadpłata, sprawdź kwotę na dzień nadpłaty.';
+        } else {
+          form.querySelector('p').textContent = 'Brak jednoznacznego salda sprzed tej nadpłaty. Sprawdź kwotę w poprzednim harmonogramie.';
         }
       } catch (_) {
         summary.textContent = 'Błąd odczytu porównania · zamknij i otwórz ponownie';
