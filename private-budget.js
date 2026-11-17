@@ -78,26 +78,42 @@
     for (const row of rows) {
       if (scheduleCents(row[2]) !== null) schedules.set(row[0], row);
     }
-    const periods = snapshot.periods.map(period => {
-      const payments = (snapshot.installments || []).filter(p => p.key === period.key &&
-        p.bank.startsWith('mBank · nadpłata ') && p.split?.[2] === 'hipoteka');
-      const matches = payments.map(p => schedules.get(p.key + '|' + p.bank)).filter(Boolean);
+    // Reconcile successive months against interest actually paid. A newer
+    // independent bank balance takes precedence when the roll-forward differs.
+    const history = new Map();
+    const result = new Map();
+    for (const period of [...snapshot.periods].sort((a,b) => a.key.localeCompare(b.key))) {
       const mortgage = period.items.find(item => item.id === 'hipoteka');
-      if (!mortgage || !matches.length) return period;
+      if (!mortgage) continue;
       const original = mortgage.scheduleBaseCents ?? Math.round(mortgage.interest * 100);
-      const matched = matches.filter(row => {
-        const before = scheduleCents(row[1]), charged = scheduleCents(row[3]);
-        return before !== null && charged !== null && before - charged === original;
-      });
-      if (matched.length !== 1) return period;
-      const after = scheduleCents(matched[0][2]);
+      const payments = (snapshot.installments || []).filter(p =>
+        p.key === period.key && p.split?.[2] === 'hipoteka');
+      const charged = payments.map(p => scheduleCents(p.split[4]));
+      const comparisons = payments.filter(p => p.bank.startsWith('mBank · nadpłata '))
+        .map(p => schedules.get(p.key + '|' + p.bank))
+        .filter(row => row && [row[1],row[2],row[3]].every(v => scheduleCents(v) !== null));
+      const savings = comparisons.reduce((sum,row) =>
+        sum + scheduleSaving(Number(row[1]),Number(row[2]),Number(row[3])), 0);
+      const [year,month] = period.key.split('-').map(Number);
+      const previous = history.get(new Date(Date.UTC(year,month-2,1)).toISOString().slice(0,7));
+      const paid = charged.reduce((sum,cents) => sum + cents,0);
+      let after = original;
+      if (previous && charged.every(cents => cents !== null) &&
+          (original === previous.original - paid || original === previous.after - paid)) {
+        after = previous.after - paid - savings;
+      } else if (comparisons.length === 1 && original === Number(comparisons[0][1]) - Number(comparisons[0][3])) {
+        after = Number(comparisons[0][2]);
+      }
+      if (!Number.isSafeInteger(after) || after < 0) after = original;
+      history.set(period.key,{original,after});
+      if (after === Math.round(mortgage.interest * 100)) continue;
       const delta = after - Math.round(mortgage.interest * 100);
       const adjust = amount => (Math.round(amount * 100) + delta) / 100;
       const items = period.items.map(i => i === mortgage ? {...i, scheduleBaseCents:original,
         interest:after / 100, total:adjust(i.total)} : i);
-      return {...period, items, interest:adjust(period.interest), total:adjust(period.total)};
-    });
-    return {...snapshot, periods};
+      result.set(period.key,{...period, items, interest:adjust(period.interest), total:adjust(period.total)});
+    }
+    return {...snapshot, periods:snapshot.periods.map(p => result.get(p.key) || p)};
   }
 
   window.budgetRpc = async (method, args) => {
@@ -165,7 +181,17 @@
     const current = period?.items.find(x => x.id === 'hipoteka')?.interest;
     const group = snapshot.installments.filter(x => x.key === payment.key && x.split?.[2] === 'hipoteka');
     const extra = group.filter(x => x.bank.includes('nadpłata'));
-    if (![current,opening].every(Number.isFinite) || extra.length !== 1) return null;
+    if (![current,opening].every(Number.isFinite)) return null;
+    if (extra.length > 1) {
+      const ordered = extra.slice().sort((a,b) => a.bank.localeCompare(b.bank));
+      const last = ordered.at(-1);
+      const day = payment.bank.match(/nadpłata (\d{4}-\d{2}-\d{2})/)?.[1];
+      if (!day || last.bank !== payment.bank || extra.filter(x => x.bank.includes(day)).length !== 1) return null;
+      const prior = ordered.slice(0,-1);
+      if (!prior.every(p => rows.some(r => r[0] === p.key + '|' + p.bank && scheduleCents(r[2]) !== null))) return null;
+      const paid = scheduleCents(payment.split[4]);
+      return paid === null ? null : Math.round(current * 100) + paid;
+    }
     const cents = Math.round(opening * 100);
     const regular = group.filter(x => !x.bank.includes('nadpłata'));
     const base = cents - regular.reduce((sum,x) => sum + Number(x.split[4]),0);
