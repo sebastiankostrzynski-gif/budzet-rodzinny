@@ -152,13 +152,14 @@
     while (number) { number--; letters = String.fromCharCode(65+number%26)+letters; number=Math.floor(number/26); }
     const formula = rows[2][col]?.userEnteredValue?.formulaValue || '';
     const match = /^=\(\s*(.+?)\s*(-\s*([A-Z]+)66\s*\)\s*\*\s*(\d+(?:[.,]\d+)?)%)$/.exec(formula);
-    const split = match && /^\((\d+)\s*\+\s*(\d+)\)\s*\/\s*100$/.exec(match[1]);
+    const split = match && /^\((\d+)\s*\+\s*(\d+(?:\s*\+\s*\d+)*)\)\s*\/\s*100$/.exec(match[1]);
     const legacy = match && /^(\d+(?:[.,]\d+)?)(\/100)?$/.exec(match[1]);
     if (!match || match[3] !== letters || (!legacy && !split))
       throw Error('Ta pozycja ma inny sposób obliczania wyceny.');
-    const stocks = split ? Number(split[1]) : null, etfs = split ? Number(split[2]) : null;
+    const etfValues = split ? split[2].split('+').map(Number) : [];
+    const stocks = split ? Number(split[1]) : null, etfs = split ? etfValues.reduce((a,b)=>a+b,0) : null;
     const price = split ? stocks + etfs : Math.round(Number(legacy[1].replace(',','.'))*(legacy[2] ? 1 : 100));
-    return {formula,col,sheetId:sheet.properties.sheetId,stocks,etfs,price,suffix:match[2],rate:Number(match[4].replace(',','.'))/100};
+    return {formula,col,sheetId:sheet.properties.sheetId,stocks,etfs,etfValues,price,suffix:match[2],rate:Number(match[4].replace(',','.'))/100};
   }
   async function readPortfolio(period) {
     const params = new URLSearchParams({ranges:"'"+portfolioTab+"'!65:67",fields:'sheets(properties(sheetId),data(rowData(values(formattedValue,userEnteredValue))))'});
@@ -173,48 +174,67 @@
     const dialog = document.createElement('dialog');
     dialog.id = 'portfolio-dialog'; dialog.setAttribute('aria-labelledby','portfolio-heading');
     dialog.style.cssText='box-sizing:border-box;width:min(92vw,420px);max-height:85dvh;border:1px solid #d9e3dc;border-radius:22px;padding:24px;color:#173d31;background:#fffcf6;font:inherit';
-    dialog.innerHTML='<form><small></small><h2 id="portfolio-heading">Wycena akcji i ETF</h2><p class="old-price"></p><label>Akcje (zł)<input name="stocks" required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><label>ETF (zł)<input name="etfs" required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz wycenę</button> <button type="button" class="back-button">Zamknij</button></form>';
+    dialog.innerHTML='<form><small></small><h2 id="portfolio-heading">Wycena akcji i ETF</h2><p class="old-price"></p><label>Akcje (zł)<input name="stocks" required inputmode="decimal" autocomplete="off" placeholder="0,00" style="display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px"></label><fieldset style="border:0;padding:0;margin:18px 0"><legend>ETF — wartości poszczególnych funduszy (zł)</legend><div class="etf-rows"></div><button type="button" class="back-button" data-add-etf disabled>+ Dodaj ETF</button><p class="etf-total"></p></fieldset><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz wycenę</button> <button type="button" class="back-button" data-close>Zamknij</button></form>';
     document.body.append(dialog);
-    const form=dialog.querySelector('form'), stocks=form.querySelector('[name=stocks]'), etfs=form.querySelector('[name=etfs]'), save=form.querySelector('[type=submit]'), close=form.querySelector('[type=button]'), status=form.querySelector('[role=status]');
+    const form=dialog.querySelector('form'), stocks=form.querySelector('[name=stocks]'), rows=form.querySelector('.etf-rows'), add=form.querySelector('[data-add-etf]'), save=form.querySelector('[type=submit]'), close=form.querySelector('[data-close]'), status=form.querySelector('[role=status]');
     form.querySelector('small').textContent=savingsLabel_(period);
     dialog.onclose=()=>dialog.remove(); close.onclick=()=>dialog.close(); dialog.showModal();
     const money=c=>scheduleMoney(c);
     let quote, busy=false;
+    let etfInputs=[];
+    function addRow(value='') {
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:8px;align-items:center;margin:8px 0';
+      const input=document.createElement('input');
+      input.required=true; input.inputMode='decimal'; input.autocomplete='off'; input.placeholder='0,00'; input.value=value;
+      input.setAttribute('aria-label','Wartość ETF');
+      input.style.cssText='box-sizing:border-box;min-width:0;width:100%;padding:12px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:20px';
+      const remove=document.createElement('button'); remove.type='button'; remove.textContent='Usuń'; remove.className='back-button';
+      remove.onclick=()=>{if(busy)return; row.remove();etfInputs=etfInputs.filter(x=>x!==input); if(!etfInputs.length)addRow('0');preview();};
+      input.oninput=preview; etfInputs.push(input);row.append(input,remove);rows.append(row);
+    }
+    function values(){return etfInputs.map(x=>portfolioCents(x.value));}
+    function total(){const v=values();return !v.length || v.includes(null)?null:v.reduce((a,b)=>a+b,0);}
+    add.onclick=()=>{if(!busy){addRow();preview();etfInputs.at(-1).focus();}};
     dialog.oncancel=e=>{if(busy)e.preventDefault();};
     function preview() {
-      const a=portfolioCents(stocks.value), b=portfolioCents(etfs.value);
-      save.disabled=busy || !quote || a===null || b===null || (a===quote.stocks && b===quote.etfs);
+      const a=portfolioCents(stocks.value), b=total();
+      save.disabled=busy || !quote || a===null || b===null || (a===quote.stocks && JSON.stringify(values())===JSON.stringify(quote.etfValues));
       if (!quote) return;
+      form.querySelector('.etf-total').textContent=b===null?'Uzupełnij kwoty ETF.':'Suma ETF: '+money(b);
       status.textContent=a===null || b===null ? 'Podaj obie wartości. Jeśli jedna wynosi zero, wpisz 0.' :
         'Razem: '+money(a+b)+' · Zmiana wyceny: '+money(a+b-quote.price)+' · Wpływ na oszczędności: '+money(Math.round((a+b-quote.price)*quote.rate));
     }
-    stocks.disabled=etfs.disabled=true; status.textContent='Pobieram zapisaną wycenę…';
+    stocks.disabled=true; status.textContent='Pobieram zapisaną wycenę…';
     readPortfolio(period).then(q=>{
       if (!dialog.open) return;
       quote=q;
       if (q.stocks!==null) {
         stocks.value=(q.stocks/100).toFixed(2).replace('.',',');
-        etfs.value=(q.etfs/100).toFixed(2).replace('.',',');
+        q.etfValues.forEach(v=>addRow((v/100).toFixed(2).replace('.',',')));
       }
-      stocks.disabled=etfs.disabled=false;
+      if (!etfInputs.length) addRow();
+      stocks.disabled=add.disabled=false;
       form.querySelector('.old-price').textContent='Obecna wycena: '+money(q.price);
       preview();
     }).catch(e=>{status.textContent=e.message;});
-    stocks.oninput=etfs.oninput=preview;
+    stocks.oninput=preview;
     form.onsubmit=async event=>{
       event.preventDefault();
-      const a=portfolioCents(stocks.value), b=portfolioCents(etfs.value);
+      const a=portfolioCents(stocks.value), b=total();
       if (!quote || busy || save.disabled || a===null || b===null) return;
-      busy=true; stocks.disabled=etfs.disabled=save.disabled=close.disabled=true;
+      const savedValues=values();
+      busy=true; stocks.disabled=add.disabled=save.disabled=close.disabled=true;
+      rows.querySelectorAll('input,button').forEach(el=>el.disabled=true);
       status.textContent='Zapisuję wycenę…';
       try {
         // Whole grosze divided by 100 works in either spreadsheet locale.
-        const replacement='=(('+a+'+'+b+')/100'+quote.suffix;
+        const replacement='=(('+a+'+'+savedValues.join('+')+')/100'+quote.suffix;
         const request={findReplace:{find:quote.formula,replacement,matchEntireCell:true,matchCase:true,includeFormulas:true,
           range:{sheetId:quote.sheetId,startRowIndex:66,endRowIndex:67,startColumnIndex:quote.col,endColumnIndex:quote.col+1}}};
         await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[request]})});
         const verified=await readPortfolio(period);
-        if (verified.stocks!==a || verified.etfs!==b) throw Error('Wycena w arkuszu uległa zmianie. Otwórz formularz ponownie.');
+        if (verified.stocks!==a || JSON.stringify(verified.etfValues)!==JSON.stringify(savedValues)) throw Error('Wycena w arkuszu uległa zmianie. Otwórz formularz ponownie.');
         status.textContent='Zapisano wycenę: '+money(a+b)+'.';
         form.querySelector('.old-price').textContent=savingsLabel_(period);
         if (activeView_==='savings') { savingsSerial_++; savingsBusy_=false; savingsRefresh_(); }
@@ -237,6 +257,7 @@
   portfolioStyle.textContent='body.amounts-hidden [data-portfolio-edit]{display:none!important}#portfolio-dialog::backdrop{background:rgb(17 36 29 / 35%)}';
   document.head.append(portfolioStyle);
   new MutationObserver(mountPortfolioEditor).observe(document.getElementById('app'),{childList:true});
+
   function prepareTestNavigation() {
     const bar = document.querySelector('nav.budget-tabs');
     const balances = bar?.querySelector('[data-tab="balances"]');
