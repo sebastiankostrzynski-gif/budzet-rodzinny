@@ -3653,6 +3653,7 @@ function formatHistoryValue(value) {
         manualRefreshRequested_ = false;
         ++refreshStateGeneration_; // Ignore a version check started before this refresh.
         refreshStateRequestInFlight = false;
+        if (!silentRefreshInFlight) markMonthDashboardCacheStale_();
         refreshDashboardSilently_();
         return;
       }
