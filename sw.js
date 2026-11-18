@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v107-correction-read';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v108-shared-reads';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -163,4 +163,5 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
+
 
