@@ -673,7 +673,7 @@
       tabs.append(pendingTab,historyTab,refresh);
       const advanced = make('div');
       const links = make('div'); links.className='assignment-links';
-      async function openForm(file,title) {
+      async function openForm(file,title,selection) {
         const panel=make('section'), back=make('button','← Przypisz'), notice=make('p');
         back.onclick=()=>window.openAssignments_();notice.setAttribute('role','status');
         root.replaceChildren(panel);panel.append(back,notice);formNotice=notice;
@@ -684,7 +684,10 @@
           catch(err){notice.textContent=err.message;}
         }
         if(!panel.isConnected)return;
-        const frame=make('iframe');frame.title=title;frame.dataset.form=file;frame.src='./'+file;
+        const frame=make('iframe');frame.title=title;frame.dataset.form=file;
+        const formURL=new URL('./'+file,location.href);
+        if(selection){formURL.searchParams.set('newClothingKey',selection.key);}
+        frame.src=formURL.href;
         frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
         activeForm=frame;panel.append(frame);
       }
@@ -777,6 +780,11 @@
             category.add(new Option('Wybierz kategorię',''));
             for(const sheet of state.data.expenseSheets)category.add(new Option(sheet.replace(/^T\d+\s+/,''),sheet));
             category.onchange=()=>{
+              if(/^T12\b/.test(category.value)){
+                target.disabled=true;save.disabled=true;
+                openForm('expense-editor.html','Nowe ubranie lub prezent',{key:row.key});
+                return;
+              }
               target.replaceChildren(new Option('Wybierz pozycję',''));
               for(const t of state.data.existingRows.filter(t=>t.sheet===category.value&&t.month===row.date.slice(0,7)))
                 target.add(new Option([t.sectionName,t.label].filter(Boolean).join(' · '),t.key));
@@ -1013,5 +1021,6 @@
     }
   }).catch(report);
 })();
+
 
 
