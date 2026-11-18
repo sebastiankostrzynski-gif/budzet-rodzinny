@@ -48,7 +48,33 @@
     document.documentElement.classList.add('budget-locked');
     gate.hidden = false; status.textContent = message; button.disabled = !client;
   }
-  async function rpc(method,args) {
+  // Share only concurrent reads; never cache results or coalesce writes.
+  const readFlights = new Map();
+  const readMethods = new Set(['getBudgetData','getBudgetDataFresh','getCategoryDetails',
+    'getCategoryDetailsBundle','getBudgetEntries','getRefreshState','getSavingsData',
+    'getDebtsData','getAccountBalances']);
+  const performanceSamples = [];
+  window.budgetPerformance = () => performanceSamples.map(sample => ({...sample}));
+  function invalidateReadFlights() { readFlights.clear(); }
+  window.addEventListener('budget-assignment-saved', invalidateReadFlights);
+  function shareRead(key, task) {
+    if (readFlights.has(key)) return readFlights.get(key);
+    const started = performance.now();
+    const promise = Promise.resolve().then(task);
+    readFlights.set(key, promise);
+    const finish = ok => {
+      if (readFlights.get(key) === promise) readFlights.delete(key);
+      performanceSamples.push({operation:key.split('|')[0], milliseconds:Math.round(performance.now()-started), ok});
+      if (performanceSamples.length > 100) performanceSamples.shift();
+    };
+    promise.then(() => finish(true), () => finish(false));
+    return promise;
+  }
+  function rpc(method,args) {
+    if (!readMethods.has(method)) { invalidateReadFlights(); return rpcRequest(method,args); }
+    return shareRead(method+'|'+token+'|'+JSON.stringify(args), () => rpcRequest(method,args));
+  }
+  async function rpcRequest(method,args) {
     if (!token || Date.now() >= expires) {
       lock('Zaloguj się, aby odświeżyć prywatny budżet.');
       throw Error('Sesja wygasła.');
@@ -120,9 +146,10 @@
     if (!['getDebtsData','saveInstallmentSplit'].includes(method) || window.budgetViewerRole !== 'owner')
       return rpc(method,args);
     const version = scheduleVersion;
-    const snapshot = await rpc(method,args);
-    if (method === 'saveInstallmentSplit') return applySchedules(snapshot, loadedSchedules);
-    const rows = (await queueSheets(scheduleRange+'?valueRenderOption=UNFORMATTED_VALUE')).values || [];
+    if (method === 'saveInstallmentSplit') return applySchedules(await rpc(method,args), loadedSchedules);
+    const [snapshot, scheduleData] = await Promise.all([rpc(method,args),
+      queueSheets(scheduleRange+'?valueRenderOption=UNFORMATTED_VALUE')]);
+    const rows = scheduleData.values || [];
     const concurrent = [...recentSchedules.values()].filter(entry => entry.version > version);
     loadedSchedules = rows.concat(concurrent.map(entry => entry.row));
     return applySchedules(snapshot, loadedSchedules);
@@ -282,7 +309,14 @@
     style.textContent += '.phone-expense{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;margin:10px 0;padding:16px;background:white;border:1px solid #dfdfd4;border-radius:16px}.phone-expense small,.phone-expense select,.phone-expense button,.phone-expense p{grid-column:1/-1}.phone-expense select{max-width:100%;font-size:16px;padding:8px}.phone-expense b{white-space:nowrap}.assignment-wrap button{min-height:42px}.assignment-wrap button[aria-pressed=true]{background:#175a48;color:white}';
     document.head.append(style);
   }
-  async function queueSheets(path, options = {}) {
+  function queueSheets(path, options = {}) {
+    if (options.method && options.method !== 'GET') {
+      invalidateReadFlights();
+      return queueSheetsRequest(path, options);
+    }
+    return shareRead('sheets|'+token+'|'+path, () => queueSheetsRequest(path, options));
+  }
+  async function queueSheetsRequest(path, options = {}) {
     if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
       throw Error('Zaloguj się ponownie jako właściciel budżetu.');
     const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + testFileId + '/values/' + path, {
@@ -418,7 +452,10 @@
   new MutationObserver(mountScheduleEditors).observe(document.getElementById('app'), {childList:true});
   mountScheduleEditors();
   const queueRange = range => encodeURIComponent("'Kolejka iPhone TEST'!" + range);
-  async function phoneQueue() {
+  function phoneQueue() {
+    return shareRead('phoneQueue|'+token, readPhoneQueue);
+  }
+  async function readPhoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
     if (tag !== 'QUEUE_V1' || !Number.isInteger(+parts) || +parts < 1 || chunks.length < +parts)
@@ -809,7 +846,7 @@
         try {
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
           state=next;render();status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
-          lastCountRead=0;refreshExpenseCount();
+          lastCountRead=0;refreshExpenseCount(next);
         }catch(e){if(seq===generation){list.replaceChildren();root.querySelector('.account-notice-list')?.remove();state=null;status.textContent=e.message;}}
       }
       refresh.onclick=()=>{if(!saving)reload();};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
@@ -818,7 +855,7 @@
   }
   let countBusy = false;
   let lastCountRead = 0;
-  async function refreshExpenseCount() {
+  async function refreshExpenseCount(publishedSnapshot) {
     const badge = document.getElementById('pending-count');
     if (!badge || window.budgetViewerRole !== 'owner' || !gate.hidden ||
         document.hidden || countBusy || Date.now() - lastCountRead < 4000) return;
@@ -826,7 +863,7 @@
     lastCountRead = Date.now();
     const tab = badge.closest('button');
     try {
-      const snapshot = await phoneQueue();
+      const snapshot = publishedSnapshot?.pending ? publishedSnapshot : await phoneQueue();
       const {stamp} = snapshot;
       if(Date.now()-Date.parse(stamp)>20*60000)throw Error();
       const count=snapshot.pending.length + pendingIncome(snapshot).length;
@@ -976,4 +1013,5 @@
     }
   }).catch(report);
 })();
+
 
