@@ -2413,6 +2413,33 @@ const budgetDisk = (() => {
     
     
     
+    // V112: details must match the displayed monthly snapshot.
+    const categorySnapshotEpoch_ = {};
+    function categoryEpoch_(year, month) {
+      return categorySnapshotEpoch_[monthCacheKey(Number(year), Number(month))] || 0;
+    }
+    function categoryMatchesDashboard_(data, name, year, month) {
+      const snapshot = monthCache[monthCacheKey(Number(year), Number(month))]?.data;
+      const summary = snapshot?.categories?.find(item => item.name === name);
+      return !summary || (data && Math.abs(Number(data.execution) - Number(summary.execution)) < .005 &&
+        Math.abs(Number(data.budget) - Number(summary.budget)) < .005);
+    }
+    function invalidateCategoryMonth_(year, month) {
+      const key = monthCacheKey(Number(year), Number(month));
+      categorySnapshotEpoch_[key] = categoryEpoch_(year, month) + 1;
+      const entry = categoryDetailsCache[key];
+      Object.values(entry?.categories || {}).forEach(item => { item.timestamp = 0; });
+      for (const [entryKey, state] of entryViewsV22_) {
+        if (entryKey.endsWith('|' + Number(year) + '|' + Number(month))) { state.requested = 0; state.data = null; }
+      }
+    }
+    function refreshOpenCategorySnapshot_() {
+      if (activeView_ !== 'category' || !activeCategory_) return;
+      const name = activeCategory_, year = Number(selectedYear), month = Number(selectedMonth);
+      const cached = getCachedCategoryDetail(name, year, month);
+      if (cached?.isFresh && categoryMatchesDashboard_(cached.data, name, year, month)) return;
+      openCategory(name, true);
+    }
     const categoryDetailsCache = {};
     const categoryDetailsInflight = {};
     const categoryBundleInflight = {};
@@ -2539,6 +2566,10 @@ const budgetDisk = (() => {
 
 
     function markCategoryDetailsStale_() {
+      Object.keys(monthCache).forEach(key => {
+        const data = monthCache[key]?.data;
+        if (data) invalidateCategoryMonth_(data.year, data.monthNumber);
+      });
       
       
       
@@ -2736,6 +2767,10 @@ const budgetDisk = (() => {
         return;
       }
 
+      const snapshotKey = monthCacheKey(Number(data.year), Number(data.monthNumber));
+      const previous = monthCache[snapshotKey]?.data;
+      const signature = value => JSON.stringify([value?.sync, value?.categories]);
+      if (signature(previous) !== signature(data)) invalidateCategoryMonth_(data.year, data.monthNumber);
       monthCache[
         monthCacheKey(
           Number(data.year),
@@ -2750,6 +2785,7 @@ const budgetDisk = (() => {
       
       
       scheduleMonthDashboardCacheBackup_();
+      queueMicrotask(refreshOpenCategorySnapshot_);
     }
 
     function fetchMonthData(year, month, success, failure, forceFresh) {
@@ -2853,6 +2889,7 @@ const budgetDisk = (() => {
         data: item.data || null,
         error: item.error || null,
         isFresh:
+          categoryMatchesDashboard_(item.data, categoryName, year, month) &&
           (Date.now() - Number(item.timestamp || 0)) <
           CATEGORY_DETAILS_CACHE_TTL_MS
       };
@@ -2876,6 +2913,7 @@ const budgetDisk = (() => {
         };
       }
 
+      if (data && !categoryMatchesDashboard_(data, categoryName, year, month)) return;
       if (!data && categoryDetailsCache[key].categories[categoryName] &&
           categoryDetailsCache[key].categories[categoryName].data) return;
       categoryDetailsCache[key].categories[categoryName] = {
@@ -2918,32 +2956,21 @@ const budgetDisk = (() => {
         failure: failure
       }];
 
-      // An already running monthly bundle contains this category. Join that
-      // request instead of starting a competing Apps Script execution.
-      const bundleKey = categoryDetailsCacheKey(year, month);
-      if (categoryBundleInflight[bundleKey]) {
-        fetchCategoryBundle(year, month, function(bundle) {
-          const data = bundle && bundle.categories && bundle.categories[categoryName];
-          if (data) {
-            const callbacks = categoryDetailsInflight[key] || [];
-            delete categoryDetailsInflight[key];
-            callbacks.forEach(function(callback) {
-              if (typeof callback.success === 'function') callback.success(data);
-            });
-          } else {
-            delete categoryDetailsInflight[key];
-            fetchCategoryDetail(categoryName, year, month, success, failure);
-          }
-        }, function() {
-          delete categoryDetailsInflight[key];
-          fetchCategoryDetail(categoryName, year, month, success, failure);
-        });
-        return;
-      }
-
+      // A visible category never waits for the full-month bundle.
+      const requestEpoch = categoryEpoch_(year, month);
       budgetApi.script.run
         .withSuccessHandler(function(data) {
-
+          const waiting = categoryDetailsInflight[key] || [];
+          if (requestEpoch !== categoryEpoch_(year, month)) {
+            delete categoryDetailsInflight[key];
+            waiting.forEach(callback => fetchCategoryDetail(categoryName, year, month, callback.success, callback.failure));
+            return;
+          }
+          if (!categoryMatchesDashboard_(data, categoryName, year, month)) {
+            delete categoryDetailsInflight[key];
+            waiting.forEach(callback => callback.failure?.(new Error('Szczegóły nie są jeszcze zgodne z podsumowaniem. Ponów odczyt.')));
+            return;
+          }
           setCachedCategoryDetail(
             categoryName,
             year,
@@ -3053,9 +3080,16 @@ const budgetDisk = (() => {
         success: success,
         failure: failure
       }];
+      const requestEpoch = categoryEpoch_(year, month);
 
       budgetApi.script.run
         .withSuccessHandler(function(bundle) {
+          if (requestEpoch !== categoryEpoch_(year, month)) {
+            const callbacks = categoryBundleInflight[key] || [];
+            delete categoryBundleInflight[key];
+            callbacks.forEach(callback => callback.failure?.(new Error('Dane miesiąca zmieniły się podczas odczytu.')));
+            return;
+          }
           if (bundle && bundle.categories) {
             CATEGORY_NAMES.forEach(function(categoryName) {
               if (bundle.categories[categoryName]) {
@@ -4654,7 +4688,7 @@ function alerty24Start_() {
       const slot = document.getElementById('food-daily-limit');
       if (!slot) return;
       const cached = getCachedCategoryDetail(foodCategory_, year, month);
-      if (cached && cached.data && !dailyLimitIsStale_(cached.data, year, month)) {
+      if (cached && cached.isFresh && cached.data && categoryMatchesDashboard_(cached.data, foodCategory_, year, month) && !dailyLimitIsStale_(cached.data, year, month)) {
         if (slot.dataset.day !== String(cached.data.dailyBudget?.dayOfMonth)) {
           updateVisibleDailyLimit_(cached.data, year, month);
         }
@@ -4666,15 +4700,13 @@ function alerty24Start_() {
         () => updateVisibleDailyLimit_(null, year, month));
     }
 
-    function openCategory(categoryName) {
+    function openCategory(categoryName, keepPosition = false) {
       if(activeView_==='dashboard')budgetReturnY_=window.scrollY;
       activeView_ = 'category';
       activeCategory_ = categoryName;
 
 
-      // Przy wejściu resetujemy pozycję od razu; po renderze wykonamy
-      // dodatkowy reset, ponieważ iOS/Safari może przywrócić poprzedni scroll.
-      forceScrollToTop_();
+      if (!keepPosition) forceScrollToTop_();
 
       const app =
         document.getElementById('app');
@@ -4689,9 +4721,8 @@ function alerty24Start_() {
           month
         );
 
-      if (cached && cached.data) {
-        // Szczegóły są już przygotowane — pokazujemy je od razu.
-        renderCategoryDetails(cached.data);
+      if (cached && cached.data && categoryMatchesDashboard_(cached.data, categoryName, year, month)) {
+        renderCategoryDetails(cached.data, keepPosition);
 
         // Stary cache może być nieświeży; odświeżamy tylko tę kategorię.
         if (!cached.isFresh || dailyLimitIsStale_(cached.data, year, month)) {
@@ -4745,7 +4776,7 @@ function alerty24Start_() {
         function(data) {
           if (Number(selectedYear) !== year || Number(selectedMonth) !== month || activeCategory_ !== categoryName || activeView_ !== 'category') return;
           if (data) {
-            renderCategoryDetails(data);
+            renderCategoryDetails(data, keepPosition);
             if (dailyLimitIsStale_(data, year, month)) updateVisibleDailyLimit_(null, year, month);
             return;
           }
@@ -4756,12 +4787,14 @@ function alerty24Start_() {
         },
         function(error) {
           if (Number(selectedYear) !== year || Number(selectedMonth) !== month || activeCategory_ !== categoryName || activeView_ !== 'category') return;
-          showCategoryError(
-            error &&
-            error.message
-              ? error.message
-              : String(error)
-          );
+          const status = app.querySelector('[role="status"]');
+          if (status) {
+            status.textContent = (error?.message || 'Nie udało się odświeżyć szczegółów.') + ' ';
+            const retry = document.createElement('button');
+            retry.textContent = 'Ponów odczyt';
+            retry.onclick = () => openCategory(categoryName, true);
+            status.append(retry);
+          } else showCategoryError(error?.message || String(error));
         }
       );
     }
@@ -6131,10 +6164,16 @@ function entryFetchV22_(el,force){
  const state=entryStateV22_(el),key=entryKeyV22_(el);
  if(state.busy||!navigator.onLine)return;
  if(!force&&state.requested&&Date.now()-state.requested<60000)return;
+ const requestEpoch=categoryEpoch_(Number(el.dataset.year),Number(el.dataset.month));
  state.busy=true;state.error=false;state.requested=Date.now();entryRenderV22_(el,state);
  const update=()=>{const current=document.getElementById('entry-panel');if(current&&entryKeyV22_(current)===key&&current.open)entryRenderV22_(current,state);};
  budgetApi.script.run.withSuccessHandler(data=>{
-  state.busy=false;if(entryValidV22_(data,el)){state.data=data;state.error=false;try{localStorage.setItem('budget-entries-v22|'+key,JSON.stringify(data));}catch(_){}}else state.error=true;update();
+  state.busy=false;
+  if(requestEpoch!==categoryEpoch_(Number(el.dataset.year),Number(el.dataset.month))){
+   state.requested=0;const current=document.getElementById('entry-panel');
+   if(current&&entryKeyV22_(current)===key)entryFetchV22_(current,true);return;
+  }
+  if(entryValidV22_(data,el)){state.data=data;state.error=false;try{localStorage.setItem('budget-entries-v22|'+key,JSON.stringify(data));}catch(_){}}else state.error=true;update();
  }).withFailureHandler(()=>{state.busy=false;state.error=true;update();}).getBudgetEntries(el.dataset.category,Number(el.dataset.year),Number(el.dataset.month));
 }
 function entryNormV23_(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[łŁ]/g,'l').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
@@ -6251,6 +6290,7 @@ function historyTouchV24_(event,svg){
 </script>
 <script src="./private-budget.js"></script></body>
 </html>
+
 
 
 
