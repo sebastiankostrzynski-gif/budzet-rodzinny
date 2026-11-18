@@ -487,7 +487,7 @@
     }
     throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
   }
-  window.callBudgetForm = async (caller, method, args) => {
+  const callBudgetFormQueued = async (caller, method, args) => {
     const frame=activeForm;
     if (!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
         !formMethods[frame.dataset.form]?.includes(method)) throw Error('Brak dostępu do formularza.');
@@ -525,6 +525,51 @@
       if(frame===activeForm)formNotice.textContent=write?'Zapis potwierdzony.':'';
       return data;
     }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
+  };
+
+
+  // Reuse a completed read, never a write. Saving still runs kzPreview/kzPost.
+  const correctionReads = new Map();
+  async function completedCorrectionRead(key) {
+    const rows = (await queueSheets(formSheet('A2:E'))).values || [];
+    const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Warsaw',year:'numeric',month:'2-digit',day:'2-digit'});
+    for (let i=rows.length-1;i>=0;i--) {
+      const [id,method,raw,status,stamp] = rows[i];
+      // Any intervening mutation may invalidate the old allocation.
+      if (formWrites.has(method)) return null;
+      if (method!=='kzGetDevV1') continue;
+      let args; try { args=JSON.parse(raw); } catch { continue; }
+      if(args?.[0]?.key!==key) continue;
+      if(status!=='OK' || !Number.isFinite(Date.parse(stamp)) ||
+         today.format(new Date(stamp))!==today.format(new Date())) return null;
+      const row=(await queueSheets(formSheet((i+2)+':'+(i+2)))).values?.[0] || [];
+      if(row[0]!==id || row[3]!=='OK' || row[2]!==raw) return null;
+      const bytes=Uint8Array.from(atob(row.slice(5).join('')),c=>c.charCodeAt(0));
+      const data=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      if(!data || !Array.isArray(data.current) || !Number.isSafeInteger(data.amountCents) || !data.version) return null;
+      return {...data,cachedReadAt:stamp};
+    }
+    return null;
+  }
+  window.callBudgetForm = async (caller,method,args) => {
+    const frame=activeForm;
+    if(!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
+       !formMethods[frame.dataset.form]?.includes(method)) throw Error('Brak dostępu do formularza.');
+    if(method!=='kzGetDevV1') return callBudgetFormQueued(caller,method,args);
+    const key=args?.[0]?.key;
+    if(typeof key!=='string' || !key) throw Error('Brak identyfikatora zakupu.');
+    if(correctionReads.has(key)) return correctionReads.get(key);
+    const task=(async()=>{
+      if(!args[0].fresh) {
+        try {
+          const prior=await completedCorrectionRead(key);
+          if(prior) {if(frame===activeForm)formNotice.textContent='';return prior;}
+        } catch (_) { /* A failed cache read falls back to the verified queue. */ }
+      }
+      return callBudgetFormQueued(caller,method,[{key}]);
+    })();
+    correctionReads.set(key,task);
+    try {return await task;} finally {if(correctionReads.get(key)===task)correctionReads.delete(key);}
   };
 
   function mountSettlementControl(root) {
