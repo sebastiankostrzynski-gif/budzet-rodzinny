@@ -546,7 +546,7 @@
       if(row[0]!==id || row[3]!=='OK' || row[2]!==raw) return null;
       const bytes=Uint8Array.from(atob(row.slice(5).join('')),c=>c.charCodeAt(0));
       const data=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
-      if(!data || !Array.isArray(data.current) || !Number.isSafeInteger(data.amountCents) || !data.version) return null;
+      if(!data || !Array.isArray(data.current) || !Number.isSafeInteger(data.amountCents) || data.version === null || data.version === undefined) return null;
       return {...data,cachedReadAt:stamp};
     }
     return null;
