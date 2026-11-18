@@ -686,7 +686,7 @@
         if(!panel.isConnected)return;
         const frame=make('iframe');frame.title=title;frame.dataset.form=file;
         const formURL=new URL('./'+file,location.href);
-        if(selection){formURL.searchParams.set('newClothingKey',selection.key);}
+        if(selection){formURL.hash=new URLSearchParams({newClothingKey:selection.key}).toString();}
         frame.src=formURL.href;
         frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
         activeForm=frame;panel.append(frame);
