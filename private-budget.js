@@ -285,6 +285,103 @@
   document.head.append(portfolioStyle);
   new MutationObserver(mountPortfolioEditor).observe(document.getElementById('app'),{childList:true});
 
+  // Valuations are snapshots of investment gain; later deposits remain additive.
+  const savingsAssetsV1 = {
+    julka: {group:'children',name:'Julka — ETF',tab:portfolioTab,header:65,capital:73,gain:74,rate:.81,label:'Plany Inwestycyjne - Julka',labelRow:72},
+    olek: {group:'children',name:'Olek — ETF',tab:portfolioTab,header:65,capital:76,gain:77,rate:.81,label:'Plany Inwestycyjne - Olek',labelRow:75},
+    communion: {group:'children',name:'Julka — środki z komunii',tab:'Lokaty - środki dzieci',header:1,capital:3,gain:4,rate:.81,label:'Plany Inwestycyjne (ETF) - Julka (komunia)',labelRow:2},
+    ikzeS: {group:'retirement',name:'IKZE — Sebastian',tab:portfolioTab,header:37,capital:47,gain:88,rate:1,label:'IKZE - wpłata',labelRow:47},
+    ikzeE: {group:'retirement',name:'IKZE — Ewa',tab:portfolioTab,header:37,capital:50,gain:89,rate:1,label:'IKZE - wpłata',labelRow:50},
+    ppk: {group:'retirement',name:'PPK — Sebastian',tab:portfolioTab,header:37,gain:85,employee:39,employer:40,employeeRate:1,label:'PPK - SEBA',labelRow:38},
+    ppe: {group:'retirement',name:'PPE — Ewa',tab:portfolioTab,header:37,gain:99,employee:43,employer:44,employeeRate:.7,label:'PPE - EWA',labelRow:42}
+  };
+  function savingsColumnV1(index) {
+    let s='';for(let n=index+1;n;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s;
+  }
+  async function savingsAssetReadV1(id,period) {
+    const a=savingsAssetsV1[id];if(!a || !/^\d{4}-\d{2}$/.test(period))throw Error('Nieprawidłowy wybór.');
+    const params=new URLSearchParams({ranges:"'"+a.tab+"'!A1:"+(a.tab===portfolioTab?'BP100':'AL8'),fields:'sheets(properties(sheetId),data(rowData(values(formattedValue,userEnteredValue,effectiveValue,dataValidation))))'});
+    const sheet=(await portfolioRequest('?'+params)).sheets?.[0];
+    const rows=sheet?.data?.[0]?.rowData||[];
+    const cell=(r,c)=>rows[r-1]?.values?.[c]||{};
+    const [year,month]=period.split('-');const heading=portfolioMonths[Number(month)-1]+' '+year;
+    const cols=(rows[a.header-1]?.values||[]).map((c,i)=>String(c.formattedValue||'').split(/[\n(]/)[0].trim().toLocaleLowerCase('pl-PL')===heading?i:-1).filter(i=>i>=0);
+    if(cols.length!==1)throw Error('Brak jednoznacznej kolumny miesiąca w arkuszu.');
+    const col=cols[0], letter=savingsColumnV1(col);
+    if(!(rows[a.labelRow-1]?.values||[]).some(c=>c.formattedValue===a.label))throw Error('Układ arkusza zmienił się. Zapis wstrzymany.');
+    const value=r=>{const n=cell(r,col).effectiveValue?.numberValue;if(!Number.isFinite(n))throw Error('Brak wartości liczbowej w arkuszu.');return n;};
+    const previous=r=>{const n=cell(r,col-1).effectiveValue?.numberValue;if(!Number.isFinite(n))throw Error('Brak poprzedniego miesiąca.');return n;};
+    const capital=a.capital?value(a.capital):id==='ppk'?value(84):value(43)/.7+value(44)/.7;
+    const price=a.capital?capital+value(a.gain)/a.rate:id==='ppk'?value(85)+value(83):value(99);
+    return {a,id,period,col,letter,sheetId:sheet.properties.sheetId,cell,value,previous,capital,price};
+  }
+  function savingsReplacementV1(q,mode,cents) {
+    const {a,id,letter:c}=q;
+    if(!Number.isSafeInteger(cents)||cents<0)throw Error('Podaj poprawną nieujemną kwotę.');
+    if(mode==='valuation') {
+      // The literal baseline is intentional: a new deposit must not reduce gain.
+      const base=Math.round(q.capital*100);
+      if(a.capital)return {row:a.gain,formula:'=('+cents+'-'+base+')/100*'+Math.round(a.rate*100)+'%'};
+      if(id==='ppk')return {row:85,formula:'='+c+'84+('+cents+'-'+Math.round((q.capital+q.value(83))*100)+')/100'};
+      return {row:99,formula:'='+cents+'/100+('+c+'43-'+Math.round(q.value(43)*1000000)+'/1000000)/70%+('+c+'44-'+Math.round(q.value(44)*1000000)+'/1000000)/70%'};
+    }
+    const row=mode==='employee'?a.employee:mode==='employer'?a.employer:0;
+    if(!row)throw Error('Ten produkt nie obsługuje takiej składki.');
+    const rate=mode==='employee'?a.employeeRate:.7;
+    return {row,formula:'='+savingsColumnV1(q.col-1)+row+'+'+cents+'/100*'+Math.round(rate*100)+'%'};
+  }
+  function openSavingsAssetV1(group,period) {
+    if(window.budgetViewerRole!=='owner'||document.body.classList.contains('amounts-hidden')||document.getElementById('savings-asset-dialog'))return;
+    const dialog=document.createElement('dialog');dialog.id='savings-asset-dialog';
+    dialog.style.cssText='box-sizing:border-box;width:min(92vw,440px);max-height:85dvh;border:1px solid #d9e3dc;border-radius:22px;padding:24px;background:#fffcf6;color:#173d31;font:inherit';
+    dialog.innerHTML='<form><h2>Wycena i wpłaty</h2><p class="period"></p><label>Oszczędności<select name="asset"></select></label><label>Co aktualizujesz?<select name="mode"></select></label><p class="summary"></p><label class="amount-label">Wartość rachunku przed pomniejszeniami (zł)<input name="amount" inputmode="decimal" required autocomplete="off"></label><p class="explanation"></p><p role="status" aria-live="polite"></p><button type="submit" class="back-button" disabled>Zapisz</button> <button type="button" class="back-button" data-close>Zamknij</button></form>';
+    const form=dialog.querySelector('form'),asset=form.elements.asset,mode=form.elements.mode,amount=form.elements.amount,save=form.querySelector('[type=submit]'),close=form.querySelector('[data-close]'),status=form.querySelector('[role=status]');
+    form.querySelector('.period').textContent=savingsLabel_(period);
+    form.querySelectorAll('input,select').forEach(x=>x.style.cssText='display:block;box-sizing:border-box;width:100%;padding:12px;margin:8px 0 18px;border:1px solid #9aafa5;border-radius:12px;font:inherit;font-size:16px');
+    Object.entries(savingsAssetsV1).filter(([,a])=>a.group===group).forEach(([id,a])=>asset.add(new Option(a.name,id)));
+    let q,busy=false,seq=0;
+    const valid=()=>save.disabled=busy||!q||portfolioCents(amount.value)===null;
+    function display(){
+      if(!q)return;
+      const a=q.a,contribution=mode.value!=='valuation';
+      amount.value='';
+      form.querySelector('.amount-label').firstChild.textContent=contribution?'Łączna składka za wybrany miesiąc, przed pomniejszeniami (zł)':'Wartość rachunku przed pomniejszeniami (zł)';
+      form.querySelector('.summary').textContent='Wartość rachunku: '+scheduleMoney(Math.round(q.price*100))+(a.employee?' · Składki narastająco: pracownik '+scheduleMoney(Math.round(q.value(a.employee)/a.employeeRate*100))+' · pracodawca '+scheduleMoney(Math.round(q.value(a.employer)/.7*100)):' · Wpłaty narastająco: '+scheduleMoney(Math.round(q.capital*100)));
+      form.querySelector('.explanation').textContent=contribution?'Wpisz sumę składek za ten miesiąc, nie pojedynczą dopłatę. Zapis zastępuje miesięczną składkę. Zachowujemy obecne współczynniki arkusza.':'Wpisz aktualną pełną wartość, obejmującą pokazane wpłaty. Późniejsze zaksięgowane wpłaty zwiększą wartość osobno. W podsumowaniu pozostają obecne pomniejszenia z arkusza.';
+      if(contribution){const row=mode.value==='employee'?a.employee:a.employer;const rate=mode.value==='employee'?a.employeeRate:.7;amount.value=((q.value(row)-q.previous(row))/rate).toFixed(2).replace('.',',');}
+      valid();
+    }
+    async function load(){const generation=++seq;q=null;valid();status.textContent='Pobieram dane…';mode.replaceChildren(new Option('Wycena rachunku','valuation'));if(savingsAssetsV1[asset.value].employee){mode.add(new Option('Składka pracownika','employee'));mode.add(new Option('Składka pracodawcy','employer'));}try{const next=await savingsAssetReadV1(asset.value,period);if(generation!==seq||!dialog.open)return;q=next;display();status.textContent='';}catch(e){if(generation===seq)status.textContent=e.message;}}
+    asset.onchange=load;mode.onchange=()=>{try{display();}catch(e){status.textContent=e.message;save.disabled=true;}};amount.oninput=valid;
+    close.onclick=()=>dialog.close();dialog.onclose=()=>{seq++;dialog.remove();};dialog.oncancel=e=>{if(busy)e.preventDefault();};
+    form.onsubmit=async e=>{
+      e.preventDefault();if(busy||!q||save.disabled)return;
+      busy=true;form.querySelectorAll('input,select,button').forEach(x=>x.disabled=true);status.textContent='Zapisuję…';
+      try{
+        const change=savingsReplacementV1(q,mode.value,portfolioCents(amount.value));
+        const old=q.cell(change.row,q.col),find=old.userEnteredValue?.formulaValue||(typeof old.userEnteredValue?.numberValue==='number'?String(old.userEnteredValue.numberValue).replace('.',','):'');
+        if(!find||old.dataValidation)throw Error('Nieobsługiwany format komórki. Zapis wstrzymany.');
+        if(old.userEnteredValue?.formulaValue!==change.formula){
+          const result=await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[{findReplace:{find,replacement:change.formula,matchEntireCell:true,matchCase:true,includeFormulas:true,range:{sheetId:q.sheetId,startRowIndex:change.row-1,endRowIndex:change.row,startColumnIndex:q.col,endColumnIndex:q.col+1}}}]})});
+          if(result.replies?.[0]?.findReplace?.occurrencesChanged!==1)throw Error('Dane zostały zmienione. Otwórz formularz ponownie.');
+        }
+        const check=await savingsAssetReadV1(q.id,period);
+        if(check.cell(change.row,check.col).userEnteredValue?.formulaValue!==change.formula)throw Error('Nie potwierdzono zapisu. Otwórz formularz ponownie.');
+        status.textContent='Zapisano i potwierdzono w arkuszu.';
+        invalidateReadFlights();if(activeView_==='savings'){savingsSerial_++;savingsBusy_=false;savingsRefresh_();}
+      }catch(e){status.textContent=e.message+' Przed ponowieniem sprawdź zapis.';}
+      finally{busy=false;close.disabled=false;}
+    };
+    document.body.append(dialog);dialog.showModal();load();
+  }
+  function mountSavingsAssetsV1(){
+    if(window.budgetViewerRole!=='owner'||typeof savingsGroup_==='undefined'||activeView_!=='savings'||!['children','retirement'].includes(savingsGroup_))return;
+    const hero=document.querySelector('#app .savings-hero');if(!hero||hero.querySelector('[data-savings-edit]'))return;
+    const button=document.createElement('button');button.type='button';button.className='back-button';button.dataset.savingsEdit='';button.textContent=savingsGroup_==='children'?'Zaktualizuj wycenę dzieci':'Wycena i składki emerytalne';button.style.cssText='display:block;margin-top:16px;background:white;color:#25473b';button.onclick=()=>openSavingsAssetV1(savingsGroup_,savingsPeriod_);hero.append(button);
+  }
+  new MutationObserver(mountSavingsAssetsV1).observe(document.getElementById('app'),{childList:true});
+  portfolioStyle.textContent+='body.amounts-hidden [data-savings-edit]{display:none!important}#savings-asset-dialog::backdrop{background:rgb(17 36 29 / 35%)}';
+
   function prepareTestNavigation() {
     const bar = document.querySelector('nav.budget-tabs');
     const balances = bar?.querySelector('[data-tab="balances"]');
