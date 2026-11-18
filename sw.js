@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v106-correction-read';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v107-correction-read';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
