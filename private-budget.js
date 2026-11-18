@@ -980,6 +980,13 @@
     chooseFile().catch(err=>report(Error(err?.message||'Nie udało się otworzyć wyboru arkusza.')));
   };
   lock('Łączenie z Google…');
+  // A valid session can verify access without waiting for the login UI library.
+  const startupSessionRestored = restoreSession() && remembered();
+  if (startupSessionRestored) {
+    gate.querySelector('[data-file]').hidden=true;
+    status.textContent='Otwieranie budżetu…';
+    showBudget().catch(err=>{clearSession();token='';report(err);});
+  }
   script('https://accounts.google.com/gsi/client').then(()=>{
     client=window.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',include_granted_scopes:false,
       error_callback:()=>lock('Logowanie zostało przerwane. Możesz spróbować ponownie.'),
@@ -1012,14 +1019,15 @@
       button.disabled=true;
       client.requestAccessToken({prompt: remembered() ? '' : 'select_account'});
     };
-    if(restoreSession() && remembered()) {
-      gate.querySelector('[data-file]').hidden=true;
-      status.textContent='Otwieranie budżetu…';
-      showBudget().catch(err=>{clearSession();token='';report(err);});
-    } else {
+    if (!startupSessionRestored) {
       lock('Dotknij „Zaloguj przez Google”, aby otworzyć prywatny budżet.');
+    } else {
+      button.disabled=false;
     }
-  }).catch(report);
+  }).catch(error=>{
+    // Failure of the login UI must not hide an already authorized session.
+    if (!token || Date.now() >= expires) report(error);
+  });
 })();
 
 
