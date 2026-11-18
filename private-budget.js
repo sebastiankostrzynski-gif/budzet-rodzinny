@@ -615,9 +615,9 @@
     const panel = document.createElement('section');
     panel.className = 'u47-control';
     panel.setAttribute('aria-label', 'Kontrola rozliczenia');
-    panel.innerHTML = `<div class="u47-heading"><span>Kontrola rozliczenia</span><small>U47</small></div>
+    panel.innerHTML = `<div class="u47-heading"><span>Kontrola rozliczenia</span></div>
       <div class="u47-result" role="status"><strong>—</strong><span>Sprawdzanie…</span></div>
-      <div class="u47-footer"><time></time><button type="button" aria-label="Odśwież kontrolę U47">Odśwież</button></div>`;
+      <div class="u47-footer"><time></time><button type="button" aria-label="Odśwież kontrolę rozliczenia">Odśwież</button></div>`;
     root.append(panel);
     const amount = panel.querySelector('strong');
     const status = panel.querySelector('.u47-result span');
