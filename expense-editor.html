@@ -291,7 +291,7 @@ api('list');
       .sort((a,b)=>a.date.localeCompare(b.date));
   }
   function close(){readSeq++;openedKey=null;loaded=null;loadError='';lines=[];working=false;render();}
-  function loadCorrection(row){
+  function loadCorrection(row,fresh=false){
     if(working)return;working=true;openedKey=row.key;loaded=null;loadError='';render();
     const token=++readSeq;
     const timer=setTimeout(()=>{
@@ -310,7 +310,7 @@ api('list');
       }catch(err){loaded=null;loadError='Nie udało się wyświetlić korekty: '+(err.message||String(err));render();}
     }
     try{google.script.run.withSuccessHandler(data=>finish(data,null))
-      .withFailureHandler(err=>finish(null,err)).kzGetDevV1({key:row.key});}
+      .withFailureHandler(err=>finish(null,err)).kzGetDevV1({key:row.key,fresh});}
     catch(err){finish(null,err);}
   }
   function remaining(){
@@ -327,6 +327,10 @@ api('list');
       box.append(button('Zamknij',close,'quiet'));return box;
     }
     box.append(element('h3','Korekta zaksięgowanego zakupu'));
+    if(loaded.cachedReadAt){
+      box.append(element('p','Ostatni sprawdzony zapis: '+new Date(loaded.cachedReadAt).toLocaleString('pl-PL')+'. Przed zapisem sprawdzimy go ponownie.'));
+      box.append(button('Pobierz aktualny zapis',()=>loadCorrection(state.rows.find(r=>r.key===openedKey),true),'quiet'));
+    }
     box.append(element('p','Obecnie: '+loaded.current.map(p=>p.label+' · '+money(p.amountCents)).join(' / ')));
     box.append(element('p','Wybierz nowe pozycje. Saldo konta i karty pozostanie bez zmian.'));
     const list=element('div'),status=element('div');status.className='balance';box.append(list);
