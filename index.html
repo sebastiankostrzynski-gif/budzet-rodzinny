@@ -5637,8 +5637,8 @@ function toggleHolidayTrips() {
         return;
       }
       lastBackgroundFreshAt_ = now;
-      // Sprawdź wersję źródła; pełny dashboard pobierz tylko po zmianie.
-      checkRefreshState_(true);
+      // Startup revalidation fetches fresh amounts directly. Routine checks stay light.
+      checkRefreshState_(true, Boolean(force));
     }
 
     function continueAfterStartupRestore_() {
