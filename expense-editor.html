@@ -21,7 +21,7 @@ function addSplit(lines,total){if(lines.length>=20)return;const last=lines.at(-1
 function validateSplit(lines,total){if(lines.length<2||lines.length>20)return 'Dodaj co najmniej dwie pozycje.';let sum=0;for(let i=0;i<lines.length;i++){const x=lines[i],n=parseCents(x.amount);if(!['Ewa','Julka','Olek','Seba'].includes(x.person))return 'Wybierz osobę w pozycji '+(i+1)+'.';if(!x.description.trim())return 'Uzupełnij opis pozycji '+(i+1)+'.';if(n===null||n<=0)return 'Wpisz poprawną kwotę w pozycji '+(i+1)+'.';sum+=n;}return sum===total?'':'Suma pozycji musi wynosić '+money(total)+'.';}
 const $=id=>document.getElementById(id), element=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=String(text);return e;};
 let state,tab='pending',opened=null,busy=false,sequence=0,draft=null;
-let initialClothingKey = new URLSearchParams(location.search).get('newClothingKey');
+let initialClothingKey = new URLSearchParams(location.hash.slice(1)).get('newClothingKey');
 function openInitialClothing(data, key) {
   const row = data.rows.find(item => item.key === key && !item.bridgeArchived && !item.bridgeBlocked && !item.postedEvidence && !item.decision);
   const sheet = data.expenseSheets.find(name => /^T12\b/.test(name));
