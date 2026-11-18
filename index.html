@@ -3644,10 +3644,18 @@ function formatHistoryValue(value) {
     // LEKKIE SPRAWDZENIE STANU ŹRÓDŁA
     // ========================================================
 
+    let refreshStateGeneration_ = 0;
     let manualRefreshRequested_ = false;
     let expenseChangePending_ = false;
     function checkRefreshState_(force, manual = false) {
-      if (manual && !silentRefreshInFlight) manualRefreshRequested_ = true;
+      // Manual refresh needs fresh data, not a serial version-check RPC first.
+      if (manual && dashboardData && !isMonthLoading) {
+        manualRefreshRequested_ = false;
+        ++refreshStateGeneration_; // Ignore a version check started before this refresh.
+        refreshStateRequestInFlight = false;
+        refreshDashboardSilently_();
+        return;
+      }
 
       if (!dashboardData || refreshStateRequestInFlight || silentRefreshInFlight) {
         return;
@@ -3670,6 +3678,7 @@ function formatHistoryValue(value) {
 
       lastRefreshCheckAt = now;
       refreshStateRequestInFlight = true;
+      const stateGeneration = ++refreshStateGeneration_;
 
       if (!lastRefreshSuccessAt) {
         updateFreshnessIndicator_('checking');
@@ -3678,6 +3687,7 @@ function formatHistoryValue(value) {
       budgetApi.script.run
         .withSuccessHandler(function(state) {
 
+          if (stateGeneration !== refreshStateGeneration_) return;
           refreshStateRequestInFlight = false;
           const userRequested = manualRefreshRequested_;
           manualRefreshRequested_ = false;
@@ -3739,6 +3749,7 @@ function formatHistoryValue(value) {
           updateFreshnessIndicator_('ok');
         })
         .withFailureHandler(function() {
+          if (stateGeneration !== refreshStateGeneration_) return;
           refreshStateRequestInFlight = false;
           if (manualRefreshRequested_) {
             manualRefreshRequested_ = false;
@@ -6239,6 +6250,7 @@ function historyTouchV24_(event,svg){
 </script>
 <script src="./private-budget.js"></script></body>
 </html>
+
 
 
 
