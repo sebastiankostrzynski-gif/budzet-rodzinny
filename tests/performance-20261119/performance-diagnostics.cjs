@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const s=fs.readFileSync('private-budget.js','utf8'),h=fs.readFileSync('index.html','utf8');
+new Function(s);for(const m of h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g))new Function(m[1]);
+const start=s.indexOf('  const diagnosticOps'),end=s.indexOf('  // Share only concurrent reads');
+const store=new Map(),ctx={Set,JSON,Math,Number,Array,performance,localStorage:{getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)},window:{budgetViewerRole:'viewer'},matchMedia:()=>({matches:true})};
+vm.createContext(ctx);vm.runInContext(s.slice(start,end),ctx);
+(async()=>{vm.runInContext('diagnosticEnabled=true',ctx);await ctx.diagnosticMeasure('getBudgetDataFresh',async()=>({token:'SECRET',amount:12345}));assert.equal(store.size,0);
+ctx.window.budgetViewerRole='owner';await ctx.diagnosticMeasure('getBudgetDataFresh',async()=>({token:'SECRET',amount:12345}));await assert.rejects(ctx.diagnosticMeasure('https://private?token=SECRET',async()=>{throw Error('PRIVATE ERROR')}));
+const data=JSON.parse([...store.values()][0]);assert.equal(data.rows.length,2);assert.equal(data.rows[1].ok,false);assert.equal(data.rows[1].operation,'other');assert(!JSON.stringify(data).match(/SECRET|12345|PRIVATE ERROR|https/));
+for(let i=0;i<320;i++)ctx.window.budgetDiagnosticMark('category-current');assert.equal(JSON.parse([...store.values()][0]).rows.length,300);
+const count=JSON.parse([...store.values()][0]).rows.length;ctx.window.budgetDiagnosticMark('SECRET');assert.equal(JSON.parse([...store.values()][0]).rows.length,count);
+console.log('PASS diagnostics: owner gate, result passthrough, exception passthrough, no arguments/results/errors/URLs in telemetry, allowlist, 300 event bound, syntax.');})();
