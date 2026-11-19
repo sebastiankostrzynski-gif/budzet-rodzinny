@@ -2146,6 +2146,7 @@ const budgetDisk = (() => {
     }
 
     function notifyPwaReady_(view) {
+      window.budgetDiagnosticMark?.('view-rendered');
       postToPwa_(
         'BUDZET_PWA_READY',
         { view: view || 'dashboard' }
@@ -3858,6 +3859,7 @@ function formatHistoryValue(value) {
           // Szczegóły kategorii pozostają zapisane i odświeżają się po otwarciu.
           // Nie uruchamiaj kolejnych RPC podczas oglądania dashboardu.
           updateFreshnessIndicator_('ok');
+          if (activeView_ === 'dashboard') window.budgetDiagnosticMark?.('budget-current');
         },
         function() {
 
@@ -4723,6 +4725,7 @@ function alerty24Start_() {
 
       if (cached && cached.data && categoryMatchesDashboard_(cached.data, categoryName, year, month)) {
         renderCategoryDetails(cached.data, keepPosition);
+        window.budgetDiagnosticMark?.('category-cache');
 
         // Stary cache może być nieświeży; odświeżamy tylko tę kategorię.
         if (!cached.isFresh || dailyLimitIsStale_(cached.data, year, month)) {
@@ -4734,6 +4737,7 @@ function alerty24Start_() {
               if (!data || activeView_ !== 'category' || activeCategory_ !== categoryName ||
                   Number(selectedYear) !== year || Number(selectedMonth) !== month) return;
               renderCategoryDetails(data, true);
+              window.budgetDiagnosticMark?.('category-current');
               if (dailyLimitIsStale_(data, year, month)) updateVisibleDailyLimit_(null, year, month);
             },
             function() {
@@ -4774,6 +4778,7 @@ function alerty24Start_() {
           if (Number(selectedYear) !== year || Number(selectedMonth) !== month || activeCategory_ !== categoryName || activeView_ !== 'category') return;
           if (data) {
             renderCategoryDetails(data, keepPosition);
+            window.budgetDiagnosticMark?.('category-current');
             if (dailyLimitIsStale_(data, year, month)) updateVisibleDailyLimit_(null, year, month);
             return;
           }
