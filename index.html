@@ -4756,18 +4756,15 @@ function alerty24Start_() {
 
       const summary = dashboardData && Number(dashboardData.year) === year && Number(dashboardData.monthNumber) === month && Array.isArray(dashboardData.categories)
         ? dashboardData.categories.find(item => item.name === categoryName) : null;
-      const monthLabel = new Intl.DateTimeFormat('pl-PL', {month:'long',year:'numeric'}).format(new Date(year,month-1,1));
-      const spent = summary ? Number(summary.execution)||0 : 0;
-      const limit = summary ? Number(summary.budget)||0 : 0;
-      app.innerHTML = `
-        <button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
-        <section class="category-preview" style="padding:20px;margin:16px 0;border-radius:20px;background:#fff">
-          <h1 style="margin:0 0 8px">${escapeHtml(categoryName)}</h1>
-          <p style="margin:0 0 20px;color:#64726b">${escapeHtml(monthLabel)}</p>
-          ${summary ? `<p>Wydano <strong>${formatPLN(spent)}</strong></p><p>Budżet <strong>${formatPLN(limit)}</strong></p><p>Pozostało <strong>${formatPLN(limit-spent)}</strong></p>` : ''}
-          <p role="status" style="margin-top:24px;color:#64726b">Pobieranie podkategorii i historii…</p>
-        </section>
-      `;
+      if (summary) {
+        // Use the final layout immediately; only the missing detail area loads.
+        renderCategoryDetails({category:categoryName, execution:Number(summary.execution)||0,
+          budget:Number(summary.budget)||0, remaining:(Number(summary.budget)||0)-(Number(summary.execution)||0),
+          loadingDetails:true}, keepPosition);
+      } else {
+        app.innerHTML = `<button class="back-button" onclick="showMainDashboard()">← Wydatki</button>
+          <h1>${escapeHtml(categoryName)}</h1><p role="status">Pobieram aktualne szczegóły…</p>`;
+      }
 
       fetchCategoryDetail(
         categoryName,
@@ -4856,7 +4853,9 @@ function alerty24Start_() {
       let subcategoriesHtml = '';
 
 
-      if (
+      if (data.loadingDetails) {
+        subcategoriesHtml = '<div class="subcategory-card" role="status" aria-live="polite">Pobieram aktualne szczegóły…</div>';
+      } else if (
         !data.subcategories ||
         data.subcategories.length === 0
       ) {
@@ -5323,7 +5322,7 @@ tripsHtml = `
           <span
             class="subcategories-count"
             aria-label="Liczba podkategorii"
-          >${data.subcategories ? data.subcategories.length : 0}</span>
+          >${data.loadingDetails ? "…" : data.subcategories ? data.subcategories.length : 0}</span>
         </div>
 
 
@@ -6290,6 +6289,7 @@ function historyTouchV24_(event,svg){
 </script>
 <script src="./private-budget.js"></script></body>
 </html>
+
 
 
 
