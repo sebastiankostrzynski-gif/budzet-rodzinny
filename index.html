@@ -5332,7 +5332,7 @@ tripsHtml = `
 
       `;
 
-      initSubEntriesV23_();
+      if (!data.loadingDetails) initSubEntriesV23_();
       initDetailSticky_();
       if (keepPosition) window.scrollTo(0, previousY);
       else forceScrollToTop_();
