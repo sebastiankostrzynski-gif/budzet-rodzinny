@@ -48,6 +48,62 @@
     document.documentElement.classList.add('budget-locked');
     gate.hidden = false; status.textContent = message; button.disabled = !client;
   }
+
+  // Opt-in, owner-only, local diagnostics. Never record arguments, URLs or responses.
+  const diagnosticOps = new Set(['getViewerRole','getBudgetData','getBudgetDataFresh','getCategoryDetails','getCategoryDetailsBundle','getBudgetEntries','getRefreshState','getSavingsData','getDebtsData','getAccountBalances','saveInstallmentSplit','sheets-read','sheets-write','form-read','form-write']);
+  const diagnosticKey = 'budget-performance-v1';
+  let diagnosticEnabled = false, diagnosticRows = [], diagnosticTrial = 0, diagnosticPanel;
+  let diagnosticNetwork = 'unknown', diagnosticCache = 'unknown', diagnosticPhase = 'before';
+  try { const d=JSON.parse(localStorage.getItem(diagnosticKey)||'null');
+    if(d){diagnosticEnabled=d.enabled===true;diagnosticRows=Array.isArray(d.rows)?d.rows.slice(-300):[];diagnosticTrial=Number(d.trial)||0;
+      diagnosticNetwork=['wifi','cellular','cloud','unknown'].includes(d.network)?d.network:'unknown';
+      diagnosticCache=['cold','warm','unknown'].includes(d.cache)?d.cache:'unknown'; diagnosticPhase=d.phase==='after'?'after':'before';}
+  } catch(_){}
+  function diagnosticStore(){try{localStorage.setItem(diagnosticKey,JSON.stringify({enabled:diagnosticEnabled,rows:diagnosticRows,trial:diagnosticTrial,network:diagnosticNetwork,cache:diagnosticCache,phase:diagnosticPhase}));}catch(_){} }
+  function diagnosticRecord(kind,operation,ms,ok,bytes){
+    if(!diagnosticEnabled||window.budgetViewerRole!=='owner')return;
+    diagnosticRows.push({build:'perf-20261119-v117',trial:diagnosticTrial,phase:diagnosticPhase,network:diagnosticNetwork,cache:diagnosticCache,
+      kind,operation,ms:Math.max(0,Math.round(ms)),ok:!!ok,bytes:Number(bytes)||0,
+      atMs:Math.round(performance.now()),mode:matchMedia('(display-mode: standalone)').matches?'pwa':'browser'});
+    if(diagnosticRows.length>300)diagnosticRows.shift(); diagnosticStore();
+    const count=diagnosticPanel?.querySelector('[data-count]');if(count)count.textContent='Zdarzenia: '+diagnosticRows.length;
+  }
+  async function diagnosticMeasure(operation,task){
+    if(!diagnosticEnabled||window.budgetViewerRole!=='owner')return task();
+    const name=diagnosticOps.has(operation)?operation:'other',start=performance.now();
+    try{const result=await task(); diagnosticRecord('request',name,performance.now()-start,true,0);return result;}
+    catch(e){diagnosticRecord('request',name,performance.now()-start,false,0);throw e;}
+  }
+  window.budgetDiagnosticMark=(stage)=>{
+    if(!['budget-current','category-current','category-cache','queue-current','write-confirmed','view-rendered'].includes(stage))return;
+    diagnosticRecord('milestone',stage,performance.now()-diagnosticActionStart,true,0);
+  };
+  let diagnosticActionStart=0;
+  function mountDiagnostics(){
+    if(window.budgetViewerRole!=='owner'||diagnosticPanel)return;
+    diagnosticPanel=document.createElement('details');diagnosticPanel.id='budget-diagnostics';
+    diagnosticPanel.style.cssText='margin:24px 20px 120px;padding:12px;font:14px system-ui;color:#315849';
+    diagnosticPanel.innerHTML=`<summary>Pomiary szybkości · tylko właściciel</summary><p>Pomiar lokalny, bez kwot i danych transakcji. Zdarzenia „request” mierzą komunikację, a nie trwałość zapisu. „write-confirmed” pojawia się dopiero po potwierdzeniu operacji. Eksportujesz raport samodzielnie.</p>
+      <label><input type="checkbox" data-enable> Włącz pomiar</label>
+      <p><label>Połączenie <select data-network><option value="unknown">Nieokreślone</option><option value="wifi">Wi-Fi</option><option value="cellular">LTE / 5G</option><option value="cloud">Przeglądarka chmurowa</option></select></label></p>
+      <p><label>Pamięć <select data-cache><option value="unknown">Nieokreślona</option><option value="cold">Zimny start</option><option value="warm">Dane w pamięci</option></select></label></p>
+      <p><label>Seria <select data-phase><option value="before">Przed</option><option value="after">Po</option></select></label></p>
+      <button type="button" data-trial>Nowa próba</button> <button type="button" data-export>Eksportuj pomiary</button> <button type="button" data-clear>Wyczyść pomiary</button><p data-count></p><p>Po „Nowa próba” wykonaj jedną czynność. Dla startu zamknij i otwórz PWA. Powtórz pięć razy na każdej sieci. Nie twórz fikcyjnych płatności. Etapy bez znacznika pozostają niezmierzone. Wersja perf-20261119-v117.</p>`;
+    document.body.append(diagnosticPanel);
+    const q=x=>diagnosticPanel.querySelector(x);
+    q('[data-enable]').checked=diagnosticEnabled;q('[data-network]').value=diagnosticNetwork;q('[data-cache]').value=diagnosticCache;q('[data-phase]').value=diagnosticPhase;
+    q('[data-enable]').onchange=e=>{diagnosticEnabled=e.target.checked;diagnosticStore();};
+    for(const field of ['network','cache','phase'])q('[data-'+field+']').onchange=e=>{if(field==='network')diagnosticNetwork=e.target.value;if(field==='cache')diagnosticCache=e.target.value;if(field==='phase')diagnosticPhase=e.target.value;diagnosticStore();};
+    q('[data-trial]').onclick=()=>{diagnosticTrial++;diagnosticActionStart=performance.now();diagnosticStore();q('[data-count]').textContent='Próba '+diagnosticTrial;diagnosticPanel.open=false;};
+    q('[data-clear]').onclick=()=>{diagnosticRows=[];diagnosticStore();q('[data-count]').textContent='Wyczyszczono';};
+    q('[data-export]').onclick=()=>{if(window.budgetViewerRole!=='owner')return;const blob=new Blob([JSON.stringify({schema:1,units:'ms',note:'bytes not measured; no network auto-detection; milestones absent = unmeasured',rows:diagnosticRows},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='budzet-pomiary.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};
+    document.addEventListener('click',e=>{if(!diagnosticEnabled||diagnosticPanel.contains(e.target)||!e.target.closest('button,summary,select'))return;
+      diagnosticActionStart=performance.now();diagnosticRecord('interaction','click',0,true,0);
+      requestAnimationFrame(()=>diagnosticRecord('interaction','next-frame',performance.now()-diagnosticActionStart,true,0));},true);
+    diagnosticRecord('lifecycle','owner-ready',performance.now(),true,0);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden){diagnosticActionStart=performance.now();diagnosticRecord('lifecycle','resume',0,true,0);}});
+  }
+
   // Share only concurrent reads; never cache results or coalesce writes.
   const readFlights = new Map();
   const readMethods = new Set(['getBudgetData','getBudgetDataFresh','getCategoryDetails',
@@ -74,7 +130,8 @@
     if (!readMethods.has(method)) { invalidateReadFlights(); return rpcRequest(method,args); }
     return shareRead(method+'|'+token+'|'+JSON.stringify(args), () => rpcRequest(method,args));
   }
-  async function rpcRequest(method,args) {
+  function rpcRequest(method,args) { return diagnosticMeasure(method,()=>rpcRequestRaw(method,args)); }
+  async function rpcRequestRaw(method,args) {
     if (!token || Date.now() >= expires) {
       lock('Zaloguj się, aby odświeżyć prywatny budżet.');
       throw Error('Sesja wygasła.');
@@ -413,7 +470,8 @@
     }
     return shareRead('sheets|'+token+'|'+path, () => queueSheetsRequest(path, options));
   }
-  async function queueSheetsRequest(path, options = {}) {
+  function queueSheetsRequest(path, options = {}) { return diagnosticMeasure(options.method&&options.method!=='GET'?'sheets-write':'sheets-read',()=>queueSheetsRequestRaw(path,options)); }
+  async function queueSheetsRequestRaw(path, options = {}) {
     if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
       throw Error('Zaloguj się ponownie jako właściciel budżetu.');
     const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + testFileId + '/values/' + path, {
@@ -655,7 +713,7 @@
       if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets))lastEditorData={data,time:Date.now()};
       if(method==='ebListSectionsDev')refreshEditor=false;
       if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
-      if(write) window.dispatchEvent(new Event('budget-assignment-saved'));
+      if(write) { window.budgetDiagnosticMark('write-confirmed'); window.dispatchEvent(new Event('budget-assignment-saved')); }
       if(frame===activeForm)formNotice.textContent=write?'Zapis potwierdzony.':'';
       return data;
     }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
@@ -950,7 +1008,7 @@
         const seq=++generation;status.textContent='Pobieranie kolejki…';
         try {
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
-          state=next;render();status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
+          state=next;render();window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
           lastCountRead=0;refreshExpenseCount(next);
         }catch(e){if(seq===generation){list.replaceChildren();root.querySelector('.account-notice-list')?.remove();state=null;status.textContent=e.message;}}
       }
@@ -984,6 +1042,7 @@
     } finally { countBusy = false; }
   }
   function startBudgetApp() {
+    mountDiagnostics();
     gate.hidden=true;
     document.documentElement.classList.remove('budget-locked');
     if(!started) {
@@ -1126,6 +1185,7 @@
     if (!token || Date.now() >= expires) report(error);
   });
 })();
+
 
 
 
