@@ -62,8 +62,8 @@
   function diagnosticStore(){try{localStorage.setItem(diagnosticKey,JSON.stringify({enabled:diagnosticEnabled,rows:diagnosticRows,trial:diagnosticTrial,network:diagnosticNetwork,cache:diagnosticCache,phase:diagnosticPhase}));}catch(_){} }
   function diagnosticRecord(kind,operation,ms,ok,bytes){
     if(!diagnosticEnabled||window.budgetViewerRole!=='owner')return;
-    diagnosticRows.push({build:'perf-20261119-v117',trial:diagnosticTrial,phase:diagnosticPhase,network:diagnosticNetwork,cache:diagnosticCache,
-      kind,operation,ms:Math.max(0,Math.round(ms)),ok:!!ok,bytes:Number(bytes)||0,
+    diagnosticRows.push({build:'perf-20261119-v118',trial:diagnosticTrial,phase:diagnosticPhase,network:diagnosticNetwork,cache:diagnosticCache,
+      kind,operation,ms:Math.max(0,Math.round(ms)),ok:!!ok,bytes:null,
       atMs:Math.round(performance.now()),mode:matchMedia('(display-mode: standalone)').matches?'pwa':'browser'});
     if(diagnosticRows.length>300)diagnosticRows.shift(); diagnosticStore();
     const count=diagnosticPanel?.querySelector('[data-count]');if(count)count.textContent='Zdarzenia: '+diagnosticRows.length;
@@ -88,7 +88,7 @@
       <p><label>Połączenie <select data-network><option value="unknown">Nieokreślone</option><option value="wifi">Wi-Fi</option><option value="cellular">LTE / 5G</option><option value="cloud">Przeglądarka chmurowa</option></select></label></p>
       <p><label>Pamięć <select data-cache><option value="unknown">Nieokreślona</option><option value="cold">Zimny start</option><option value="warm">Dane w pamięci</option></select></label></p>
       <p><label>Seria <select data-phase><option value="before">Przed</option><option value="after">Po</option></select></label></p>
-      <button type="button" data-trial>Nowa próba</button> <button type="button" data-export>Eksportuj pomiary</button> <button type="button" data-clear>Wyczyść pomiary</button><p data-count></p><p>Po „Nowa próba” wykonaj jedną czynność. Dla startu zamknij i otwórz PWA. Powtórz pięć razy na każdej sieci. Nie twórz fikcyjnych płatności. Etapy bez znacznika pozostają niezmierzone. Wersja perf-20261119-v117.</p>`;
+      <button type="button" data-trial>Nowa próba</button> <button type="button" data-export>Eksportuj pomiary</button> <button type="button" data-clear>Wyczyść pomiary</button><p data-count></p><p>Po „Nowa próba” wykonaj jedną czynność. Dla startu zamknij i otwórz PWA. Powtórz pięć razy na każdej sieci. Nie twórz fikcyjnych płatności. Etapy bez znacznika pozostają niezmierzone. Wersja perf-20261119-v118.</p>`;
     document.body.append(diagnosticPanel);
     const q=x=>diagnosticPanel.querySelector(x);
     q('[data-enable]').checked=diagnosticEnabled;q('[data-network]').value=diagnosticNetwork;q('[data-cache]').value=diagnosticCache;q('[data-phase]').value=diagnosticPhase;
@@ -98,8 +98,8 @@
     q('[data-clear]').onclick=()=>{diagnosticRows=[];diagnosticStore();q('[data-count]').textContent='Wyczyszczono';};
     q('[data-export]').onclick=()=>{if(window.budgetViewerRole!=='owner')return;const blob=new Blob([JSON.stringify({schema:1,units:'ms',note:'bytes not measured; no network auto-detection; milestones absent = unmeasured',rows:diagnosticRows},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='budzet-pomiary.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};
     document.addEventListener('click',e=>{if(!diagnosticEnabled||diagnosticPanel.contains(e.target)||!e.target.closest('button,summary,select'))return;
-      diagnosticActionStart=performance.now();diagnosticRecord('interaction','click',0,true,0);
-      requestAnimationFrame(()=>diagnosticRecord('interaction','next-frame',performance.now()-diagnosticActionStart,true,0));},true);
+      diagnosticActionStart=performance.now();const clickedAt=diagnosticActionStart;diagnosticRecord('interaction','click',0,true,0);
+      requestAnimationFrame(()=>diagnosticRecord('interaction','next-frame',performance.now()-clickedAt,true,0));},true);
     diagnosticRecord('lifecycle','owner-ready',performance.now(),true,0);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden){diagnosticActionStart=performance.now();diagnosticRecord('lifecycle','resume',0,true,0);}});
   }
@@ -471,6 +471,21 @@
     return shareRead('sheets|'+token+'|'+path, () => queueSheetsRequest(path, options));
   }
   function queueSheetsRequest(path, options = {}) { return diagnosticMeasure(options.method&&options.method!=='GET'?'sheets-write':'sheets-read',()=>queueSheetsRequestRaw(path,options)); }
+  function queueSheetsBatch(ranges) {
+    return shareRead('sheets-batch|'+token+'|'+JSON.stringify(ranges), () => diagnosticMeasure('sheets-read', async () => {
+      if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
+        throw Error('Zaloguj się ponownie jako właściciel budżetu.');
+      const query = ranges.map(range=>'ranges='+range).join('&');
+      const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+testFileId+'/values:batchGet?'+query, {
+        cache:'no-store', redirect:'error', headers:{Authorization:'Bearer '+token}
+      });
+      if (!response.ok) throw Error('Nie udało się połączyć z kolejką (HTTP '+response.status+').');
+      const result = await response.json();
+      if (!Array.isArray(result.valueRanges) || result.valueRanges.length !== ranges.length)
+        throw Error('Niepełny odczyt kolejki. Spróbuj ponownie.');
+      return result.valueRanges;
+    }));
+  }
   async function queueSheetsRequestRaw(path, options = {}) {
     if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
       throw Error('Zaloguj się ponownie jako właściciel budżetu.');
@@ -611,7 +626,7 @@
     return shareRead('phoneQueue|'+token, readPhoneQueue);
   }
   async function readPhoneQueue() {
-    const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
+    const [snapshot, commands] = await queueSheetsBatch([queueRange('1:1'),queueRange('A2:D')]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
     if (tag !== 'QUEUE_V1' || !Number.isInteger(+parts) || +parts < 1 || chunks.length < +parts)
       throw Error('Niepełny odczyt kolejki.');
