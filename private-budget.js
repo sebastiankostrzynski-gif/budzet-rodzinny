@@ -989,7 +989,7 @@
         for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
           const card=make('article'), command=state.byKey.get(row.key);
           card.className='phone-expense';
-          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',[row.date,row.account||row.sourceLabel].filter(Boolean).join(' · ')));
+          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',[row.date,row.accountLabel||row.account||row.sourceLabel].filter(Boolean).join(' · ')));
           if(history) {
             card.append(make('p',row.postedEvidence?'Zaksięgowano':row.bridgeBlocked?'Do sprawdzenia':row.decision?.action==='DEFER'?'Odłożone':'Oczekuje na zaksięgowanie'));
             const category=row.decision?.sheetName || command?.request.sheetName;

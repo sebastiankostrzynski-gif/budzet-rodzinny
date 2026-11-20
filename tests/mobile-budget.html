@@ -1,0 +1,40 @@
+<!doctype html><html lang="pl"><meta charset="utf-8"><title>Kontrola układu mobilnego</title>
+<iframe title="Widok mobilny" width="402" height="874"></iframe><pre aria-live="polite">Uruchamianie…</pre>
+<script>
+(async()=>{
+  const report=document.querySelector('pre'), frame=document.querySelector('iframe'), lines=[];
+  function check(value,label){if(!value)throw Error(label);lines.push(label);}
+  try {
+    const html=await (await fetch('../expense-editor.html')).text();
+    const rows=Array.from({length:600},(_,i)=>({sheet:'T1 Urlop',sectionName:'Wyjazdy',key:'item-'+i,label:'Wyjazd '+i,month:'2026-11'}));
+    rows[0].label='Mikołajki';rows[1].label='Obuwie';
+    const state={revision:'example',rows:[{key:'demo',date:'2026-11-20',currency:'PLN',amountCents:10000,accountLabel:'Rachunek',description:'Sklep'}],existingRows:rows,expenseSheets:['T1 Urlop'],sections:[{sheet:'T1 Urlop',name:'Wyjazdy'}]};
+    const base=new URL('../',location.href);
+    const mock='window.google={script:{run:{withSuccessHandler(ok){return {withFailureHandler(){return {ebListSectionsDev(){window.addEventListener("load",()=>ok('+JSON.stringify(state)+'))},pkDecideDevV1(req){window.saved=req;queueMicrotask(()=>ok('+JSON.stringify(state)+'))}}}}}}}};';
+    frame.srcdoc=html.replace('<head>','<head><base href="'+base+'">').replace('<script src="./assignment-form.js"></'+'script>','<script>'+mock+'</'+'script>').replace("let entryRequest=location.hash.includes('entryKey=')?new URLSearchParams(location.hash.slice(1)):null;","let entryRequest=new URLSearchParams('entryKey=demo&entryMode=split');");
+    await new Promise(resolve=>frame.onload=resolve);
+    const doc=frame.contentDocument,w=frame.contentWindow;
+    const btn=name=>[...doc.querySelectorAll('button')].find(x=>x.textContent===name);
+    check(doc.querySelectorAll('.split').length===2,'Podział otwiera się z dwiema częściami');
+    check(btn('Zapisz podział').disabled,'Niekompletny podział zablokowany');
+    const start=performance.now();btn('Szukaj kategorii lub pozycji…').click();
+    const duration=performance.now()-start;
+    check(doc.querySelector('dialog').open,'Selektor otwiera się na ekranie 402 × 874');
+    const input=doc.querySelector('dialog input');const timings=[];
+    for(const phrase of ['miko','mikolajki','mikoljaki','buty']){
+      input.value=phrase;const t=performance.now();input.dispatchEvent(new w.Event('input'));timings.push(performance.now()-t);
+      check(doc.querySelector('dialog section button')?.textContent.includes(phrase==='buty'?'Obuwie':'Mikołajki'),'Wyszukiwanie '+phrase);
+    }
+    doc.querySelector('dialog section button').click();btn('Szukaj kategorii lub pozycji…').click();
+    const active=doc.querySelector('dialog[open]');const second=active.querySelector('input');second.value='mikolajki';second.dispatchEvent(new w.Event('input'));active.querySelector('section button').click();
+    let amount=doc.querySelector('[aria-label="Kwota części 1"]');amount.value='40';amount.dispatchEvent(new w.Event('input'));
+    check(!btn('Zapisz podział').disabled,'Podział 40 + 60 zezwala na zapis');
+    const other=doc.querySelector('[aria-label="Kwota części 2"]');other.value='59,99';other.dispatchEvent(new w.Event('input'));check(btn('Zapisz podział').disabled,'Różnica jednego grosza blokuje zapis');
+    other.value='60';other.dispatchEvent(new w.Event('input'));btn('Zapisz podział').click();await Promise.resolve();
+    check(w.saved.parts.length===2&&w.saved.parts.reduce((s,p)=>s+p.amountCents,0)===10000,'Poprawne żądanie zapisu 10 000 gr');
+    check(doc.documentElement.scrollWidth<=frame.clientWidth,'Brak przewijania w poziomie');
+    lines.push('Otwarcie '+duration.toFixed(1)+' ms; wyszukiwanie '+timings.map(n=>n.toFixed(1)).join(' / ')+' ms (600 pozycji, synchroniczna obsługa DOM).');
+    report.textContent='OK\n'+lines.join('\n');
+  } catch(e){report.textContent='Błąd: '+e.message+'\n'+lines.join('\n');}
+})();
+</script></html>
