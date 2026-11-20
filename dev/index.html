@@ -1720,7 +1720,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .budget-tabs button[hidden]{display:none!important}
 </style>
 
-</head>
+<link rel="stylesheet" href="../finance-ui.css"></head>
 
 
 <body>
@@ -1941,7 +1941,7 @@ const alerty24Transport = (() => {
     else if (message.type === 'result') finish(message.id,message.ok,message.ok?message.data:message.error);
   });
   function call(success,failure) {
-    if (!ALERTY24_BACKEND_URL) { failure(new Error('Brak adresu odczytu Alerty24 DEV.')); return; }
+    if (!ALERTY24_BACKEND_URL) { failure(new Error('Odczyt danych karty jest niedostępny.')); return; }
     if (!navigator.onLine) { failure(new Error('Brak internetu.')); return; }
     if (connected && popup && popup.closed) reset('Okno Google zostało zamknięte.');
     const id = ++sequence;

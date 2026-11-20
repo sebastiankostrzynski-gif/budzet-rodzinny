@@ -1,5 +1,5 @@
 // DEV only: a more specific scope prevents the production shell from replacing /dev/.
-const DEV_SHELL_CACHE = 'budzet-rodzinny-dev-shell-v1';
+const DEV_SHELL_CACHE = 'budzet-rodzinny-dev-shell-v2';
 const DEV_INDEX_URL = new URL('index.html', self.registration.scope).href;
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
@@ -22,7 +22,7 @@ self.addEventListener('fetch', event => {
       const cache = await caches.open(DEV_SHELL_CACHE);
       const saved = await cache.match(DEV_INDEX_URL);
       return saved || new Response(
-        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><p>Połącz się z internetem, aby uruchomić DEV po raz pierwszy.</p>',
+        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><p>Połącz się z internetem, aby otworzyć budżet po raz pierwszy.</p>',
         {status:503,headers:{'Content-Type':'text/html; charset=utf-8'}}
       );
     }

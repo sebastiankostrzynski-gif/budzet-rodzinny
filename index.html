@@ -13,7 +13,7 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0">
 
-  <title>Budżet rodzinny</title>
+  <title>Budżet 2026</title>
 
 
   <style>
@@ -1712,7 +1712,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}</style>
 
 <style>.form-return-status:empty{display:none}</style>
-</head>
+<link rel="stylesheet" href="./finance-ui.css"><script src="./budget-plan.js"></script><script src="./budget-picker.js"></script></head>
 
 
 <body>
@@ -1835,7 +1835,7 @@ const alerty24Transport = (() => {
   });
 
   function call(success, failure) {
-    if (!ALERTY24_BACKEND_URL) { failure(new Error('Brak adresu mostu Alerty24 DEV.')); return; }
+    if (!ALERTY24_BACKEND_URL) { failure(new Error('Odczyt danych karty jest niedostępny.')); return; }
     if (!navigator.onLine) { failure(new Error('Brak internetu.')); return; }
     const id = ++sequence;
     const item = {id,success,failure,sent:false};
@@ -4455,6 +4455,7 @@ function alerty24Start_() {
           </div>
         </details>
 
+        ${window.budgetViewerRole==="owner" ? '<section class="plan-panel" id="surplus-plan"></section>' : ""}
         <!-- KATEGORIE -->
 
         <h2 id="budget-categories" class="categories-title" tabindex="-1">Wydatki według kategorii</h2>
@@ -4470,6 +4471,7 @@ function alerty24Start_() {
 
       // PWA zapisuje gotowy widok dashboardu poza iframe. Przy kolejnym
       // zimnym starcie może go pokazać natychmiast, zanim Apps Script się pobierze.
+      if(window.budgetPlanApi)BudgetPlan.mount(app.querySelector('#surplus-plan'),data,window.budgetPlanApi);
       const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
       const pinsNode=app.querySelector('details.category-pins');if(pinsNode)pinsNode.open=pinsWasOpen;
       if(dashboardWasVisible){if(savedDashboardFocus){const el=document.getElementById(savedDashboardFocus);if(el)el.focus({preventScroll:true});}window.scrollTo(0,savedDashboardY);}

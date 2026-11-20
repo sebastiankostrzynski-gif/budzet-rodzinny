@@ -89,6 +89,7 @@
       <p><label>Pamięć <select data-cache><option value="unknown">Nieokreślona</option><option value="cold">Zimny start</option><option value="warm">Dane w pamięci</option></select></label></p>
       <p><label>Seria <select data-phase><option value="before">Przed</option><option value="after">Po</option></select></label></p>
       <button type="button" data-trial>Nowa próba</button> <button type="button" data-export>Eksportuj pomiary</button> <button type="button" data-clear>Wyczyść pomiary</button><p data-count></p><p>Po „Nowa próba” wykonaj jedną czynność. Dla startu zamknij i otwórz PWA. Powtórz pięć razy na każdej sieci. Nie twórz fikcyjnych płatności. Etapy bez znacznika pozostają niezmierzone. Wersja perf-20261119-v119.</p>`;
+    diagnosticPanel.hidden=!new URLSearchParams(location.search).has('diagnostyka');
     document.body.append(diagnosticPanel);
     const q=x=>diagnosticPanel.querySelector(x);
     q('[data-enable]').checked=diagnosticEnabled;q('[data-network]').value=diagnosticNetwork;q('[data-cache]').value=diagnosticCache;q('[data-phase]').value=diagnosticPhase;
@@ -725,6 +726,25 @@
     }
     throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
   }
+  window.budgetPlanApi = {
+    async read() {
+      const rows=(await queueSheets(encodeURIComponent("'Decyzje budżetowe'!B2:B"))).values||[];
+      const entries=new Map();
+      for(const row of rows){const entry=JSON.parse(row[0]);entries.set(entry.id,entry);}
+      return {revision:rows.length,entries:[...entries.values()].filter(entry=>!entry.cancelled)};
+    },
+    async transfers() {
+      const rows=(await queueSheets(encodeURIComponent("'Oszczednosci transfery DEV'!A2:F")+'?valueRenderOption=UNFORMATTED_VALUE')).values||[];
+      return rows.filter(r=>/R2/.test(r[2])&&/R4/.test(r[3])).map(r=>{if(typeof r[1]==='number')r[1]=new Date((r[1]-25569)*86400000).toISOString().slice(0,10);return r;});
+    },
+    async save(request) {
+      const id=crypto.randomUUID();
+      const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+        method:'POST',body:JSON.stringify({values:[[id,'budgetPlanV1',JSON.stringify([request])]]})});
+      const row=Number(res.updates?.updatedRange?.match(/!A(\d+):C\d+$/)?.[1]);
+      return waitForForm({id,row,startedAt:Date.now()});
+    }
+  };
   const callBudgetFormQueued = async (caller, method, args) => {
     const frame=activeForm;
     if (!frame?.isConnected || caller!==frame.contentWindow || window.budgetViewerRole!=='owner' ||
@@ -887,7 +907,7 @@
         if(!panel.isConnected)return;
         const frame=make('iframe');frame.title=title;frame.dataset.form=file;
         const formURL=new URL('./'+file,location.href);
-        if(selection){formURL.hash=new URLSearchParams({newClothingKey:selection.key}).toString();}
+        if(selection){formURL.hash=new URLSearchParams(selection.mode?{entryKey:selection.key,entryMode:selection.mode,entryLabel:selection.label||''}:{newClothingKey:selection.key}).toString();}
         frame.src=formURL.href;
         frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
         activeForm=frame;panel.append(frame);
@@ -969,7 +989,7 @@
         for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
           const card=make('article'), command=state.byKey.get(row.key);
           card.className='phone-expense';
-          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',row.date));
+          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',[row.date,row.account||row.sourceLabel].filter(Boolean).join(' · ')));
           if(history) {
             card.append(make('p',row.postedEvidence?'Zaksięgowano':row.bridgeBlocked?'Do sprawdzenia':row.decision?.action==='DEFER'?'Odłożone':'Oczekuje na zaksięgowanie'));
             const category=row.decision?.sheetName || command?.request.sheetName;
@@ -1026,7 +1046,23 @@
               } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
               finally{saving=false;}
             };
-            card.append(category,trip,addTrip,target,save);
+            const tools=make('details');tools.className='pick-tools';tools.append(make('summary','Wybór według kategorii'),category,trip,addTrip,target);
+            const split=make('div');split.className='split-toggle';const no=make('button','Nie'),yes=make('button','Tak');
+            no.setAttribute('aria-pressed','true');yes.setAttribute('aria-pressed','false');
+            split.append(make('span','Podzielić wydatek?'),no,yes);
+            yes.onclick=()=>openForm('expense-editor.html','Podział wydatku',{key:row.key,mode:'split'});
+            const pick=make('button','Wybierz pozycję');pick.className='pick-open';
+            const freshItem=label=>openForm('expense-editor.html','Nowa pozycja',{key:row.key,mode:'new',label});
+            pick.onclick=()=>{
+              const items=BudgetPicker.index(state.data.existingRows,row.date.slice(0,7));
+              BudgetPicker.open(items,BudgetPicker.recommendations(items,state.rows,row.description),item=>{
+                category.value=item.sheet;trip.hidden=true;addTrip.hidden=true;
+                target.replaceChildren(new Option(item.label,item.key));target.value=item.key;
+                target.disabled=false;save.disabled=false;pick.textContent=item.path;
+              },freshItem);
+            };
+            category.addEventListener('change',()=>{pick.textContent='Wybierz pozycję';});
+            card.append(split,pick,tools,save);
           }
           list.append(card);
         }
@@ -1206,7 +1242,7 @@
         const selected=e.docs?.[0];
         if(!selected?.id){report(Error('Google nie zwrócił identyfikatora wybranego arkusza.'));return;}
         if(selected.id!==testFileId){
-          report(Error('Wybrano inny plik. Wybierz dokładnie „Budżet 2026 — TEST automat karty”.'));
+          report(Error('Wybrano inny plik. Wybierz arkusz budżetu rodzinnego.'));
           return;
         }
         try{

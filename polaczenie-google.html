@@ -2,9 +2,9 @@
 <html lang="pl">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Połączenie z budżetem TEST</title>
-<main>
-  <h1>Połączenie z budżetem TEST</h1>
+<title>Połączenie z budżetem</title>
+<link rel="stylesheet" href="./finance-ui.css"><main>
+  <h1>Połączenie z budżetem</h1>
   <button type="button" id="connect" disabled>Sprawdź połączenie z Google</button>
   <p id="status" role="status">Wczytuję logowanie Google…</p>
 </main>
@@ -15,7 +15,7 @@ const status = document.querySelector('#status');
 try {
   const login = await initializeLogin();
   button.disabled = false;
-  status.textContent = 'Możesz wybrać konto do testu.';
+  status.textContent = 'Wybierz konto Google.';
   button.onclick = async () => {
     button.disabled = true;
     try {

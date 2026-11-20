@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const p=fs.readFileSync('private-budget.js','utf8'),h=fs.readFileSync('index.html','utf8');
 const scripts=[...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)];for(const m of scripts)new Function(m[1]);
-const chunk=p.slice(p.indexOf('  const readFlights'),p.indexOf('  async function rpcRequest'));
+const chunk=p.slice(p.indexOf('  const readFlights'),p.indexOf('  function rpcRequest(method,args)'));
 let calls=0;const listeners={},ctx={Map,Set,Promise,JSON,Math,performance,token:'session',window:{addEventListener:(n,f)=>listeners[n]=f},rpcRequest:async()=>{calls++;await new Promise(r=>setTimeout(r,25));return calls;}};vm.createContext(ctx);vm.runInContext(chunk,ctx);
 (async()=>{
 await Promise.all([ctx.rpc('getBudgetDataFresh',[2026,11]),ctx.rpc('getBudgetDataFresh',[2026,11]),ctx.rpc('getBudgetDataFresh',[2026,11])]);assert.equal(calls,1);

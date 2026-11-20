@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v122-manual-form';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v123-assignment-picker';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -12,6 +12,7 @@ const APP_SHELL = [
   './expense-editor.html',
   './manual-entry.html',
   './assignment-form.css',
+  './budget-plan.js', './budget-picker.js', './finance-ui.css',
   './assignment-form.js',
   './inflows.html',
   './queue-transport.js',
