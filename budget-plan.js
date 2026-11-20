@@ -69,18 +69,26 @@ const BudgetPlan = (() => {
           const key=JSON.stringify(req);if(key!==signature){pending=crypto.randomUUID();signature=key;}
           root.inert=true;notice.textContent='Zapisywanie decyzji…';
           try{state=await api.save({...req,requestId:pending});notice.textContent='Decyzja zapisana.';render();}
-          catch(e){notice.textContent=e.message||'Nie udało się potwierdzić zapisu.';form.append(action('Odczytaj aktualny plan',async()=>{try{state=await api.read();render();}catch{notice.textContent='Nie udało się pobrać planu.';}}));}
+          catch(e){notice.textContent=e.message||'Nie udało się potwierdzić zapisu.';if(api.pending()){render();return;}form.append(action('Odczytaj aktualny plan',async()=>{try{state=await api.read();render();}catch{notice.textContent='Nie udało się pobrać planu.';}}));}
           finally{root.inert=false;}
         }
         input.oninput=dest.oninput=update;update();form.append(submit,action('Anuluj',()=>form.replaceChildren()));
         if(old)form.append(action('Cofnij decyzję',()=>{if(confirm('Cofnąć tę decyzję budżetową?'))write(true);}));
         input.focus();
       }
-      if(!data.isClosedMonth){actions.append(action('Odłóż na oszczędności',()=>open('save')),action('Przenieś na inny miesiąc',()=>open('carry')));}
+      const pending=api.pending();
+      if(pending){
+        actions.append(action('Sprawdź poprzedni zapis',async()=>{
+          root.inert=true;notice.textContent='Sprawdzanie decyzji…';
+          try{state=await api.save(pending);notice.textContent='Zapis potwierdzony.';}
+          catch(e){notice.textContent=e.message;state=await api.read().catch(()=>state);}
+          finally{root.inert=false;render();}
+        }));
+      }else if(!data.isClosedMonth){actions.append(action('Odłóż na oszczędności',()=>open('save')),action('Przenieś na inny miesiąc',()=>open('carry')));}
       root.append(actions,form,notice);
       for(const e of state.entries.filter(e=>e.source===month||e.target===month)){
         const row=element('div',(e.kind==='save'?'Oszczędności':e.target===month?'Przeniesione z '+e.source:'Rezerwa na '+e.target)+' · '+money(e.cents));row.className='plan-row';
-        if(!data.isClosedMonth&&e.source===month)row.append(action('Edytuj',()=>open(e.kind,e)));root.append(row);
+        if(!pending&&!data.isClosedMonth&&e.source===month)row.append(action('Edytuj',()=>open(e.kind,e)));root.append(row);
       }
     }
     render();

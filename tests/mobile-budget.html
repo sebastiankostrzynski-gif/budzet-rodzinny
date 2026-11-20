@@ -34,6 +34,24 @@
     check(w.saved.parts.length===2&&w.saved.parts.reduce((s,p)=>s+p.amountCents,0)===10000,'Poprawne żądanie zapisu 10 000 gr');
     check(doc.documentElement.scrollWidth<=frame.clientWidth,'Brak przewijania w poziomie');
     lines.push('Otwarcie '+duration.toFixed(1)+' ms; wyszukiwanie '+timings.map(n=>n.toFixed(1)).join(' / ')+' ms (600 pozycji, synchroniczna obsługa DOM).');
+    const fixture='<section id="panel" class="plan-panel"></section>';
+    const planScript='<script src="../budget-plan.js"></'+'script>';
+    frame.srcdoc='<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../finance-ui.css">'+fixture+planScript+'<script>window.mountPlan=BudgetPlan.mount;window.getTotals=BudgetPlan.totals;</'+'script>';
+    await new Promise(resolve=>frame.onload=resolve);
+    const pd=frame.contentDocument,pw=frame.contentWindow,entries=[];
+    let approve;
+    const api={pending:()=>null,read:async()=>({entries,revision:entries.length}),save:req=>new Promise(resolve=>{approve=()=>{entries.push(req);resolve({entries,revision:entries.length});};})};
+    await pw.mountPlan(pd.getElementById('panel'),{year:2026,monthNumber:11,wolneSrodki:6000},api);
+    const button=text=>[...pd.querySelectorAll('button')].find(b=>b.textContent===text);
+    const type=(selector,value)=>{const input=pd.querySelector(selector);input.value=value;input.dispatchEvent(new pw.Event('input'));};
+    button('Odłóż na oszczędności').click();type('input','2000');button('Zatwierdź').click();
+    check(pd.querySelector('#panel').inert&&entries.length===0,'Oczekiwanie na potwierdzenie zapisu');
+    approve();await Promise.resolve();await Promise.resolve();
+    check(pw.getTotals(entries,'2026-11',600000).available===400000,'Po odłożeniu 2 000 zł dostępne 4 000 zł');
+    button('Przenieś na inny miesiąc').click();type('input:not([type=month])','3000');button('Zatwierdź').click();approve();await Promise.resolve();await Promise.resolve();
+    check(pw.getTotals(entries,'2026-11',600000).available===100000&&pw.getTotals(entries,'2026-12',0).incoming===300000,'Rezerwacja 3 000 zł zwiększa grudzień i pozostawia 1 000 zł w listopadzie');
+    button('Odłóż na oszczędności').click();type('input','1000,01');check(button('Zatwierdź').disabled,'Kwota większa o grosz zablokowana');
+    check(pd.documentElement.scrollWidth<=frame.clientWidth,'Panel nadwyżki mieści się na ekranie telefonu');
     report.textContent='OK\n'+lines.join('\n');
   } catch(e){report.textContent='Błąd: '+e.message+'\n'+lines.join('\n');}
 })();

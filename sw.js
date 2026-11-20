@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v123-assignment-picker';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v124-budget-plan';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -41,6 +41,12 @@ self.addEventListener('install', event => {
     const authResponse = await fetch(authUrl, {cache:'no-store'});
     if (!authResponse.ok) throw new Error('Nie udało się pobrać modułu logowania.');
     await cache.put(authUrl,authResponse);
+    await Promise.all(['budget-plan.js','budget-picker.js','finance-ui.css'].map(async name=>{
+      const url=new URL(name,self.registration.scope);
+      const asset=await fetch(url,{cache:'no-store'});
+      if(!asset.ok)throw Error('Nie udało się przygotować aplikacji.');
+      await cache.put(url,asset);
+    }));
     const viewUrl = new URL('./launch-screen.html', self.registration.scope);
     const view = await fetch(viewUrl, {cache:'no-store'});
     if (!view.ok) throw Error('Nie udało się pobrać ekranu startowego.');
@@ -55,7 +61,7 @@ self.addEventListener('install', event => {
     await cache.put(criticalUrl, themedShell.clone());
     await cache.put(self.registration.scope, themedShell);
 
-    const optionalPaths = APP_SHELL.filter(path => path !== './index.html' && path !== './');
+    const optionalPaths = APP_SHELL.filter(path => !['./index.html','./','./budget-plan.js','./budget-picker.js','./finance-ui.css'].includes(path));
     await Promise.all(
       optionalPaths.map(async path => {
         try {

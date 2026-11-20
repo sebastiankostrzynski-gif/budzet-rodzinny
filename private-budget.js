@@ -718,7 +718,7 @@
       if (id !== receipt.id) throw Error('Nie można potwierdzić operacji. Sprawdź historię.');
       if (status === 'ERROR' || status === 'OK') {
         if (localStorage.getItem(receiptKey) === JSON.stringify(receipt)) localStorage.removeItem(receiptKey);
-        if (status === 'ERROR') throw Error(chunks[0] || 'Zapis wymaga sprawdzenia.');
+        if (status === 'ERROR') throw Object.assign(Error(chunks[0] || 'Zapis wymaga sprawdzenia.'),{confirmedRejection:true});
         const bytes = Uint8Array.from(atob(chunks.join('')), c=>c.charCodeAt(0));
         return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
       }
@@ -726,7 +726,9 @@
     }
     throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
   }
+  const planReceiptKey='budget-plan-pending-v1';
   window.budgetPlanApi = {
+    pending(){return JSON.parse(localStorage.getItem(planReceiptKey)||'null');},
     async read() {
       const rows=(await queueSheets(encodeURIComponent("'Decyzje budżetowe'!B2:B"))).values||[];
       const entries=new Map();
@@ -738,11 +740,21 @@
       return rows.filter(r=>/R2/.test(r[2])&&/R4/.test(r[3])).map(r=>{if(typeof r[1]==='number')r[1]=new Date((r[1]-25569)*86400000).toISOString().slice(0,10);return r;});
     },
     async save(request) {
+      const prior=this.pending();
+      if(prior && prior.requestId!==request.requestId)throw Error('Najpierw sprawdź poprzedni zapis.');
+      localStorage.setItem(planReceiptKey,JSON.stringify(request));
       const id=crypto.randomUUID();
       const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
         method:'POST',body:JSON.stringify({values:[[id,'budgetPlanV1',JSON.stringify([request])]]})});
       const row=Number(res.updates?.updatedRange?.match(/!A(\d+):C\d+$/)?.[1]);
-      return waitForForm({id,row,startedAt:Date.now()});
+      try {
+        const state=await waitForForm({id,row,startedAt:Date.now()});
+        if(this.pending()?.requestId===request.requestId)localStorage.removeItem(planReceiptKey);
+        return state;
+      }catch(error){
+        if(error.confirmedRejection && this.pending()?.requestId===request.requestId)localStorage.removeItem(planReceiptKey);
+        throw error;
+      }
     }
   };
   const callBudgetFormQueued = async (caller, method, args) => {
