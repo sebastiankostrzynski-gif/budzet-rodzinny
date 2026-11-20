@@ -1,11 +1,19 @@
 <!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}body{font:16px system-ui;background:#f4f7f5;color:#1c302b;margin:0}main{max-width:760px;margin:auto;padding:20px 16px 80px}h1{font-size:26px}section,form{background:white;padding:20px;border:1px solid #dce5df;border-radius:14px;margin:16px 0}label{display:block;margin:14px 0 6px;font-size:14px;font-weight:600}input,select,button{font:inherit;border-radius:9px;padding:10px 12px;min-height:44px}input,select{width:100%;border:1px solid #b9cbbf;background:white}button{cursor:pointer;border:1px solid #b9cbbf;background:white}button:disabled{opacity:.5}.primary{background:#217650;color:white;border-color:#217650;width:100%;margin-top:16px}.note{background:#fff2ce;padding:14px;border-radius:9px;line-height:1.5}.choice{display:flex;gap:9px;margin:10px 0}.choice button{flex:1}.choice button[aria-pressed=true]{background:#e0efe6;border-color:#217650}.split{background:#f5f8f6;padding:12px;border:1px solid #dce5df;border-radius:10px;margin:10px 0}.split-header{display:flex;justify-content:space-between;align-items:center}.split-header button{min-height:34px}.split-grid{display:grid;grid-template-columns:1fr 140px;gap:10px}.split-grid .wide{grid-column:1/-1}.muted{font-size:13px;color:#586d62;line-height:1.45}.error{color:#a23e2c}[hidden]{display:none!important}li{margin:8px 0}@media(max-width:470px){.split-grid{grid-template-columns:1fr 110px}}
-</style><link rel="stylesheet" href="./assignment-form.css"><script src="./assignment-form.js"></script></head><body><main><h1>Konta ręczne · TEST</h1>
-<p class="note">Gotówka jest wspólna. Potwierdzona wypłata z bankomatu zasila portfel. Zakup gotówkowy pomniejsza saldo i zapisuje się w wybranej kategorii kopii TEST. <strong>Wydatek i przychód ręczny aktualizują salda arkusza „Wykonanie 2026” po zapisie.</strong></p>
-<p id="msg" role="status"></p><button type="button" id="reload">Odśwież salda i listy</button><form id="form"><h2>Dodaj zakup</h2>
+</style><link rel="stylesheet" href="./assignment-form.css"><script src="./assignment-form.js"></script><style>
+.manual-entry .entry-header{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.manual-entry h1{font-size:1.55rem;line-height:1.2;letter-spacing:-.025em;margin:.5rem 0}
+.manual-entry #reload{color:#285c47;background:transparent;border:0;font-size:.9rem;font-weight:600}
+.manual-entry #reload:disabled{color:#53645b;opacity:.7}
+.manual-entry #msg{font-size:.875rem;line-height:1.45;color:#40594b;margin:.35rem 0 .75rem}
+.manual-entry #msg:empty{display:none}
+.manual-entry #form{margin-top:.55rem;padding:16px;border-radius:16px}
+.manual-entry #form>label:first-child{margin-top:0}
+</style></head><body class="manual-entry"><main><header class="entry-header"><h1>Dodaj operację</h1><button type="button" id="reload">Odśwież</button></header>
+<p id="msg" role="status"></p><form id="form" aria-label="Nowa operacja">
 <label for="account">Konto</label><select id="account"></select>
-<label for="kind">Operacja</label><select id="kind"><option value="WYDATEK">Wydatek</option><option value="PRZYCHOD">Przychód ręczny — zwiększa saldo konta</option><option value="BO">Saldo początkowe — tylko gdy konto go nie ma</option></select>
+<label for="kind">Operacja</label><select id="kind"><option value="WYDATEK">Wydatek</option><option value="PRZYCHOD">Przychód</option><option value="BO">Saldo początkowe — tylko gdy konto go nie ma</option></select>
 <label for="date">Data operacji</label><input id="date" type="date" required>
 <label for="amount">Kwota w PLN</label><input id="amount" inputmode="decimal" required placeholder="0,00">
 <div id="categoryBlock"><label for="category">Kategoria</label><select id="category"></select>
@@ -15,13 +23,13 @@
 <div id="clothesBlock" hidden><label>Podział zakupu</label><div class="choice"><button id="singleMode" type="button" aria-pressed="true">Jedna osoba</button><button id="splitMode" type="button" aria-pressed="false">Podziel zakup</button></div><div id="personBlock"><label for="person">Dla kogo?</label><select id="person"><option value="">Wybierz osobę</option><option>Seba</option><option>Ewa</option><option>Julka</option><option>Olek</option></select></div></div></div>
 <div id="descriptionBlock"><label for="description">Co kupiono?</label><input id="description" maxlength="200" placeholder="Np. buty, posiłek"></div>
 <div id="splits" hidden><p class="muted">Każda pozycja ma własną osobę, opis i kwotę. Jedna osoba może wystąpić kilka razy.</p><div id="splitRows"></div><button id="addSplit" type="button">+ Dodaj pozycję</button><p id="splitBalance"></p></div></div></div>
-<button class="primary" id="submit">Zapisz zakup i przypisanie w TEST</button></form>
-<section id="balances"><h2>BO i saldo bieżące</h2></section>
-<section><h2>Saldo BZ na wybrany dzień</h2><label for="asOf">Dzień</label><input id="asOf" type="date"><div id="dayBalances"></div><p id="dayInfo" class="muted"></p><div id="dayChanges"></div></section>
+<button class="primary" id="submit">Zapisz wydatek</button></form>
+<section id="balances"><h2>Salda kont</h2></section>
+<section><h2>Saldo na wybrany dzień</h2><label for="asOf">Dzień</label><input id="asOf" type="date"><div id="dayBalances"></div><p id="dayInfo" class="muted"></p><div id="dayChanges"></div></section>
 <section><strong>Przelewy uwzględnione w saldach</strong><p id="bankAge" class="muted"></p><ul id="transfers"></ul></section>
 <section><strong>Wypłaty z bankomatu uwzględnione w gotówce</strong><ul id="withdrawals"></ul></section>
 
-<h2>Historia rejestru</h2><section><ul id="history"></ul></section>
+<h2>Historia operacji</h2><section><ul id="history"></ul></section>
 <details id="kkPanel"><summary>Zmień konto zapisanego wydatku</summary>
 <label>Wydatek <select id="kkItem"></select></label>
 <label>Prawidłowe konto <select id="kkDest"></select></label>
@@ -38,7 +46,7 @@ function renderAsOf(){if(!state||!state.daily||!state.daily.length)return;let da
  $('dayInfo').textContent=date>state.bankThrough?'Dane bankowe obejmują operacje do '+state.bankThrough+'. BZ dla późniejszego dnia jest wyliczone z dostępnych przelewów i zapisanych zakupów; nowsze przelewy mogą je zmienić.':'BZ po wszystkich zapisanych operacjach z tego dnia.';
  $('dayChanges').replaceChildren();if(day.changes.length){let h=document.createElement('strong');h.textContent='Zmiany w tym dniu';$('dayChanges').append(h);let ul=document.createElement('ul');day.changes.forEach(e=>{let li=document.createElement('li');li.textContent=e.account+' · '+(e.deltaCents>=0?'+':'−')+money(Math.abs(e.deltaCents))+' · '+e.description+' · '+(e.source==='BANK'?'przelew bankowy':e.deltaCents>=0?'przychód ręczny':'zakup ręczny');ul.append(li);});$('dayChanges').append(ul);}else $('dayChanges').textContent='Brak zapisanych operacji w tym dniu.';}
 function renderState(data){
- state=data;$('balances').replaceChildren();let heading=document.createElement('h2');heading.textContent='BO i saldo bieżące';$('balances').append(heading);data.accounts.forEach(a=>{let p=document.createElement('p');p.textContent=a.name+' · BO '+(a.openingDate||'—')+': '+(a.openingCents==null?'uzupełnij saldo początkowe':money(a.openingCents))+' · saldo bieżące: '+(a.balanceCents==null?'brak BO':money(a.balanceCents));$('balances').append(p);});
+ state=data;$('balances').replaceChildren();let heading=document.createElement('h2');heading.textContent='Salda kont';$('balances').append(heading);data.accounts.forEach(a=>{let p=document.createElement('p');p.textContent=a.name+' · BO '+(a.openingDate||'—')+': '+(a.openingCents==null?'uzupełnij saldo początkowe':money(a.openingCents))+' · saldo bieżące: '+(a.balanceCents==null?'brak BO':money(a.balanceCents));$('balances').append(p);});
  if(data.daily&&data.daily.length){let control=$('asOf'),previous=control.value;control.min=data.daily[0].date;control.max=data.daily.at(-1).date;control.value=previous>=control.min&&previous<=control.max?previous:control.max;renderAsOf();}
  const previousAccount=$('account').value, previousCategory=$('category').value;
  setOptions($('account'),data.accounts.map(a=>[a.name,a.name]));
@@ -49,7 +57,7 @@ function renderState(data){
  $('transfers').replaceChildren();(data.transfers||[]).forEach(t=>{let li=document.createElement('li');li.textContent=t.date+' · '+t.account+' · '+(t.deltaCents>=0?'+':'−')+money(Math.abs(t.deltaCents))+' · '+t.description;$('transfers').append(li);});
  $('withdrawals').replaceChildren();(data.withdrawals||[]).forEach(w=>{let li=document.createElement('li');li.textContent=w.date+' · '+w.description+' · +'+money(w.amountCents);$('withdrawals').append(li);});
  if(!(data.withdrawals||[]).length){let li=document.createElement('li');li.textContent='Brak nowych, potwierdzonych wypłat w listopadzie.';$('withdrawals').append(li);}
- $('history').replaceChildren();data.rows.slice().reverse().forEach(r=>{let li=document.createElement('li'),d=r.budgetDecision,status=r.budgetStatus==='POSTED_TEST_BUDGET'?'zapisano w kategorii TEST':r.kind==='WYDATEK'?'decyzja TEST — jeszcze bez księgowania':'';li.textContent=[r.date,r.account,r.kind,money(r.cents),r.description,d?d.sheetName:'',d?d.action==='EXISTING_ROW'?'dodaj do pozycji':'osobny wpis':'',status].filter(Boolean).join(' · ');$('history').append(li);});
+ $('history').replaceChildren();data.rows.slice().reverse().forEach(r=>{let li=document.createElement('li'),d=r.budgetDecision,status=r.budgetStatus==='POSTED_TEST_BUDGET'?'zaksięgowano':r.kind==='WYDATEK'?'oczekuje na księgowanie':'';li.textContent=[r.date,r.account,r.kind,money(r.cents),r.description,d?d.sheetName:'',d?d.action==='EXISTING_ROW'?'dodaj do pozycji':'osobny wpis':'',status].filter(Boolean).join(' · ');$('history').append(li);});
 }
 function renderControls(){
  const expense=$('kind').value==='WYDATEK',clothes=expense&&mode==='NEW_ROW'&&/^T12\b/.test($('category').value)&&$('section').value==='CLOTHES';
@@ -61,7 +69,7 @@ function renderControls(){
  $('t12Block').hidden=!expense||mode!=='NEW_ROW'||!/^T12\b/.test($('category').value);$('clothesBlock').hidden=!clothes;
  $('singleMode').setAttribute('aria-pressed',!split);$('splitMode').setAttribute('aria-pressed',split);$('personBlock').hidden=!clothes||split;
  $('descriptionBlock').hidden=!expense||mode!=='NEW_ROW'||(clothes&&split);$('splits').hidden=!clothes||!split;if(clothes&&split)renderSplits();
- $('submit').textContent=expense?'Zapisz zakup i przypisanie w TEST':$('kind').value==='PRZYCHOD'?'Zapisz przychód w TEST':'Zapisz saldo początkowe w TEST';
+ $('submit').textContent=expense?'Zapisz wydatek':$('kind').value==='PRZYCHOD'?'Zapisz przychód':'Zapisz saldo początkowe';
 }
 function fillRemainder(){if(!parts.length||!parts.at(-1).auto)return;let total=cents($('amount').value),used=0;for(let p of parts.slice(0,-1)){let n=p.amount===''?0:cents(p.amount);if(n===null||total===null){parts.at(-1).amount='';return;}used+=n;}parts.at(-1).amount=used<total?inputCents(total-used):'';}
 function renderSplits(){
@@ -96,9 +104,9 @@ function run(request, refresh=false){
  locked.forEach(x=>x.disabled=true);
  $('submit').disabled=!state||!!request;
  $('reload').disabled=true;
- $('msg').textContent=request?'Zapisuję…':refresh?'Aktualizuję salda i listy…':'Pobieram konta i kategorie…';
+ $('msg').textContent=request?'Zapisuję…':refresh?'Aktualizuję salda i listy…':'Wczytywanie kont i kategorii…';
  const end=()=>{saving=false;busy=false;locked.forEach(x=>x.disabled=false);$('reload').disabled=false;$('submit').disabled=!state;};
- let rpc=google.script.run.withSuccessHandler(data=>{if(version!==readVersion)return;try{renderState(data);}catch(e){$('msg').textContent='Nie udało się wyświetlić danych. Wybierz „Odśwież salda i listy”.';return;}finally{end();}let saved=request&&data.rows.find(x=>x.id===request.id),message=request?(request.kind==='BO'?'Zapisano saldo początkowe w TEST.':request.kind==='PRZYCHOD'?'Zapisano przychód i zaktualizowano saldo w TEST.':saved&&saved.budgetStatus==='POSTED_TEST_BUDGET'?'Zapisano zakup w kategorii kopii TEST.':'Zapisano decyzję w TEST. Nowa pozycja czeka na księgowanie.'):'Dane rejestru z '+new Date(data.manualAsOf || Date.now()).toLocaleString('pl-PL')+'.';if(request){requestId=crypto.randomUUID();$('amount').value='';$('description').value='';parts=[];}$('msg').textContent=message;}).withFailureHandler(e=>{if(version!==readVersion)return;end();$('msg').textContent=(e.message||e)+' Sprawdź historię przed ponownym zapisem.';});
+ let rpc=google.script.run.withSuccessHandler(data=>{if(version!==readVersion)return;try{renderState(data);}catch(e){$('msg').textContent='Nie udało się wyświetlić danych. Wybierz „Odśwież salda i listy”.';return;}finally{end();}let saved=request&&data.rows.find(x=>x.id===request.id),message=request?(request.kind==='BO'?'Zapisano saldo początkowe.':request.kind==='PRZYCHOD'?'Zapisano przychód i zaktualizowano saldo.':saved&&saved.budgetStatus==='POSTED_TEST_BUDGET'?'Zapisano zakup w kategorii.':'Zapisano decyzję. Nowa pozycja czeka na księgowanie.'):'Dane rejestru z '+new Date(data.manualAsOf || Date.now()).toLocaleString('pl-PL')+'.';if(request){requestId=crypto.randomUUID();$('amount').value='';$('description').value='';parts=[];}$('msg').textContent=message;}).withFailureHandler(e=>{if(version!==readVersion)return;end();$('msg').textContent=(e.message||e)+' Sprawdź historię przed ponownym zapisem.';});
  if(request)rpc.krSaveDEV(request);else if(refresh)rpc.krRefreshDEV();else rpc.krGetDEV();
 }
 $('date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Warsaw'}).format(new Date());

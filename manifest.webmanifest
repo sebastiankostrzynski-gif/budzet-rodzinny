@@ -1,7 +1,7 @@
 {
   "id": "budzet-rodzinny",
-  "name": "Budżet rodzinny TEST",
-  "short_name": "Budżet TEST",
+  "name": "Budżet rodzinny",
+  "short_name": "Budżet 2026",
   "description": "Dashboard domowych finansów i miesięcznego budżetu.",
   "start_url": "./",
   "scope": "./",

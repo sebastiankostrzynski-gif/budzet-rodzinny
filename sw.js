@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v121-posting-refresh';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v122-manual-form';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

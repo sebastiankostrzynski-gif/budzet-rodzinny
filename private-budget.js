@@ -738,7 +738,7 @@
     const write=formWrites.has(method);
     if (write && localStorage.getItem(receiptKey)) throw Error('Poprzedni zapis czeka na potwierdzenie. Wróć do formularza i sprawdź jego wynik.');
     const id=crypto.randomUUID();
-    formNotice.textContent=write?'Przekazuję zapis do TEST…':'Pobieram dane formularza…';
+    formNotice.textContent='';
     if (write) localStorage.setItem(receiptKey,JSON.stringify({id,startedAt:Date.now()}));
     const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
       method:'POST',body:JSON.stringify({values:[[id,method,JSON.stringify(args)]]})
@@ -747,7 +747,6 @@
     if (!row || row<2 || res.updates.updatedRows!==1) throw Error('Brak potwierdzenia. Sprawdź historię przed ponowieniem.');
     const receipt={id,row};
     if(write)localStorage.setItem(receiptKey,JSON.stringify(receipt));
-    formNotice.textContent='Oczekiwanie na wynik z TEST…';
     try {
       let data;
       if (method === 'krGetDEV') {
@@ -760,7 +759,7 @@
       if(method==='ebListSectionsDev')refreshEditor=false;
       if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
       if(write) { window.budgetDiagnosticMark('write-confirmed'); window.dispatchEvent(new Event('budget-assignment-saved')); }
-      if(frame===activeForm)formNotice.textContent=write?'Zapis potwierdzony.':'';
+      if(frame===activeForm)formNotice.textContent='';
       return data;
     }catch(error){if(frame===activeForm)formNotice.textContent=error.message;throw error;}
   };
@@ -877,7 +876,7 @@
       const links = make('div'); links.className='assignment-links';
       async function openForm(file,title,selection) {
         const panel=make('section'), back=make('button','← Przypisz'), notice=make('p');
-        back.onclick=()=>window.openAssignments_();notice.setAttribute('role','status');
+        back.onclick=()=>window.openAssignments_();notice.setAttribute('role','status');notice.className='form-return-status';
         root.replaceChildren(panel);panel.append(back,notice);formNotice=notice;
         const prior=localStorage.getItem(receiptKey);
         if(prior){
@@ -1175,10 +1174,10 @@
     // The app renders this verified snapshot immediately and its existing startup
     // routine checks for a newer bank cycle in the background.
     if(cached) { startBudgetApp(); refreshExpenseCount(); return; }
-    status.textContent='Pobieranie aktualnych danych z TEST…';
+    status.textContent='Pobieranie danych budżetu…';
     const fresh=await rpc('getBudgetDataFresh',[now.getFullYear(),now.getMonth()+1]);
     if(!fresh || !Array.isArray(fresh.categories) || Number(fresh.year)!==now.getFullYear() || Number(fresh.monthNumber)!==now.getMonth()+1)
-      throw Error('Serwer nie zwrócił bieżącego miesiąca z arkusza TEST.');
+      throw Error('Serwer nie zwrócił danych za bieżący miesiąc.');
     const stamp=Date.now();
     try {
       if(localStorage.getItem(cacheKey)!==testFileId) {
@@ -1219,7 +1218,7 @@
           if(file.id!==testFileId)throw Error('Odpowiedź Google Drive dotyczy innego arkusza.');
           // The exact file was checked with Drive; remember this grant even if the budget API is temporarily unavailable.
           try { localStorage.setItem(verifiedKey,testFileId); } catch (_) {}
-          status.textContent='Arkusz TEST został rozpoznany; łączenie z budżetem…';
+          status.textContent='Otwieranie budżetu…';
           await showBudget();
         }catch(err){report(err);}
       }).build().setVisible(true);
@@ -1242,7 +1241,7 @@
       callback:async result=>{
         if(result.error || !result.access_token){lock('Google nie udzielił dostępu.');return;}
         token=result.access_token;expires=Date.now()+(Number(result.expires_in)-30)*1000;rememberSession();
-        status.textContent='Sprawdzanie dostępu do arkusza TEST…';
+        status.textContent='Sprawdzanie dostępu…';
         try {
           // The exact file grant was verified on first selection. A returning
           // owner can open the cached dashboard without a redundant Drive call.
@@ -1259,7 +1258,7 @@
             await showBudget();
           } else {
             gate.querySelector('[data-file]').hidden=false;
-            status.textContent='Wybierz prywatny arkusz budżetu TEST jeden raz.';
+            status.textContent='Wybierz arkusz budżetu.';
           }
         } catch(err) { report(err); }
       }});
