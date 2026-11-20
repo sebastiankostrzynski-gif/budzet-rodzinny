@@ -852,6 +852,7 @@
       }
     }
     button.onclick = read;
+    panel.addEventListener('refresh-settlement',read);
     read();
   }
 
@@ -1022,7 +1023,7 @@
                 });
                 if(receipt.updates?.updatedRows!==1)throw Error();
                 window.dispatchEvent(new Event('budget-assignment-saved'));
-                await reload('Przypisanie zapisane. Automat sprawdzi je przy następnym odczycie.');
+                await reload('Przyjęto przypisanie. Sprawdzam zaksięgowanie kosztu…');
               } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
               finally{saving=false;}
             };
@@ -1070,11 +1071,37 @@
           };
         }
       }
+      let postingTimer;
+      function followPosting(snapshot) {
+        clearTimeout(postingTimer);
+        const waiting=snapshot.rows.some(row=>{
+          const command=snapshot.byKey.get(row.key);
+          return command && !command.result?.startsWith('Błąd') && !row.postedEvidence &&
+            !row.bridgeBlocked && row.decision?.action!=='DEFER';
+        });
+        if(!waiting || !root.isConnected)return;
+        postingTimer=setTimeout(async()=>{
+          if(!root.isConnected)return;
+          if(document.hidden || saving){followPosting(snapshot);return;}
+          try{
+            const fresh=await phoneQueue();
+            if(!root.isConnected)return;
+            const posted=fresh.rows.some(row=>row.postedEvidence &&
+              snapshot.byKey.has(row.key) && !snapshot.rows.find(old=>old.key===row.key)?.postedEvidence);
+            if(posted){
+              window.dispatchEvent(new Event('budget-assignment-saved'));
+              root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
+            }
+            state=fresh;render();followPosting(fresh);
+            if(posted)status.textContent='Koszt zaksięgowany.';
+          } catch {followPosting(snapshot);}
+        },5000);
+      }
       async function reload(message) {
         const seq=++generation;status.textContent='Pobieranie kolejki…';
         try {
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
-          state=next;render();window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
+          state=next;render();followPosting(next);root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
           lastCountRead=0;refreshExpenseCount(next);
         }catch(e){if(seq===generation){list.replaceChildren();root.querySelector('.account-notice-list')?.remove();state=null;status.textContent=e.message;}}
       }
