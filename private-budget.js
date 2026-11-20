@@ -222,6 +222,52 @@
     if (!response.ok) throw Error('Nie udało się połączyć z arkuszem ('+response.status+').');
     return response.json();
   }
+
+  const travelSheet = 'T13 Urlop, hobby i rozrywka';
+  const tripSheetId = 1660121585;
+  async function travelBlocks() {
+    const range = encodeURIComponent("'" + travelSheet + "'!A20:N86");
+    const result = await portfolioRequest('/values/' + range + '?valueRenderOption=UNFORMATTED_VALUE');
+    const blocks = [];
+    for (const [index, cells] of result.values.entries()) {
+      const match = /^(\d+)\)\s+(.+)$/.exec(String(cells[0] || '').trim());
+      if (match) blocks.push({row:20+index, number:match[1], name:match[2], cells:[]});
+      else if (blocks.length && /^-/.test(String(cells[0]))) blocks[blocks.length-1].cells.push(cells);
+    }
+    return blocks;
+  }
+  function tripCreator() {
+    const btn=document.createElement('button');
+    btn.type='button';btn.textContent='+ Dodaj wyjazd';
+    btn.onclick=async()=>{
+      const name=window.prompt('Nazwa nowego wyjazdu')?.trim().replace(/\s+/g,' ');
+      if(!name)return;
+      if(name.length>70 || /^xxx$/i.test(name)){window.alert('Wpisz nazwę wyjazdu (do 70 znaków).');return;}
+      btn.disabled=true;
+      try {
+        const blocks=await travelBlocks();
+        if(blocks.some(b=>b.name.localeCompare(name,'pl',{sensitivity:'base'})===0))throw Error('Ten wyjazd już istnieje.');
+        const slot=blocks.find(b=>b.name==='XXX' && b.cells.length && b.cells.every(c=>c[0].trim()==='-' && c.slice(1,13).every(v=>v==null||v==='')));
+        if(!slot)throw Error('W arkuszu nie ma już wolnej sekcji wyjazdu.');
+        const start={sheetId:tripSheetId,rowIndex:slot.row-1,columnIndex:0};
+        const rows=[slot.number+') '+name,'- '+name].map(stringValue=>({values:[{userEnteredValue:{stringValue}}]}));
+        await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[
+          {addNamedRange:{namedRange:{name:'BudzetWyjazdSekcja_'+slot.row,range:{sheetId:tripSheetId,startRowIndex:slot.row-1,endRowIndex:slot.row,startColumnIndex:0,endColumnIndex:1}}}},
+          {updateCells:{start,rows,fields:'userEnteredValue'}}
+        ]})});
+        window.alert('Dodano wyjazd „'+name+'”. W Przypisz odśwież listę po najbliższej synchronizacji.');
+      } catch(e){window.alert(e.message);}
+      finally{btn.disabled=false;}
+    };
+    return btn;
+  }
+  document.addEventListener('toggle',event=>{
+    const panel=event.target;
+    if(panel.matches?.('details.annual-trips') && panel.open && window.budgetViewerRole==='owner' && !panel.querySelector('[data-add-trip]')){
+      const btn=tripCreator();btn.dataset.addTrip='1';panel.append(btn);
+    }
+  },true);
+
   function portfolioQuote(sheet, period) {
     const rows = sheet.data[0].rowData.map(r => r.values || []);
     const labels = rows[0].map(c => String(c.formattedValue || '').trim().toLocaleLowerCase('pl-PL'));
@@ -934,7 +980,10 @@
             category.setAttribute('aria-label','Kategoria');target.setAttribute('aria-label','Pozycja budżetu');
             category.add(new Option('Wybierz kategorię',''));
             for(const sheet of state.data.expenseSheets)category.add(new Option(sheet.replace(/^T\d+\s+/,''),sheet));
+            const trip=make('select'),addTrip=tripCreator();
+            trip.setAttribute('aria-label','Wyjazd');trip.hidden=true;addTrip.hidden=true;
             category.onchange=()=>{
+              trip.hidden=true;addTrip.hidden=true;
               if(/^T12\b/.test(category.value)){
                 target.disabled=true;save.disabled=true;
                 openForm('expense-editor.html','Nowe ubranie lub prezent',{key:row.key});
@@ -943,6 +992,23 @@
               target.replaceChildren(new Option('Wybierz pozycję',''));
               for(const t of state.data.existingRows.filter(t=>t.sheet===category.value&&t.month===row.date.slice(0,7)))
                 target.add(new Option([t.sectionName,t.label].filter(Boolean).join(' · '),t.key));
+              if(category.value===travelSheet){
+                const options=state.data.existingRows.filter(t=>t.sheet===travelSheet&&t.month===row.date.slice(0,7));
+                const groups=[...new Set(options.filter(t=>{
+                  const num=Number(t.key.split('|')[2]);
+                  return num>20 && num<86 && /^\d+\)/.test(t.sectionName) && !/\)\s*XXX$/i.test(t.sectionName);
+                }).map(t=>t.sectionName))];
+                trip.replaceChildren(new Option('Wszystkie pozycje',''));
+                groups.forEach(g=>trip.add(new Option(g.replace(/^\d+\)\s*/,''),g)));
+                trip.value='';trip.hidden=false;addTrip.hidden=false;
+                trip.onchange=()=>{
+                  const filtered=options.filter(t=>!trip.value||t.sectionName===trip.value);
+                  target.replaceChildren(new Option('Wybierz pozycję',''));
+                  filtered.forEach(t=>target.add(new Option(t.label,t.key)));
+                  if(trip.value && filtered.length===1)target.value=filtered[0].key;
+                  target.disabled=!filtered.length;save.disabled=!target.value;
+                };
+              }
               target.disabled=target.length<=1; save.disabled=true;
             };
             category.onchange();target.onchange=()=>save.disabled=!target.value;
@@ -960,7 +1026,7 @@
               } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
               finally{saving=false;}
             };
-            card.append(category,target,save);
+            card.append(category,trip,addTrip,target,save);
           }
           list.append(card);
         }
