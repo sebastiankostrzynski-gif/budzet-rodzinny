@@ -4052,6 +4052,7 @@ function alerty24Start_() {
       const dashboardWasVisible=!!app.querySelector('#budget-period');
       const savedDashboardY=window.scrollY,savedDashboardFocus=app.contains(document.activeElement)?document.activeElement.id:'';
       const pinsWasOpen=!!app.querySelector('details.category-pins[open]');
+      const surplusWasOpen = !!app.querySelector('details.surplus-disclosure[open]');
       const dispositionWasOpen = !!app.querySelector('details.disposition-card[open]');
       const dochody =
         Number(data.dochody) || 0;
@@ -4452,7 +4453,7 @@ function alerty24Start_() {
             </div>
           </div>
 
-        ${window.budgetViewerRole==="owner" ? '<section class="plan-panel" id="surplus-plan"></section>' : ""}
+        ${window.budgetViewerRole==="owner" ? '<details class="surplus-disclosure"><summary>Zarządzaj nadwyżką</summary><section class="plan-panel" id="surplus-plan" aria-label="Zarządzaj nadwyżką"></section></details>' : ""}
           </div>
         </details>
 
@@ -4472,6 +4473,7 @@ function alerty24Start_() {
       // PWA zapisuje gotowy widok dashboardu poza iframe. Przy kolejnym
       // zimnym starcie może go pokazać natychmiast, zanim Apps Script się pobierze.
       if(window.budgetPlanApi)BudgetPlan.mount(app.querySelector('#surplus-plan'),data,window.budgetPlanApi);
+      const surplusNode=app.querySelector('details.surplus-disclosure');if(surplusNode)surplusNode.open=surplusWasOpen;
       const dispositionNode=app.querySelector('details.disposition-card');if(dispositionNode)dispositionNode.open=dispositionWasOpen;
       const pinsNode=app.querySelector('details.category-pins');if(pinsNode)pinsNode.open=pinsWasOpen;
       if(dashboardWasVisible){if(savedDashboardFocus){const el=document.getElementById(savedDashboardFocus);if(el)el.focus({preventScroll:true});}window.scrollTo(0,savedDashboardY);}
