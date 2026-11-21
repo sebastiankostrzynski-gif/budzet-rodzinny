@@ -68,7 +68,10 @@ const BudgetPlan = (() => {
           const req={id,revision:state.revision,source:month,target:kind==='carry'?dest.value:'',kind,cents:cancelled?old.cents:amount(),transfer:link.value,cancelled};
           const key=JSON.stringify(req);if(key!==signature){pending=crypto.randomUUID();signature=key;}
           root.inert=true;notice.textContent='Zapisywanie decyzji…';
-          try{state=await api.save({...req,requestId:pending});notice.textContent='Decyzja zapisana.';render();}
+          try{state=await api.save({...req,requestId:pending},()=>{
+            root.inert=false;notice.textContent='Przyjęto do realizacji. Możesz zamknąć rozliczenie. Kwoty zaktualizują się po potwierdzeniu.';
+            render();
+          });notice.textContent='Decyzja zapisana.';render();}
           catch(e){notice.textContent=e.message||'Nie udało się potwierdzić zapisu.';if(api.pending()){render();return;}form.append(action('Odczytaj aktualny plan',async()=>{try{state=await api.read();render();}catch{notice.textContent='Nie udało się pobrać planu.';}}));}
           finally{root.inert=false;}
         }
@@ -78,6 +81,7 @@ const BudgetPlan = (() => {
       }
       const pending=api.pending();
       if(pending){
+        if(!notice.textContent)notice.textContent='Decyzja oczekuje na potwierdzenie.';
         actions.append(action('Sprawdź poprzedni zapis',async()=>{
           root.inert=true;notice.textContent='Sprawdzanie decyzji…';
           try{state=await api.save(pending);notice.textContent='Zapis potwierdzony.';}
@@ -92,6 +96,11 @@ const BudgetPlan = (() => {
       }
     }
     render();
+    const pending=api.pending();
+    if(pending && api.resume){
+      try{const confirmed=await api.resume(pending);if(confirmed){state=confirmed;notice.textContent='Decyzja zapisana.';render();}}
+      catch(error){notice.textContent=error.message;render();}
+    }
   }
   return {mount,totals};
 })();

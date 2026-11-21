@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v126-surplus-disclosure';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v127-plan-receipt';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

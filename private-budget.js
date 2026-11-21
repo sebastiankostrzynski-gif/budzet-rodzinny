@@ -727,28 +727,51 @@
     throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
   }
   const planReceiptKey='budget-plan-pending-v1';
+  const planDeliveryKey='budget-plan-delivery-v1';
+  let activePlanSave;
   window.budgetPlanApi = {
     pending(){return JSON.parse(localStorage.getItem(planReceiptKey)||'null');},
     async read() {
-      const rows=(await queueSheets(encodeURIComponent("'Decyzje budżetowe'!B2:B"))).values||[];
+      const rows=(await queueSheets(encodeURIComponent("'Decyzje budżetowe'!A2:B"))).values||[];
       const entries=new Map();
-      for(const row of rows){const entry=JSON.parse(row[0]);entries.set(entry.id,entry);}
+      const pending=this.pending();
+      for(const [id,json] of rows){
+        const entry=JSON.parse(json);entries.set(entry.id,entry);
+        if(pending?.requestId===id && this.pending()?.requestId===id)localStorage.removeItem(planReceiptKey);
+      }
       return {revision:rows.length,entries:[...entries.values()].filter(entry=>!entry.cancelled)};
     },
     async transfers() {
       const rows=(await queueSheets(encodeURIComponent("'Oszczednosci transfery DEV'!A2:F")+'?valueRenderOption=UNFORMATTED_VALUE')).values||[];
       return rows.filter(r=>/R2/.test(r[2])&&/R4/.test(r[3])).map(r=>{if(typeof r[1]==='number')r[1]=new Date((r[1]-25569)*86400000).toISOString().slice(0,10);return r;});
     },
-    async save(request) {
+    resume(request){
+      const receipt=JSON.parse(localStorage.getItem(planDeliveryKey)||'null');
+      return receipt?.requestId===request.requestId?this.save(request):null;
+    },
+    save(request,onQueued) {
+      if(activePlanSave?.id===request.requestId)return activePlanSave.promise;
+      const promise=this.deliver(request,onQueued).finally(()=>{
+        if(activePlanSave?.id===request.requestId)activePlanSave=null;
+      });
+      activePlanSave={id:request.requestId,promise};return promise;
+    },
+    async deliver(request,onQueued) {
       const prior=this.pending();
       if(prior && prior.requestId!==request.requestId)throw Error('Najpierw sprawdź poprzedni zapis.');
       localStorage.setItem(planReceiptKey,JSON.stringify(request));
-      const id=crypto.randomUUID();
-      const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
-        method:'POST',body:JSON.stringify({values:[[id,'budgetPlanV1',JSON.stringify([request])]]})});
-      const row=Number(res.updates?.updatedRange?.match(/!A(\d+):C\d+$/)?.[1]);
+      let receipt=JSON.parse(localStorage.getItem(planDeliveryKey)||'null');
+      if(receipt?.requestId!==request.requestId){
+        const id=crypto.randomUUID();
+        const res=await queueSheets(formSheet('A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+          method:'POST',body:JSON.stringify({values:[[id,'budgetPlanV1',JSON.stringify([request])]]})});
+        const row=Number(res.updates?.updatedRange?.match(/!A(\d+):C\d+$/)?.[1]);
+        receipt={id,row,startedAt:Date.now(),requestId:request.requestId};
+        localStorage.setItem(planDeliveryKey,JSON.stringify(receipt));
+      }
+      onQueued?.();
       try {
-        const state=await waitForForm({id,row,startedAt:Date.now()});
+        const state=await waitForForm(receipt);
         if(this.pending()?.requestId===request.requestId)localStorage.removeItem(planReceiptKey);
         return state;
       }catch(error){
