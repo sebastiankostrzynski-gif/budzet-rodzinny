@@ -1,0 +1,7 @@
+--- Kod.gs
++++ Kod.gs
+@@ -1,3 +1,4 @@
+             normalized.v5DecisionSource = old.v5DecisionSource || '';
+             normalized.v5DecisionClass = old.v5DecisionClass || '';
++            EbReconciliationGuardsV1.preserveApiMetadata(normalized, old);
+             stats.keptDecisions++;
