@@ -26,17 +26,18 @@ const BudgetPlan = (() => {
     try {state=await api.read();}catch {notice.textContent='Nie udało się odczytać planu miesiąca.';root.append(action('Spróbuj ponownie',()=>{root.replaceChildren();mount(root,data,api);}));return;}
     function render(){
       const t=totals(state.entries,month,base);
-      const disclosure=root.closest('.surplus-disclosure');
-      if(disclosure){
-        let tile=disclosure.parentElement.querySelector('[data-saved-plan]');
+      const grid=root.closest('.monthly-settlement')?.querySelector('.disposition-grid');
+      if(grid){
+        let tile=grid.querySelector('[data-saved-plan]');
         if(t.saved>0){
           if(!tile){
-            tile=element('div','');tile.className='summary-card';tile.dataset.savedPlan='';
-            const label=element('div','Odłożono na oszczędności');label.className='summary-label';
-            const value=element('div','');value.className='summary-value';
-            tile.append(label,value);disclosure.before(tile);
+            tile=element('div','');tile.className='disposition-item positive';tile.dataset.savedPlan='';
+            const icon=element('span','');icon.className='glass-mini';icon.dataset.art='cash';icon.setAttribute('aria-hidden','true');
+            const label=element('div','Odłożono na oszczędności');label.className='disposition-item-label';
+            const value=element('div','');value.className='disposition-item-value';
+            tile.append(icon,label,value);grid.append(tile);
           }
-          tile.querySelector('.summary-value').textContent=money(t.saved);
+          tile.querySelector('.disposition-item-value').textContent='+'+money(t.saved);
         }else if(tile){tile.remove();}
       }
       root.replaceChildren(element('h2','Zarządzaj nadwyżką'));
