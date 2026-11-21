@@ -1709,7 +1709,18 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .alerty24-progress{height:8px;margin:14px 0 9px;border-radius:999px;background:#e8efe9;overflow:hidden}.alerty24-progress>span{display:block;height:100%;border-radius:inherit;background:#39aa6b}.alerty24-card.is-over .alerty24-progress>span{background:#d76659}
 .alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
 .budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a,.assignment-links button{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06);width:100%;text-align:left;cursor:pointer}.assignment-links a:focus-visible,.assignment-links button:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
-.assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}</style>
+.assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}/* Golden Control: owner-only presentation; never infer U47 from account balances */
+.golden-control{margin:0 0 18px;padding:18px;border-radius:22px;background:linear-gradient(135deg,#07382b,#105d43);color:#f5f8ee;box-shadow:0 12px 32px #07382b25}
+.golden-control summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
+.golden-control summary::-webkit-details-marker{display:none}
+.golden-control .gold-title{font-weight:750;letter-spacing:.06em;color:#ecd29a;font-size:12px}
+.golden-control .gold-status{font-size:13px;color:#d4dfd7}
+.golden-control .gold-value{font-size:27px;font-weight:780;font-variant-numeric:tabular-nums}
+.golden-control .gold-detail{margin:15px 0 0;padding-top:14px;border-top:1px solid #ffffff35;color:#e0e9e3;font-size:13px;line-height:1.5}
+.golden-control .gold-detail button{margin-top:12px;border:1px solid #b4d8c8;border-radius:12px;padding:10px 14px;background:#ffffff13;color:white;font-weight:650}
+
+
+</style>
 
 <style>.form-return-status:empty{display:none}</style>
 <link rel="stylesheet" href="./finance-ui.css"><script src="./budget-plan.js"></script><script src="./budget-picker.js"></script></head>
@@ -5796,11 +5807,32 @@ function savingsRefresh_(automatic=false){
 }
 function setBudgetTab_(tab){document.body.classList.toggle('debts-theme',tab==='debts');document.body.classList.toggle('savings-theme',tab==='savings');document.querySelectorAll('.budget-tabs button').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab));});}
 
+function goldenControlMarkup_(){
+ return '<details class="golden-control" id="golden-control"><summary><span><span class="gold-title">✦ GOLDEN CONTROL · U47</span><br><span class="gold-status" id="gold-status">Sprawdzanie…</span></span><span class="gold-value" id="gold-value">—</span></summary><div class="gold-detail"><strong id="gold-description">Oczekiwanie na odczyt</strong><p id="gold-timestamp">Nie pokazujemy zgodności bez świeżego wyniku.</p><button type="button" id="gold-refresh">Odśwież kontrolę</button></div></details>';
+}
+function refreshGoldenControl_(){
+ if(viewerRole_!=='owner')return;
+ const root=document.getElementById('golden-control');if(!root)return;
+ const status=root.querySelector('#gold-status'),value=root.querySelector('#gold-value'),desc=root.querySelector('#gold-description'),stamp=root.querySelector('#gold-timestamp');
+ status.textContent='Sprawdzanie…';value.textContent='—';desc.textContent='Niezweryfikowany';
+ budgetApi.script.run.withSuccessHandler(data=>{
+  if(!root.isConnected)return;
+  const n=Number(data&&data.value),t=Date.parse(data&&data.checkedAt),fresh=Number.isFinite(t)&&Math.abs(Date.now()-t)<5*60*1000;
+  if(!data||data.authorized!==true||!Number.isFinite(n)||!fresh){status.textContent='Brak aktualnego odczytu';stamp.textContent='Wymagany autoryzowany wynik z arkusza TEST.';return;}
+  value.textContent=n.toLocaleString('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:2})+' zł';
+  status.textContent=Math.abs(n)<0.005?'U47 = 0 · zgodność':'U47 ≠ 0 · różnica';
+  desc.textContent=Math.abs(n)<0.005?'Zgodność sald według U47':'Różnica wymaga wyjaśnienia';
+  stamp.textContent='Odczyt: '+new Date(t).toLocaleString('pl-PL');
+ }).withFailureHandler(()=>{if(root.isConnected){status.textContent='Odczyt niedostępny';desc.textContent='Niezweryfikowany';stamp.textContent='Sprawdź połączenie z backendem.';}}).getGoldenControlStatus();
+}
+
 function openAssignments_() {
   if (viewerRole_ !== 'owner') return;
   cleanupDetailSticky_();
   activeView_='assignments'; activeCategory_=null; setBudgetTab_('assignments');
-  document.getElementById('app').innerHTML=`<div class="assignment-wrap"><h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue" target="_blank" rel="noopener">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=inflows" target="_blank" rel="noopener">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Kolejka otworzy się w osobnym widoku Google. Po zapisaniu wróć do budżetu, aby sprawdzić saldo.</p></div>`;
+  document.getElementById('app').innerHTML=`<div class="assignment-wrap">${goldenControlMarkup_()}<h1>Przypisz transakcje</h1><p>Przypisz transakcję z banku lub dodaj zakup z gotówki, Aliora, Millennium albo konta Julki.</p><div class="assignment-links"><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=queue" target="_blank" rel="noopener">Przypisz wydatki <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=inflows" target="_blank" rel="noopener">Przypisz wpływy <span aria-hidden="true">›</span></a><a href="https://script.google.com/macros/s/AKfycbydsUYYrnmq9plUVTGREi6OgoryuV3ZXk9ABtbE3RdLbgbNaUtuWkWRHshrMUKPZxeUpg/exec?view=konta-reczne" target="_blank" rel="noopener">Dodaj wydatek ręcznie <span aria-hidden="true">›</span></a></div><p>Kolejka otworzy się w osobnym widoku Google. Po zapisaniu wróć do budżetu, aby sprawdzić saldo.</p></div>`;
+  document.getElementById('gold-refresh').onclick=refreshGoldenControl_;
+  refreshGoldenControl_();
   window.scrollTo(0,0);
 }
 
