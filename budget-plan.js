@@ -26,6 +26,19 @@ const BudgetPlan = (() => {
     try {state=await api.read();}catch {notice.textContent='Nie udało się odczytać planu miesiąca.';root.append(action('Spróbuj ponownie',()=>{root.replaceChildren();mount(root,data,api);}));return;}
     function render(){
       const t=totals(state.entries,month,base);
+      const disclosure=root.closest('.surplus-disclosure');
+      if(disclosure){
+        let tile=disclosure.parentElement.querySelector('[data-saved-plan]');
+        if(t.saved>0){
+          if(!tile){
+            tile=element('div','');tile.className='summary-card';tile.dataset.savedPlan='';
+            const label=element('div','Odłożono na oszczędności');label.className='summary-label';
+            const value=element('div','');value.className='summary-value';
+            tile.append(label,value);disclosure.before(tile);
+          }
+          tile.querySelector('.summary-value').textContent=money(t.saved);
+        }else if(tile){tile.remove();}
+      }
       root.replaceChildren(element('h2','Zarządzaj nadwyżką'));
       const dl=document.createElement('dl');
       for(const [label,value] of [['Wolne środki przed decyzjami',base],['Przeniesione z wcześniejszych miesięcy',t.incoming],['Odłożono na oszczędności',t.saved],['Na przyszłe miesiące',t.reserved],['Pozostałe wolne środki',t.available]]){
