@@ -20,3 +20,6 @@ button,input,select,textarea{font-family:inherit}
 .split-toggle,.pick-open,.pick-tools{grid-column:1/-1}.split-toggle{align-items:center}.split-toggle span{margin-right:auto}.pick-tools>summary{padding:10px 0}.pick-tools select{width:100%}
 @media(max-width:600px){input,select,textarea{font-size:16px}.phone-expense,.monthly-settlement,.summary-grid>*{min-width:0}}
 @media(prefers-reduced-motion:reduce){.pick-sheet,.phone-expense,.plan-panel{animation:none;transition:none}}
+
+.monthly-settlement .plan-panel{margin-top:16px;padding:16px 0 0;border:0;border-top:1px solid var(--finance-line);border-radius:0;box-shadow:none;background:transparent}
+.monthly-settlement .plan-panel h2{margin:0 0 12px;font-size:1rem}
