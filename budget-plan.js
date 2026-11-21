@@ -1,6 +1,6 @@
 'use strict';
 const BudgetPlan = (() => {
-  const money = cents => (cents / 100).toLocaleString('pl-PL', {style:'currency',currency:'PLN'});
+  const money = cents => (cents / 100).toLocaleString('pl-PL', {style:'currency',currency:'PLN',useGrouping:true});
   function totals(entries, month, base) {
     let saved=0, reserved=0, incoming=0;
     for (const entry of entries) {
@@ -28,8 +28,17 @@ const BudgetPlan = (() => {
       const t=totals(state.entries,month,base);
       const grid=root.closest('.monthly-settlement')?.querySelector('.disposition-grid');
       if(grid){
+        const total=grid.parentElement.querySelector('.disposition-total-value[data-base-cents]');
+        if(total){
+          const cents=Number(total.dataset.baseCents)+t.saved;
+          total.textContent=money(cents);
+          total.style.color=cents<0?'#e74c3c':cents>0?'#39aa6b':'#777';
+        }
+        const recorded=Math.round((Number(data.financialFlows?.savings)||0)*100);
+        const recordedTile=recorded>0 && grid.querySelector('.disposition-item:not([data-saved-plan]) [data-art="cash"]')?.parentElement;
+        if(recordedTile)recordedTile.querySelector('.disposition-item-value').textContent='+'+money(recorded+t.saved);
         let tile=grid.querySelector('[data-saved-plan]');
-        if(t.saved>0){
+        if(t.saved>0&&!recordedTile){
           if(!tile){
             tile=element('div','');tile.className='disposition-item positive';tile.dataset.savedPlan='';
             const icon=element('span','');icon.className='glass-mini';icon.dataset.art='cash';icon.setAttribute('aria-hidden','true');
