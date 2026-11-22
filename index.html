@@ -1712,7 +1712,7 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}</style>
 
 <style>.form-return-status:empty{display:none}</style>
-<link rel="stylesheet" href="./finance-ui.css"><script src="./budget-plan.js"></script><script src="./budget-picker.js"></script></head>
+<link rel="stylesheet" href="./finance-ui.css"><link rel="stylesheet" href="./loan-terms.css"><script src="./new-loans.js"></script><script src="./budget-plan.js"></script><script src="./budget-picker.js"></script></head>
 
 
 <body>
@@ -5991,14 +5991,15 @@ addEventListener('online',()=>{if(activeView_==='savings')savingsRefresh_();});
 document.addEventListener('visibilitychange',()=>{if(activeView_==='savings'&&document.visibilityState==='visible')savingsRefresh_(true);});
 
 
-let debtData_=null,debtPeriod_=null,debtId_=null,debtBusy_=false,debtError_=false,debtLoaded_=false,debtMetric_='total';
+let debtBase_=null,debtData_=null,debtPeriod_=null,debtId_=null,debtBusy_=false,debtError_=false,debtLoaded_=false,debtMetric_='total';
 const debtKey_='budzet-debts-v1';
 function debtValid_(x){return x&&x.schema===1&&Number.isFinite(x.fetchedAt)&&Array.isArray(x.periods)&&x.periods.length>0&&x.periods.every(p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(p.key)&&[p.total,p.principal,p.interest].every(n=>Number.isFinite(n)&&n>=0)&&Array.isArray(p.items)&&p.items.every(i=>typeof i.id==='string'&&typeof i.name==='string'&&[i.total,i.principal,i.interest].every(n=>Number.isFinite(n)&&n>=0)));}
-function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;const followingLatest=debtPeriod_===debtData_?.periods.at(-1)?.key;debtData_=x;if(followingLatest||!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
+function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;const followingLatest=debtPeriod_===debtData_?.periods.at(-1)?.key;debtBase_=x;x=FamilyLoans.apply(x);debtData_=x;if(followingLatest||!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
 function debtURL_(){return new URL('./__debts_v1__.json',location.href).href;}
 async function debtRestore_(){if(debtLoaded_)return;debtLoaded_=true;try{debtAdopt_(JSON.parse(localStorage.getItem(debtKey_)));}catch(_){}if(activeView_==='debts')renderDebts_();try{const c=await caches.open('budzet-rodzinny-runtime-v8'),r=await c.match(debtURL_());if(r&&debtAdopt_(await r.json())&&activeView_==='debts')renderDebts_();}catch(_){}}
-function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');debtRestore_();renderDebts_();debtRefresh_(true);window.scrollTo(0,0);}
+function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');FamilyLoans.restore();FamilyLoans.refresh();debtRestore_();renderDebts_();debtRefresh_(true);window.scrollTo(0,0);}
 function debtRefresh_(automatic=false){
+ if(!automatic)FamilyLoans.refresh();
  if(automatic && activeView_==='debts' && document.querySelector('.installment-panel details[open]'))return;
  if(debtBusy_ || (automatic && !balanceNeedsRead_(debtData_,debtError_)))return;if(!navigator.onLine){debtError_=true;if(activeView_==='debts')renderDebts_();return;}
  debtBusy_=true;debtError_=false;if(activeView_==='debts')debtStatus_();
@@ -6029,7 +6030,7 @@ function installmentPanel_(p){
  const rows=(debtData_.installments||[]).filter(x=>x.key===p.key);
  if(!rows.length||debtId_)return '';
  return '<section class="sav-panel installment-panel"><h2>Zapłacone raty</h2>'+rows.map(x=>{
-  const split=x.split,options=p.items.filter(i=>i.total>0&&(x.bank!=='mBank'||i.id==='hipoteka'));
+  const split=x.split,options=p.items.filter(i=>!i.registration && i.total>0&&(x.bank!=='mBank'||i.id==='hipoteka'));
   const heading='<strong>'+escapeHtml(x.bank)+'</strong> · '+formatPLN(x.paid/100);
   if(split)return '<div class="split-row">'+heading+'<small>Rozliczona · kapitał '+formatPLN(split[3]/100)+' · odsetki '+formatPLN(split[4]/100)+'</small></div>';
   if(viewerRole_!=='owner')return '<div class="split-row">'+heading+'<small>Do rozliczenia</small></div>';
@@ -6062,10 +6063,10 @@ function renderDebtsContentV24_(){
  if(activeView_!=='debts')return;
  const app=document.getElementById('app'),same=app.dataset.debtView===(debtId_||'all'),open=same?Array.from(app.querySelectorAll('details[open][data-debt-open]'),el=>el.dataset.debtOpen):[],focus=same&&app.contains(document.activeElement)?document.activeElement.id:'',scroll=window.scrollY;
  app.dataset.debtView=debtId_||'all';
- if(!debtData_){app.innerHTML=`<div class="sav-wrap debt-wrap"><h1>Kredyty</h1><section class="sav-panel"><h2>${debtError_?'Nie udało się pobrać kredytów':'Wczytywanie kredytów'}</h2><p>${debtError_?'Sprawdź połączenie. Jeśli problem trwa, sprawdź wdrożenie i kompletność danych w arkuszu.':'Przy kolejnych otwarciach pokażemy zapisane kwoty od razu.'}</p>${debtError_?'<button class="back-button" onclick="debtRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;return;}
+ if(!debtData_){app.innerHTML=`<div class="sav-wrap debt-wrap"><h1>Kredyty</h1><div id="family-loan-actions"></div><section class="sav-panel"><h2>${debtError_?'Nie udało się pobrać kredytów':'Wczytywanie kredytów'}</h2><p>${debtError_?'Sprawdź połączenie. Jeśli problem trwa, sprawdź wdrożenie i kompletność danych w arkuszu.':'Przy kolejnych otwarciach pokażemy zapisane kwoty od razu.'}</p>${debtError_?'<button class="back-button" onclick="debtRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;FamilyLoans.mount(null);return;}
  const at=debtData_.periods.findIndex(p=>p.key===debtPeriod_),p=debtData_.periods[at],prev=debtData_.periods[at-1],item=debtId_?p.items.find(i=>i.id===debtId_):p;
  const title=debtId_?(item?item.name:'Zobowiązanie'):'Kredyty';
- const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0)));
+ const active=p.items.filter(i=>i.total>0),closed=p.items.filter(i=>i.total===0&&(i.registration||debtData_.periods.slice(0,at).some(q=>q.items.some(j=>j.id===i.id&&j.total>0))));
  const last=prev?debtAmount_(prev,'total'):null,delta=item&&last!==null?item.total-last:null;
  const change=item?balanceChange_(item.total,last,prev,true):'';
 
@@ -6073,10 +6074,12 @@ function renderDebtsContentV24_(){
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież kredyty">↻</button></div>
  ${item?`<section class="sav-hero debt-hero"><div>${debtId_?'Pozostało do spłaty':'Pozostało do spłaty łącznie'}</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section>${!debtId_?debtComposition_(active):''}${item.asOf&&item.asOf<p.key?'<p class="sav-muted debt-note">Ostatni zapis: '+savingsLabel_(item.asOf)+'.</p>':''}`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
+ <div id="family-loan-actions"></div>
  ${installmentPanel_(p)}
  ${!debtId_?`<section class="debt-active"><h2>Aktywne kredyty <span class="debt-count">${active.length}</span></h2>${active.length?'<div class="sav-grid debt-grid">'+active.slice().sort((a,b)=>b.total-a.total).map(i=>debtCard_(i,p.key)).join('')+'</div>':'<div class="sav-panel">Brak zobowiązań z dodatnim saldem w tym okresie.</div>'}</section>`:''}
  ${debtChart_()}
  ${!debtId_&&closed.length?`<details class="sav-panel" data-debt-open="closed"><summary id="debt-closed">Spłacone kredyty (${closed.length})</summary>${closed.map(i=>debtCard_(i,p.key)).join('')}</details>`:''}</div>`;
+ FamilyLoans.mount(item);
  for(const el of app.querySelectorAll('[data-debt-open]'))el.open=open.includes(el.dataset.debtOpen);
  if(focus){const el=document.getElementById(focus);if(el&&!el.disabled)el.focus({preventScroll:true});}
  if(same&&window.scrollY!==scroll)window.scrollTo(0,scroll);debtStatus_();

@@ -1,11 +1,11 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-manual-receipt-20261122';
+const SHELL_CACHE = 'budzet-rodzinny-shell-new-loans-20261122';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
   './',
   './index.html',
   './icons/start-wallet.webp',
-  './mortgage-payments.js', './loan-terms.js', './loan-terms.css',
+  './new-loans.js', './mortgage-payments.js', './loan-terms.js', './loan-terms.css',
   './category-art-test.css', './icons/credit-savings-atlas.webp',
   './icons/glass-savings.webp', './icons/glass-credit.webp', './icons/glass-wallet.webp',
   './queue.html',
@@ -41,7 +41,7 @@ self.addEventListener('install', event => {
     const authResponse = await fetch(authUrl, {cache:'no-store'});
     if (!authResponse.ok) throw new Error('Nie udało się pobrać modułu logowania.');
     await cache.put(authUrl,authResponse);
-    await Promise.all(['budget-plan.js','budget-picker.js','finance-ui.css'].map(async name=>{
+    await Promise.all(['new-loans.js','budget-plan.js','budget-picker.js','finance-ui.css'].map(async name=>{
       const url=new URL(name,self.registration.scope);
       const asset=await fetch(url,{cache:'no-store'});
       if(!asset.ok)throw Error('Nie udało się przygotować aplikacji.');
@@ -61,7 +61,7 @@ self.addEventListener('install', event => {
     await cache.put(criticalUrl, themedShell.clone());
     await cache.put(self.registration.scope, themedShell);
 
-    const optionalPaths = APP_SHELL.filter(path => !['./index.html','./','./budget-plan.js','./budget-picker.js','./finance-ui.css'].includes(path));
+    const optionalPaths = APP_SHELL.filter(path => !['./index.html','./','./new-loans.js','./budget-plan.js','./budget-picker.js','./finance-ui.css'].includes(path));
     await Promise.all(
       optionalPaths.map(async path => {
         try {

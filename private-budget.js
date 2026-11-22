@@ -200,6 +200,22 @@
     return {...snapshot, periods:snapshot.periods.map(p => result.get(p.key) || p)};
   }
 
+  const familyLoanRange=encodeURIComponent("'Zobowiązania dodatkowe'!A2:J");
+  window.familyLoanApi={
+    async read(){
+      if(!['owner','viewer'].includes(window.budgetViewerRole) || !token || Date.now()>=expires)
+        throw Error('Zaloguj się ponownie do budżetu.');
+      const response=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+testFileId+'/values/'+familyLoanRange+'?valueRenderOption=UNFORMATTED_VALUE',
+        {headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error'});
+      if(!response.ok)throw Error('Nie udało się pobrać zobowiązań.');
+      return (await response.json()).values||[];
+    },
+    async append(row){
+      const result=await queueSheets(familyLoanRange+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+        {method:'POST',body:JSON.stringify({values:[row]})});
+      if(result.updates?.updatedRows!==1)throw Error('Brak potwierdzenia zapisu.');
+    }
+  };
   window.budgetRpc = async (method, args) => {
     if (!['getDebtsData','saveInstallmentSplit'].includes(method) || window.budgetViewerRole !== 'owner')
       return rpc(method,args);
@@ -628,7 +644,7 @@
           saved = [a,b];
           recentSchedules.set(key,{row, version:++scheduleVersion});
           loadedSchedules = loadedSchedules.filter(existing => existing[0] !== key).concat([row]);
-          const updated = applySchedules(debtData_, loadedSchedules);
+          const updated = applySchedules(debtBase_, loadedSchedules);
           if (debtAdopt_(updated)) {
             try { localStorage.setItem(debtKey_, JSON.stringify(updated)); } catch (_) {}
             if (activeView_ === 'debts') { renderDebts_(); applyAmountPrivacy_(); }
