@@ -845,7 +845,37 @@
     return window.budgetViewerRole==='owner' && activeForm?.isConnected &&
       activeForm.dataset.form==='manual-entry.html' && activeForm.contentWindow===caller;
   }
+  const manualChoicesKey='budget-manual-choices-v1:'+testFileId;
+  let manualPublished,manualChoices;
+  function choicesFrom(data){
+    return {accounts:data.accounts.map(a=>({name:a.name})),expenseSheets:data.expenseSheets,
+      existingRows:data.existingRows.map(({key,label,sheet,month})=>({key,label,sheet,month}))};
+  }
+  function rememberChoices(data){
+    manualChoices={time:Date.now(),choices:choicesFrom(data)};
+    try{localStorage.setItem(manualChoicesKey,JSON.stringify(manualChoices));}catch{}
+    return manualChoices.choices;
+  }
   window.manualExpenses={
+    async choices(caller){
+      if(!manualHost(caller))throw Error('Brak dostępu do formularza.');
+      let saved=manualChoices;
+      try{saved=saved||JSON.parse(localStorage.getItem(manualChoicesKey));}catch{}
+      if(saved?.choices && Date.now()-saved.time<86400000){
+        return manualPublished?applyPublishedTargets(saved.choices,manualPublished):saved.choices;
+      }
+      // The worker retains completed reads. Reuse a verified response while the new read runs.
+      const [methods,statuses]=await Promise.all(['B2:B','D2:D'].map(range=>queueSheets(formSheet(range))));
+      const index=(methods.values||[]).findLastIndex((r,i)=>r[0]==='krGetDEV' && statuses.values?.[i]?.[0]==='OK');
+      if(index<0 || !manualHost(caller))return null;
+      const row=(await queueSheets(formSheet((index+2)+':'+(index+2)))).values?.[0];
+      if(!row || row[1]!=='krGetDEV' || row[3]!=='OK' || !manualHost(caller))return null;
+      const bytes=Uint8Array.from(atob(row.slice(5).join('')),c=>c.charCodeAt(0));
+      const data=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+      if(!manualHost(caller))return null;
+      const choices=choicesFrom(data);
+      return manualPublished?applyPublishedTargets(choices,manualPublished):choices;
+    },
     submit(caller,request,label){
       if(!manualHost(caller) || request.kind!=='WYDATEK')throw Error('Brak dostępu do zapisu.');
       const job={id:request.id,method:'krSaveDEV',request,label,phase:'ready',startedAt:Date.now()};
@@ -944,6 +974,7 @@
       if (method === 'krGetDEV') {
         const [manual, snapshot] = await Promise.all([waitForForm(receipt), phoneQueue()]);
         data = applyPublishedTargets(manual, snapshot.data);
+        rememberChoices(data);
       } else {
         data = await waitForForm(receipt);
       }
@@ -1082,6 +1113,7 @@
         if(selection){formURL.hash=new URLSearchParams(selection.mode?{entryKey:selection.key,entryMode:selection.mode,entryLabel:selection.label||''}:{newClothingKey:selection.key}).toString();}
         frame.src=formURL.href;
         frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
+        if(file==='manual-entry.html')manualPublished=state?.data;
         activeForm=frame;panel.append(frame);
       }
       for (const [file,title] of [['expense-editor.html','Podział, nowa pozycja lub korekta'],['manual-entry.html','Dodaj wydatek ręcznie']]) {

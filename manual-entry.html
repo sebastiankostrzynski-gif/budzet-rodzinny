@@ -45,16 +45,19 @@ function renderAsOf(){if(!state||!state.daily||!state.daily.length)return;let da
  $('dayBalances').replaceChildren();state.accounts.forEach(a=>{let p=document.createElement('p'),value=day.balances[a.name];p.textContent=a.name+' · BZ '+date+': '+(value==null?'brak BO':money(value));$('dayBalances').append(p);});
  $('dayInfo').textContent=date>state.bankThrough?'Dane bankowe obejmują operacje do '+state.bankThrough+'. BZ dla późniejszego dnia jest wyliczone z dostępnych przelewów i zapisanych zakupów; nowsze przelewy mogą je zmienić.':'BZ po wszystkich zapisanych operacjach z tego dnia.';
  $('dayChanges').replaceChildren();if(day.changes.length){let h=document.createElement('strong');h.textContent='Zmiany w tym dniu';$('dayChanges').append(h);let ul=document.createElement('ul');day.changes.forEach(e=>{let li=document.createElement('li');li.textContent=e.account+' · '+(e.deltaCents>=0?'+':'−')+money(Math.abs(e.deltaCents))+' · '+e.description+' · '+(e.source==='BANK'?'przelew bankowy':e.deltaCents>=0?'przychód ręczny':'zakup ręczny');ul.append(li);});$('dayChanges').append(ul);}else $('dayChanges').textContent='Brak zapisanych operacji w tym dniu.';}
+function renderChoices(data){
+ const previousAccount=$('account').value, previousCategory=$('category').value;
+ setOptions($('account'),data.accounts.map(a=>[a.name,a.name]));
+ const names=data.accounts.map(a=>a.name);
+ $('account').value=previousAccount?(names.includes(previousAccount)?previousAccount:''):names.includes('Gotówka wspólna')?'Gotówka wspólna':names[0];
+ setOptions($('category'),[['','Wybierz kategorię'],...data.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')]) ]);if(data.expenseSheets.includes(previousCategory))$('category').value=previousCategory;renderControls();
+}
 function renderState(data, keepForm=false){
  window.parent.manualExpenses?.reconcile(window,data.rows);renderManualProgress();
  state=data;$('balances').replaceChildren();let heading=document.createElement('h2');heading.textContent='Salda kont';$('balances').append(heading);data.accounts.forEach(a=>{let p=document.createElement('p');p.textContent=a.name+' · BO '+(a.openingDate||'—')+': '+(a.openingCents==null?'uzupełnij saldo początkowe':money(a.openingCents))+' · saldo bieżące: '+(a.balanceCents==null?'brak BO':money(a.balanceCents));$('balances').append(p);});
  if(data.daily&&data.daily.length){let control=$('asOf'),previous=control.value;control.min=data.daily[0].date;control.max=data.daily.at(-1).date;control.value=previous>=control.min&&previous<=control.max?previous:control.max;renderAsOf();}
  if(!keepForm){
- const previousAccount=$('account').value, previousCategory=$('category').value;
- setOptions($('account'),data.accounts.map(a=>[a.name,a.name]));
- const names=data.accounts.map(a=>a.name);
- $('account').value=names.includes(previousAccount)?previousAccount:names.includes('Gotówka wspólna')?'Gotówka wspólna':names[0];
- setOptions($('category'),[['','Wybierz kategorię'],...data.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')]) ]);if(data.expenseSheets.includes(previousCategory))$('category').value=previousCategory;renderControls();
+ renderChoices(data);
  }
  $('bankAge').textContent='Dane bankowe z: '+new Date(data.bankSourceAt).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'})+'. Późniejsze przelewy pojawią się po odświeżeniu wymiany.';
  $('transfers').replaceChildren();(data.transfers||[]).forEach(t=>{let li=document.createElement('li');li.textContent=t.date+' · '+t.account+' · '+(t.deltaCents>=0?'+':'−')+money(Math.abs(t.deltaCents))+' · '+t.description;$('transfers').append(li);});
@@ -86,6 +89,7 @@ function renderSplits(){
 }
 function showRemaining(){let total=cents($('amount').value),used=parts.reduce((s,p)=>s+(cents(p.amount)||0),0);$('splitBalance').textContent=total===null?'Wpisz pełną kwotę zakupu.':used===total?'Cała kwota rozpisana':(used<total?'Pozostało: ':'Przekroczono o: ')+money(Math.abs(total-used));$('splitBalance').className=total!==used?'error':'';}
 function buildRequest(){
+ if(!state?.accounts.some(a=>a.name===$('account').value))throw Error('Wybierz konto.');
  const amount=cents($('amount').value);if(amount===null||amount<0||($('kind').value==='WYDATEK'&&amount===0))throw Error('Wpisz poprawną kwotę.');
  let r={id:requestId,date:$('date').value,account:$('account').value,kind:$('kind').value,cents:amount,description:$('description').value.trim()};
  if(r.kind==='BO'||r.kind==='PRZYCHOD')return r;
@@ -109,7 +113,11 @@ function run(request, refresh=false){
  $('reload').disabled=true;
  $('msg').textContent=request?'Zapisuję…':refresh?'Aktualizuję salda i listy…':'Wczytywanie kont i kategorii…';
  const end=()=>{saving=false;busy=false;locked.forEach(x=>x.disabled=false);$('reload').disabled=false;$('submit').disabled=!state;};
- let rpc=google.script.run.withSuccessHandler(data=>{if(version!==readVersion)return;try{renderState(data);}catch(e){$('msg').textContent='Nie udało się wyświetlić danych. Wybierz „Odśwież salda i listy”.';return;}finally{end();}let saved=request&&data.rows.find(x=>x.id===request.id),message=request?(request.kind==='BO'?'Zapisano saldo początkowe.':request.kind==='PRZYCHOD'?'Zapisano przychód i zaktualizowano saldo.':saved&&saved.budgetStatus==='POSTED_TEST_BUDGET'?'Zapisano zakup w kategorii.':'Zapisano decyzję. Nowa pozycja czeka na księgowanie.'):'Dane rejestru z '+new Date(data.manualAsOf || Date.now()).toLocaleString('pl-PL')+'.';if(request){requestId=crypto.randomUUID();$('amount').value='';$('description').value='';parts=[];}$('msg').textContent=message;}).withFailureHandler(e=>{if(version!==readVersion)return;end();$('msg').textContent=(e.message||e)+' Sprawdź historię przed ponownym zapisem.';});
+ let rpc=google.script.run.withSuccessHandler(data=>{if(version!==readVersion)return;try{
+      const sameChoices=state && JSON.stringify([state.accounts.map(a=>a.name),state.expenseSheets,state.existingRows.map(r=>[r.key,r.label,r.sheet,r.month])])===
+        JSON.stringify([data.accounts.map(a=>a.name),data.expenseSheets,data.existingRows.map(r=>[r.key,r.label,r.sheet,r.month])]);
+      renderState(data,!!sameChoices && !request);
+    }catch(e){$('msg').textContent='Nie udało się wyświetlić danych. Wybierz „Odśwież salda i listy”.';return;}finally{end();}let saved=request&&data.rows.find(x=>x.id===request.id),message=request?(request.kind==='BO'?'Zapisano saldo początkowe.':request.kind==='PRZYCHOD'?'Zapisano przychód i zaktualizowano saldo.':saved&&saved.budgetStatus==='POSTED_TEST_BUDGET'?'Zapisano zakup w kategorii.':'Zapisano decyzję. Nowa pozycja czeka na księgowanie.'):'Dane rejestru z '+new Date(data.manualAsOf || Date.now()).toLocaleString('pl-PL')+'.';if(request){requestId=crypto.randomUUID();$('amount').value='';$('description').value='';parts=[];}$('msg').textContent=message;}).withFailureHandler(e=>{if(version!==readVersion)return;end();$('msg').textContent=request?(e.message||e)+' Sprawdź historię przed ponownym zapisem.':state?'Konta i kategorie gotowe. Nie udało się odświeżyć sald.':'Nie udało się pobrać danych. Wybierz „Odśwież”.';});
  if(request)rpc.krSaveDEV(request);else if(refresh)rpc.krRefreshDEV();else rpc.krGetDEV();
 }
 $('date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Warsaw'}).format(new Date());
@@ -166,6 +174,13 @@ $('form').onsubmit=e=>{
 };
 renderManualProgress();
 run();
+const initialRead=readVersion;
+window.parent.manualExpenses?.choices?.(window).then(choices=>{
+ if(!choices || state || initialRead!==readVersion || saving)return;
+ state=choices;renderChoices(choices);
+ $('submit').disabled=false;
+ $('msg').textContent=busy?'Aktualizuję salda i historię…':'Konta i kategorie gotowe. Odśwież, aby pobrać aktualne salda.';
+}).catch(()=>{});
 </script>
 <script>
 (function(){
