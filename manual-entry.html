@@ -7,11 +7,15 @@
 .manual-entry #reload{color:#285c47;background:transparent;border:0;font-size:.9rem;font-weight:600}
 .manual-entry #reload:disabled{color:#53645b;opacity:.7}
 .manual-entry #msg{font-size:.875rem;line-height:1.45;color:#40594b;margin:.35rem 0 .75rem}
-.manual-entry #msg:empty{display:none}
+.manual-entry #msg:empty,.manual-entry #form[hidden],.manual-entry #expenseReceipt[hidden]{display:none}
+.manual-entry #expenseReceipt h2{margin-top:0}
 .manual-entry #form{margin-top:.55rem;padding:16px;border-radius:16px}
 .manual-entry #form>label:first-child{margin-top:0}
 </style><link rel="stylesheet" href="./finance-ui.css"></head><body class="manual-entry"><main><header class="entry-header"><h1>Dodaj operację</h1><button type="button" id="reload">Odśwież</button></header>
-<p id="msg" role="status"></p><form id="form" aria-label="Nowa operacja">
+<p id="msg" role="status"></p><section id="expenseReceipt" hidden aria-label="Status wydatku">
+<h2 id="receiptStatus" role="status" tabindex="-1"></h2><p id="receiptSummary"></p>
+<button type="button" id="anotherExpense">Dodaj kolejny wydatek</button>
+</section><form id="form" aria-label="Nowa operacja">
 <label for="account">Konto</label><select id="account"></select>
 <label for="kind">Operacja</label><select id="kind"><option value="WYDATEK">Wydatek</option><option value="PRZYCHOD">Przychód</option><option value="BO">Saldo początkowe — tylko gdy konto go nie ma</option></select>
 <label for="date">Data operacji</label><input id="date" type="date" required>
@@ -53,6 +57,7 @@ function renderChoices(data){
  setOptions($('category'),[['','Wybierz kategorię'],...data.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')]) ]);if(data.expenseSheets.includes(previousCategory))$('category').value=previousCategory;renderControls();
 }
 function renderState(data, keepForm=false){
+ if(lastExpense && data.rows.some(r=>r.id===lastExpense.id)){lastExpense.phase='confirmed';rememberReceipt();}
  window.parent.manualExpenses?.reconcile(window,data.rows);renderManualProgress();
  state=data;$('balances').replaceChildren();let heading=document.createElement('h2');heading.textContent='Salda kont';$('balances').append(heading);data.accounts.forEach(a=>{let p=document.createElement('p');p.textContent=a.name+' · BO '+(a.openingDate||'—')+': '+(a.openingCents==null?'uzupełnij saldo początkowe':money(a.openingCents))+' · saldo bieżące: '+(a.balanceCents==null?'brak BO':money(a.balanceCents));$('balances').append(p);});
  if(data.daily&&data.daily.length){let control=$('asOf'),previous=control.value;control.min=data.daily[0].date;control.max=data.daily.at(-1).date;control.value=previous>=control.min&&previous<=control.max?previous:control.max;renderAsOf();}
@@ -129,7 +134,28 @@ $('newMode').onclick=()=>{mode='NEW_ROW';renderControls();};$('existingMode').on
 $('section').onchange=renderControls;$('singleMode').onclick=()=>{split=false;renderControls();};$('splitMode').onclick=()=>{split=true;if(!parts.length)parts=[{person:'',description:'',amount:'',auto:false},{person:'',description:'',amount:'',auto:true}];fillRemainder();renderControls();};
 $('amount').oninput=()=>{fillRemainder();if(split)renderSplits();};
 $('addSplit').onclick=()=>{if(parts.length>=20)return;let last=parts.at(-1);if(last&&last.auto){last.auto=false;last.amount='';}parts.push({person:'',description:'',amount:'',auto:true});fillRemainder();renderSplits();};
+const receiptKey='budget-manual-last-expense-v1';
+let lastExpense=null;
+try{lastExpense=JSON.parse(sessionStorage.getItem(receiptKey));}catch{}
+function rememberReceipt(){
+ try{if(lastExpense)sessionStorage.setItem(receiptKey,JSON.stringify(lastExpense));else sessionStorage.removeItem(receiptKey);}catch{}
+}
+function showReceipt(){
+ const active=!!lastExpense;
+ $('expenseReceipt').hidden=!active;$('form').hidden=active;
+ if(!active)return;
+ const job=window.parent.manualExpenses?.list(window).find(j=>j.id===lastExpense.id);
+ if(job && lastExpense.phase!==job.phase){lastExpense.phase=job.phase;lastExpense.message=job.message;rememberReceipt();}
+ $('receiptStatus').textContent=lastExpense.phase==='confirmed'?'Wydatek zapisany':lastExpense.phase==='error'?'Zapis wymaga sprawdzenia':'Zapisywanie wydatku w tle…';
+ $('receiptSummary').textContent=[lastExpense.label,money(lastExpense.cents),lastExpense.account,lastExpense.phase==='error'?lastExpense.message:''].filter(Boolean).join(' · ');
+}
+$('anotherExpense').onclick=()=>{
+ lastExpense=null;rememberReceipt();requestId=crypto.randomUUID();
+ $('amount').value='';$('description').value='';parts=[];split=false;
+ showReceipt();renderControls();$('msg').textContent='';$('amount').focus();
+};
 function renderManualProgress(){
+ showReceipt();
  const root=$('manualProgress');
  root.replaceChildren();
  for(const job of window.parent.manualExpenses?.list(window)||[]){
@@ -160,16 +186,15 @@ window.parent.addEventListener('budget-assignment-progress',renderManualProgress
 window.addEventListener('pagehide',()=>window.parent.removeEventListener('budget-assignment-progress',renderManualProgress));
 $('form').onsubmit=e=>{
  e.preventDefault();
+ if(lastExpense)return;
  try{
    const request=buildRequest();
    if(request.kind!=='WYDATEK'||!window.parent.manualExpenses){run(request);return;}
    const label=mode==='EXISTING_ROW'?$('target').selectedOptions[0].textContent:request.description;
    window.parent.manualExpenses.submit(window,request,label);
-   requestId=crypto.randomUUID();
-   $('amount').value='';$('description').value='';parts=[];split=false;
-   renderControls();
-   $('msg').textContent='';
-   $('amount').focus();
+   lastExpense={id:request.id,label,cents:request.cents,account:request.account,phase:'ready'};
+   rememberReceipt();showReceipt();$('msg').textContent='';
+   $('receiptStatus').focus();
  }catch(err){$('msg').textContent=err.message;}
 };
 renderManualProgress();
