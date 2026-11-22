@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-v132-confirmed-dashboard-balance';
+const SHELL_CACHE = 'budzet-rodzinny-shell-v133-manual-expense-background';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

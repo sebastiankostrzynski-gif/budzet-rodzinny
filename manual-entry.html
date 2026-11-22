@@ -23,7 +23,7 @@
 <div id="clothesBlock" hidden><label>Podział zakupu</label><div class="choice"><button id="singleMode" type="button" aria-pressed="true">Jedna osoba</button><button id="splitMode" type="button" aria-pressed="false">Podziel zakup</button></div><div id="personBlock"><label for="person">Dla kogo?</label><select id="person"><option value="">Wybierz osobę</option><option>Seba</option><option>Ewa</option><option>Julka</option><option>Olek</option></select></div></div></div>
 <div id="descriptionBlock"><label for="description">Co kupiono?</label><input id="description" maxlength="200" placeholder="Np. buty, posiłek"></div>
 <div id="splits" hidden><p class="muted">Każda pozycja ma własną osobę, opis i kwotę. Jedna osoba może wystąpić kilka razy.</p><div id="splitRows"></div><button id="addSplit" type="button">+ Dodaj pozycję</button><p id="splitBalance"></p></div></div></div>
-<button class="primary" id="submit">Zapisz wydatek</button></form>
+<button class="primary" id="submit">Zapisz wydatek</button><div id="manualProgress" class="muted" role="status"></div></form>
 <section id="balances"><h2>Salda kont</h2></section>
 <section><h2>Saldo na wybrany dzień</h2><label for="asOf">Dzień</label><input id="asOf" type="date"><div id="dayBalances"></div><p id="dayInfo" class="muted"></p><div id="dayChanges"></div></section>
 <section><strong>Przelewy uwzględnione w saldach</strong><p id="bankAge" class="muted"></p><ul id="transfers"></ul></section>
@@ -45,14 +45,17 @@ function renderAsOf(){if(!state||!state.daily||!state.daily.length)return;let da
  $('dayBalances').replaceChildren();state.accounts.forEach(a=>{let p=document.createElement('p'),value=day.balances[a.name];p.textContent=a.name+' · BZ '+date+': '+(value==null?'brak BO':money(value));$('dayBalances').append(p);});
  $('dayInfo').textContent=date>state.bankThrough?'Dane bankowe obejmują operacje do '+state.bankThrough+'. BZ dla późniejszego dnia jest wyliczone z dostępnych przelewów i zapisanych zakupów; nowsze przelewy mogą je zmienić.':'BZ po wszystkich zapisanych operacjach z tego dnia.';
  $('dayChanges').replaceChildren();if(day.changes.length){let h=document.createElement('strong');h.textContent='Zmiany w tym dniu';$('dayChanges').append(h);let ul=document.createElement('ul');day.changes.forEach(e=>{let li=document.createElement('li');li.textContent=e.account+' · '+(e.deltaCents>=0?'+':'−')+money(Math.abs(e.deltaCents))+' · '+e.description+' · '+(e.source==='BANK'?'przelew bankowy':e.deltaCents>=0?'przychód ręczny':'zakup ręczny');ul.append(li);});$('dayChanges').append(ul);}else $('dayChanges').textContent='Brak zapisanych operacji w tym dniu.';}
-function renderState(data){
+function renderState(data, keepForm=false){
+ window.parent.manualExpenses?.reconcile(window,data.rows);renderManualProgress();
  state=data;$('balances').replaceChildren();let heading=document.createElement('h2');heading.textContent='Salda kont';$('balances').append(heading);data.accounts.forEach(a=>{let p=document.createElement('p');p.textContent=a.name+' · BO '+(a.openingDate||'—')+': '+(a.openingCents==null?'uzupełnij saldo początkowe':money(a.openingCents))+' · saldo bieżące: '+(a.balanceCents==null?'brak BO':money(a.balanceCents));$('balances').append(p);});
  if(data.daily&&data.daily.length){let control=$('asOf'),previous=control.value;control.min=data.daily[0].date;control.max=data.daily.at(-1).date;control.value=previous>=control.min&&previous<=control.max?previous:control.max;renderAsOf();}
+ if(!keepForm){
  const previousAccount=$('account').value, previousCategory=$('category').value;
  setOptions($('account'),data.accounts.map(a=>[a.name,a.name]));
  const names=data.accounts.map(a=>a.name);
  $('account').value=names.includes(previousAccount)?previousAccount:names.includes('Gotówka wspólna')?'Gotówka wspólna':names[0];
  setOptions($('category'),[['','Wybierz kategorię'],...data.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')]) ]);if(data.expenseSheets.includes(previousCategory))$('category').value=previousCategory;renderControls();
+ }
  $('bankAge').textContent='Dane bankowe z: '+new Date(data.bankSourceAt).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'})+'. Późniejsze przelewy pojawią się po odświeżeniu wymiany.';
  $('transfers').replaceChildren();(data.transfers||[]).forEach(t=>{let li=document.createElement('li');li.textContent=t.date+' · '+t.account+' · '+(t.deltaCents>=0?'+':'−')+money(Math.abs(t.deltaCents))+' · '+t.description;$('transfers').append(li);});
  $('withdrawals').replaceChildren();(data.withdrawals||[]).forEach(w=>{let li=document.createElement('li');li.textContent=w.date+' · '+w.description+' · +'+money(w.amountCents);$('withdrawals').append(li);});
@@ -118,7 +121,50 @@ $('newMode').onclick=()=>{mode='NEW_ROW';renderControls();};$('existingMode').on
 $('section').onchange=renderControls;$('singleMode').onclick=()=>{split=false;renderControls();};$('splitMode').onclick=()=>{split=true;if(!parts.length)parts=[{person:'',description:'',amount:'',auto:false},{person:'',description:'',amount:'',auto:true}];fillRemainder();renderControls();};
 $('amount').oninput=()=>{fillRemainder();if(split)renderSplits();};
 $('addSplit').onclick=()=>{if(parts.length>=20)return;let last=parts.at(-1);if(last&&last.auto){last.auto=false;last.amount='';}parts.push({person:'',description:'',amount:'',auto:true});fillRemainder();renderSplits();};
-$('form').onsubmit=e=>{e.preventDefault();try{run(buildRequest());}catch(err){$('msg').textContent=err.message;}};
+function renderManualProgress(){
+ const root=$('manualProgress');
+ root.replaceChildren();
+ for(const job of window.parent.manualExpenses?.list(window)||[]){
+   const line=document.createElement('p');
+   const status=job.phase==='confirmed'?'Zapis potwierdzony':job.phase==='error'?'Błąd zapisu · '+job.message:
+     job.message||'Zapisywanie w tle';
+   line.textContent=[money(job.request.cents),job.label,status].join(' · ');
+   root.append(line);
+ }
+}
+let ledgerRefresh;
+function scheduleLedgerRefresh(){
+ clearTimeout(ledgerRefresh);
+ ledgerRefresh=setTimeout(()=>{
+   if(busy){scheduleLedgerRefresh();return;}
+   const version=++readVersion;
+   google.script.run.withSuccessHandler(data=>{
+     if(version===readVersion)renderState(data,true);
+   }).withFailureHandler(()=>{}).krGetDEV();
+ },500);
+}
+window.parent.addEventListener('budget-manual-confirmed',scheduleLedgerRefresh);
+window.addEventListener('pagehide',()=>{
+ clearTimeout(ledgerRefresh);
+ window.parent.removeEventListener('budget-manual-confirmed',scheduleLedgerRefresh);
+});
+window.parent.addEventListener('budget-assignment-progress',renderManualProgress);
+window.addEventListener('pagehide',()=>window.parent.removeEventListener('budget-assignment-progress',renderManualProgress));
+$('form').onsubmit=e=>{
+ e.preventDefault();
+ try{
+   const request=buildRequest();
+   if(request.kind!=='WYDATEK'||!window.parent.manualExpenses){run(request);return;}
+   const label=mode==='EXISTING_ROW'?$('target').selectedOptions[0].textContent:request.description;
+   window.parent.manualExpenses.submit(window,request,label);
+   requestId=crypto.randomUUID();
+   $('amount').value='';$('description').value='';parts=[];split=false;
+   renderControls();
+   $('msg').textContent='';
+   $('amount').focus();
+ }catch(err){$('msg').textContent=err.message;}
+};
+renderManualProgress();
 run();
 </script>
 <script>
