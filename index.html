@@ -4139,12 +4139,14 @@ function alerty24Start_() {
       const mainCardValue =
         isClosedMonth
           ? monthlyResult
-          : wolneSrodki;
+          : window.budgetViewerRole==='owner' && window.budgetPlanApi
+            ? BudgetPlan.available(data)
+            : wolneSrodki;
 
       const mainCardClass =
         isClosedMonth
           ? 'main-card-neutral'
-          : wolneSrodki < 0
+          : mainCardValue < 0
             ? 'main-card-negative'
             : '';
 
@@ -4156,9 +4158,9 @@ function alerty24Start_() {
       const mainCardStatus =
         isClosedMonth
           ? ''
-          : wolneSrodki < 0
+          : mainCardValue === null ? 'Obliczanie…' : mainCardValue < 0
             ? 'Saldo ujemne'
-            : wolneSrodki > 0
+            : mainCardValue > 0
               ? 'Dostępne'
               : 'Brak wolnych środków';
 
@@ -4361,7 +4363,7 @@ function alerty24Start_() {
           </div>
 
           <div class="main-card-value ${mainCardValueClass}">
-            ${formatPLN(mainCardValue)}
+            ${mainCardValue===null?'…':formatPLN(mainCardValue)}
           </div>
 
           <div class="main-card-description">

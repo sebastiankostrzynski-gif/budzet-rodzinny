@@ -11,6 +11,38 @@ const BudgetPlan = (() => {
     }
     return {saved,reserved,incoming,available:base+incoming-saved-reserved};
   }
+  // Cache only confirmed monthly adjustments. Dashboard amounts can refresh independently.
+  const cacheKey='budget-2026-test-confirmed-plan-offsets-v1';
+  let confirmed;
+  function cachedOffsets(){
+    if(confirmed)return confirmed;
+    try{
+      const value=JSON.parse(localStorage.getItem(cacheKey));
+      if(value && Number.isSafeInteger(value.revision) && value.offsets &&
+        Object.values(value.offsets).every(Number.isSafeInteger))confirmed=value;
+    }catch{ /* Storage can be unavailable in private browsing. */ }
+    return confirmed;
+  }
+  function available(data){
+    const plan=cachedOffsets();
+    if(!plan)return null;
+    const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
+    return (Math.round(Number(data.wolneSrodki)*100)+(plan.offsets[month]||0))/100;
+  }
+  function remember(state){
+    if(!Number.isSafeInteger(state?.revision)||!Array.isArray(state.entries))return;
+    if(cachedOffsets()?.revision>=state.revision)return;
+    const offsets={};
+    for(const e of state.entries){
+      if(!Number.isSafeInteger(e.cents))return;
+      offsets[e.source]=(offsets[e.source]||0)-e.cents;
+      if(e.target)offsets[e.target]=(offsets[e.target]||0)+e.cents;
+    }
+    confirmed={revision:state.revision,offsets};
+    try{localStorage.setItem(cacheKey,JSON.stringify(confirmed));}catch{}
+    document.dispatchEvent(new Event('budget-plan-balance'));
+  }
+  let updateActiveCard;
   const element=(tag,label)=>Object.assign(document.createElement(tag),{textContent:label});
   function action(label,run) {
     const button=element('button',label);
@@ -20,11 +52,28 @@ const BudgetPlan = (() => {
     if(!root)return;
     const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
     const base=Math.round(Number(data.wolneSrodki)*100);
+    if(window.budgetViewerRole==='owner'){
+      if(updateActiveCard)document.removeEventListener('budget-plan-balance',updateActiveCard);
+      updateActiveCard=()=>{
+        if(!root.isConnected || data.isClosedMonth)return;
+        const card=root.closest('.monthly-settlement')?.querySelector('.main-card');
+        if(!card)return;
+        const value=available(data);
+        const amount=card.querySelector('.main-card-value');
+        amount.textContent=value===null?'…':money(Math.round(value*100));
+        card.classList.toggle('main-card-negative',value!==null && value<0);
+        const status=card.querySelector('.main-card-status');
+        if(status)status.lastChild.textContent=value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
+      };
+      document.addEventListener('budget-plan-balance',updateActiveCard);
+      updateActiveCard();
+    }
     let state;
     const notice=element('p','');notice.setAttribute('role','status');
     root.append(notice);
     try {state=await api.read();}catch {notice.textContent='Nie udało się odczytać planu miesiąca.';root.append(action('Spróbuj ponownie',()=>{root.replaceChildren();mount(root,data,api);}));return;}
     function render(){
+      if(window.budgetViewerRole==='owner')remember(state);
       const t=totals(state.entries,month,base);
       const grid=root.closest('.monthly-settlement')?.querySelector('.disposition-grid');
       if(grid){
@@ -55,7 +104,7 @@ const BudgetPlan = (() => {
         const row=element('div','');row.append(element('dt',label),element('dd',money(value)));dl.append(row);
       }
       root.append(dl);
-      if(root.isConnected&&!data.isClosedMonth){
+      if(window.budgetViewerRole!=='owner'&&root.isConnected&&!data.isClosedMonth){
         const card=document.querySelector('.main-card-value');if(card)card.textContent=money(t.available);
       }
       if(t.available<0)root.append(Object.assign(element('p','Do pokrycia po zmianach w budżecie: '+money(-t.available)),{className:'plan-warning'}));
@@ -125,5 +174,5 @@ const BudgetPlan = (() => {
       catch(error){notice.textContent=error.message;render();}
     }
   }
-  return {mount,totals};
+  return {mount,totals,available};
 })();
