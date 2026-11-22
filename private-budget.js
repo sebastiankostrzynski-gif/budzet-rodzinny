@@ -674,6 +674,11 @@
     const rows = data.rows.filter(r => !r.bridgeArchived);
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
+    for(const row of rows){
+      const job=storedAssignment(row.key);
+      if(job?.phase==='confirmed' && (row.decision || row.postedEvidence || (job.method==='ASSIGN_V1' && byKey.has(row.key))))
+        localStorage.removeItem(assignmentPrefix+row.key);
+    }
     return {data,rows,pending,byKey,incomeCommands,stamp};
   }
   function applyPublishedTargets(manual, published) {
@@ -726,6 +731,113 @@
     }
     throw Error('Brak potwierdzenia. Wróć do formularza, aby sprawdzić wynik.');
   }
+  // Each expense has its own durable receipt. A lost HTTP reply is reconciled by ID.
+  const assignmentPrefix='budget-assignment-outbox-v1:'+testFileId+':';
+  const assignmentWork=new Map();
+  const assignmentEvent='budget-assignment-progress';
+  function storedAssignment(key){return JSON.parse(localStorage.getItem(assignmentPrefix+key)||'null');}
+  function assignments(){
+    return Object.keys(localStorage).filter(key=>key.startsWith(assignmentPrefix)).map(key=>JSON.parse(localStorage.getItem(key))).filter(Boolean);
+  }
+  function recordAssignment(job){
+    localStorage.setItem(assignmentPrefix+job.request.key,JSON.stringify(job));
+    window.dispatchEvent(new Event(assignmentEvent));
+  }
+  function assignmentGuard(data,req){
+    const row=data.rows.find(r=>r.key===req.key);
+    const targets=(req.parts||[req]).filter(p=>p.targetManualKey).map(p=>{
+      const t=data.existingRows.find(x=>x.key===p.targetManualKey);
+      return t && [t.key,t.sheet,t.month,t.label,t.sectionName];
+    });
+    return JSON.stringify([row && [row.key,row.amountCents,row.date,row.currency,row.accountLabel,row.assignmentEpoch||0,
+      row.decision||null,!!row.bridgeArchived,!!row.postedEvidence,!!row.bridgeBlocked,!!row.targetNeedsReview],targets]);
+  }
+  function submitAssignment(method,req,row,data,editorDraft){
+    const prev=storedAssignment(req.key);
+    if(prev && prev.phase!=='error')throw Error('Ten wydatek już czeka na potwierdzenie.');
+    const job={id:crypto.randomUUID(),method,request:req,label:row.description,phase:'ready',
+      guard:assignmentGuard(data,req),editorDraft,startedAt:Date.now()};
+    recordAssignment(job);
+    runAssignment(req.key);
+  }
+  async function deliverAssignment(key){
+    const job=storedAssignment(key);
+    if(!job || ['error','confirmed'].includes(job.phase) || window.budgetViewerRole!=='owner' || !navigator.onLine)return;
+    const quick=job.method==='ASSIGN_V1';
+    const range=quick?queueRange:formSheet;
+    try{
+      if(job.phase==='ready'){
+        job.phase='sending';recordAssignment(job);
+        const values=quick?[job.method,job.id,JSON.stringify(job.request)]:[job.id,job.method,JSON.stringify([job.request])];
+        const res=await queueSheets(range(quick?'A2:D':'A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+          {method:'POST',body:JSON.stringify({values:[values]})});
+        job.row=Number(res.updates?.updatedRange?.match(/!A(\d+):/)?.[1]);
+        job.phase='waiting';recordAssignment(job);
+      }
+      if(!job.row){
+        const ids=(await queueSheets(range(quick?'B:B':'A:A'))).values||[];
+        job.row=ids.findIndex(r=>r[0]===job.id)+1;
+        if(job.row<2){
+          if(Date.now()-job.startedAt>120000){
+            job.phase='error';job.message='Brak potwierdzenia wysyłki. Sprawdź historię przed ponowieniem.';recordAssignment(job);
+          }
+          return;
+        }
+        job.phase='waiting';recordAssignment(job);
+      }
+      const cells=(await queueSheets(range('A'+job.row+':'+(quick?'D':'F')+job.row))).values?.[0]||[];
+      if(cells[quick?1:0]!==job.id)return;
+      const result=cells[3];
+      if(!result)return;
+      if(quick?/^Błąd/i.test(result):result==='ERROR'){
+        job.message=quick?result:String(cells[5]||'Sprawdź wybrane pozycje.');
+        if(!quick && !job.rebased && /STALE_REVISION|Lista zmieniła się/i.test(job.message)){
+          const fresh=(await phoneQueue()).data;
+          if(fresh.revision!==job.request.revision && assignmentGuard(fresh,job.request)===job.guard){
+            job.id=crypto.randomUUID();job.request.revision=fresh.revision;job.row=0;
+            job.phase='ready';job.rebased=true;job.startedAt=Date.now();recordAssignment(job);return;
+          }
+        }
+        job.phase='error';
+      }else{
+        if(result!=='OK')return;
+        job.phase='confirmed';
+        lastEditorData=null;
+        window.dispatchEvent(new Event('budget-assignment-saved'));
+      }
+      recordAssignment(job);
+    }catch(error){
+      // Keep the same receipt across network errors and app restarts.
+      if(job.phase==='sending' && /HTTP (400|403|401)\b/.test(error.message)){
+        job.phase='error';job.message=error.message;recordAssignment(job);
+      }
+    }
+  }
+  function runAssignment(key){
+    if(assignmentWork.has(key))return;
+    const work=()=>deliverAssignment(key);
+    const task=navigator.locks?navigator.locks.request(assignmentPrefix+key,{ifAvailable:true},lock=>lock&&work()):work();
+    assignmentWork.set(key,task);
+    task.finally(()=>assignmentWork.delete(key));
+  }
+  function resumeAssignments(){
+    if(document.hidden || window.budgetViewerRole!=='owner')return;
+    assignments().filter(j=>!['confirmed','error'].includes(j.phase)).forEach(j=>runAssignment(j.request.key));
+  }
+  window.addEventListener('online',resumeAssignments);
+  document.addEventListener('visibilitychange',resumeAssignments);
+  setInterval(resumeAssignments,5000);
+  function assignmentHost(caller){
+    return window.budgetViewerRole==='owner' && activeForm?.isConnected &&
+      activeForm.dataset.form==='expense-editor.html' && activeForm.contentWindow===caller;
+  }
+  window.expenseBackground={
+    list(caller){return assignmentHost(caller)?assignments():[];},
+    submit(caller,method,req,row,data,editorDraft){
+      if(!assignmentHost(caller)||!['pkDecideDevV1','ebQueueReviseDev'].includes(method))throw Error('Brak dostępu do zapisu.');
+      submitAssignment(method,req,row,data,editorDraft);
+    }
+  };
   const planReceiptKey='budget-plan-pending-v1';
   const planDeliveryKey='budget-plan-delivery-v1';
   let activePlanSave;
@@ -954,6 +1066,33 @@
       modes.append(expenses,incomes); advanced.append(links);root.append(head);
       mountSettlementControl(root);
       root.append(modes,tabs,status,list,advanced);
+      const progressNote=make('p');
+      progressNote.setAttribute('role','status');status.after(progressNote);
+      function progress(){
+        if(!root.contains(progressNote)){window.removeEventListener(assignmentEvent,progress);return;}
+        const jobs=assignments();
+        const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
+        progressNote.replaceChildren();
+        if(waiting.length)progressNote.append(make('span','Zapisywanie w tle · '+waiting.length));
+        for(const j of jobs.filter(j=>j.phase==='error')){
+          const line=make('p',j.label+' · '+j.message+' ');
+          const review=make('button','Sprawdź');
+          review.onclick=()=>openForm('expense-editor.html','Sprawdź przypisanie',{key:j.request.key,mode:'restore'});
+          line.append(review);progressNote.append(line);
+        }
+        if(state && !income)pendingTab.textContent='Do przypisania · '+state.pending.filter(r=>!hiddenExpense(r.key)).length;
+      }
+      function hiddenExpense(key){const j=storedAssignment(key);return j && j.phase!=='error';}
+      window.addEventListener(assignmentEvent,progress);
+      function onConfirmed(){
+        if(!root.contains(progressNote)){window.removeEventListener('budget-assignment-saved',onConfirmed);return;}
+        root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
+        phoneQueue().then(next=>{
+          if(!root.contains(progressNote))return;
+          followPosting(next);lastCountRead=0;refreshExpenseCount(next);
+        }).catch(()=>{});
+      }
+      window.addEventListener('budget-assignment-saved',onConfirmed);
       let income=false;
       function switchMode(next) {
         if(saving)return;
@@ -1009,8 +1148,10 @@
         }
         list.after(section);
       }
-      function render() {
+      function render(keepEditors=false) {
         if (!state || !root.isConnected) return;
+        const editors=keepEditors && !income && !history
+          ? new Map(Array.from(list.querySelectorAll('[data-expense-key]'),card=>[card.dataset.expenseKey,card])) : new Map();
         list.replaceChildren();
         renderNotices();
         if(income){renderIncome();return;}
@@ -1019,10 +1160,13 @@
         pendingTab.textContent='Do przypisania · '+pending.size;
         historyTab.textContent='Historia · '+saved.length;
         pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
-        const visible = history?saved:state.pending;
-        if (!visible.length) list.append(make('p',history?'Historia jest pusta.':'Wszystkie wydatki są przypisane.'));
+        const visible = history?saved:state.pending.filter(r=>!hiddenExpense(r.key));
+        progress();
+        if (!visible.length) list.append(make('p',history?'Historia jest pusta.':'Brak kolejnych wydatków do przypisania.'));
         for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
+          if(editors.has(row.key)){list.append(editors.get(row.key));continue;}
           const card=make('article'), command=state.byKey.get(row.key);
+          if(!history)card.dataset.expenseKey=row.key;
           card.className='phone-expense';
           card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',[row.date,row.accountLabel||row.account||row.sourceLabel].filter(Boolean).join(' · ')));
           if(history) {
@@ -1067,20 +1211,17 @@
               target.disabled=target.length<=1; save.disabled=true;
             };
             category.onchange();target.onchange=()=>save.disabled=!target.value;
-            save.onclick=async()=>{
-              if(saving||!target.value)return;
-              saving=true;save.disabled=true;status.textContent='Zapisywanie przypisania…';
+            save.onclick=()=>{
+              if(!target.value)return;
               const req={key:row.key,date:row.date,amountCents:row.amountCents,sheetName:category.value,targetManualKey:target.value};
-              try{
-                const receipt=await queueSheets(queueRange('A2:D')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
-                  method:'POST',body:JSON.stringify({values:[['ASSIGN_V1',crypto.randomUUID(),JSON.stringify(req)]]})
-                });
-                if(receipt.updates?.updatedRows!==1)throw Error();
-                window.dispatchEvent(new Event('budget-assignment-saved'));
-                await reload('Przyjęto przypisanie. Sprawdzam zaksięgowanie kosztu…');
-              } catch { await reload('Sprawdź listę i historię przed ponowieniem zapisu.'); }
-              finally{saving=false;}
+              try{submitAssignment('ASSIGN_V1',req,row,state.data,null);card.remove();progress();}
+              catch(error){status.textContent=error.message;}
             };
+            const previous=storedAssignment(row.key);
+            if(previous?.phase==='error' && previous.method==='ASSIGN_V1'){
+              category.value=previous.request.sheetName;category.onchange();
+              target.value=previous.request.targetManualKey;target.onchange();
+            }
             const tools=make('details');tools.className='pick-tools';tools.append(make('summary','Wybór według kategorii'),category,trip,addTrip,target);
             const split=make('div');split.className='split-toggle';const no=make('button','Nie'),yes=make('button','Tak');
             no.setAttribute('aria-pressed','true');yes.setAttribute('aria-pressed','false');
@@ -1162,7 +1303,7 @@
               window.dispatchEvent(new Event('budget-assignment-saved'));
               root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
             }
-            state=fresh;render();followPosting(fresh);
+            state=fresh;render(true);followPosting(fresh);
             if(posted)status.textContent='Koszt zaksięgowany.';
           } catch {followPosting(snapshot);}
         },5000);
@@ -1192,7 +1333,7 @@
       const snapshot = publishedSnapshot?.pending ? publishedSnapshot : await phoneQueue();
       const {stamp} = snapshot;
       if(Date.now()-Date.parse(stamp)>20*60000)throw Error();
-      const count=snapshot.pending.length + pendingIncome(snapshot).length;
+      const count=snapshot.pending.filter(r=>{const j=storedAssignment(r.key);return !j||j.phase==='error';}).length + pendingIncome(snapshot).length;
       badge.textContent = String(count);
       badge.hidden = count === 0;
       tab.setAttribute('aria-label','Przypisz. Operacje do przypisania: ' + count);

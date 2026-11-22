@@ -7,6 +7,7 @@
 
 
 <div id="status" class="status" role="status" aria-live="polite"></div>
+<div id="backgroundStatus" role="status"></div>
 <nav class="tabs" aria-label="Widok wydatków"><button id="pendingTab" aria-pressed="true">Do przypisania</button><button id="savedTab" aria-pressed="false">Historia</button></nav>
 <input id="search" class="search" type="search" aria-label="Szukaj sklepu lub kwoty" placeholder="Szukaj sklepu lub kwoty">
 <section id="rows" aria-label="Zakupy"></section><section id="technical"></section>
@@ -51,11 +52,43 @@ async function prepareAssignment(request) {
   const hex = Array.from(new Uint8Array(hash).slice(0,16),byte=>byte.toString(16).padStart(2,'0')).join('');
   request.operationId = [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
 }
+function backgroundJobs(){return window.parent.expenseBackground?.list(window)||[];}
+function backgroundSave(method,req,parts){
+  const row=state.rows.find(r=>r.key===req.key);
+  window.parent.expenseBackground.submit(window,method,req,row,state,{draft,parts});
+  opened=null;draft=null;render();announce('');
+}
+function restoreJob(row){
+  const job=backgroundJobs().find(j=>j.request.key===row.key && j.phase==='error');
+  if(!job)return;
+  if(job.editorDraft){draft=structuredClone(job.editorDraft.draft);if(job.editorDraft.parts)startFocusedSplit(row,structuredClone(job.editorDraft.parts));}
+  else if(job.method==='ASSIGN_V1'){draft.mode='EXISTING_ROW';draft.sheet=job.request.sheetName;draft.target=job.request.targetManualKey;}
+}
+function backgroundNotice(){
+  const host=$('backgroundStatus'),jobs=backgroundJobs();
+  const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
+  host.replaceChildren();
+  if(waiting.length)host.append(element('span','Zapisywanie w tle · '+waiting.length));
+  for(const j of jobs.filter(j=>j.phase==='error')){
+    const line=element('p',j.label+' · '+j.message+' ');
+    line.append(button('Sprawdź',()=>{
+      const row=state.rows.find(r=>r.key===j.request.key);
+      if(!row || row.decision || row.postedEvidence || row.bridgeArchived || row.bridgeBlocked){announce('Sprawdź aktualny stan zakupu w historii.',true);return;}
+      tab='pending';opened=row.key;draft=rowDraft(row);restoreJob(row);render();
+    }));host.append(line);
+  }
+}
+window.parent.addEventListener('budget-assignment-progress',backgroundNotice);
+window.addEventListener('pagehide',()=>window.parent.removeEventListener('budget-assignment-progress',backgroundNotice));
 async function api(method,request){
   if(busy)return;
   busy=true;
   if(method==='save'){
-    try { await prepareAssignment(request); }
+    try { await prepareAssignment(request);
+      if(!state.rows.find(r=>r.key===request.key)?.decision && window.parent.expenseBackground){
+        backgroundSave('ebQueueReviseDev',request,null);busy=false;return;
+      }
+    }
     catch(error){ busy=false; announce(error.message,true); return; }
   }
   document.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
@@ -100,7 +133,7 @@ async function api(method,request){
     if(initial){opened=initial.key;draft=initial.draft;tab='pending';}
     if(method==='list' && entryRequest){
       const row=state.rows.find(x=>x.key===entryRequest.get('entryKey')&&!x.decision&&!x.bridgeBlocked&&!x.bridgeArchived&&!x.postedEvidence);
-      if(row){opened=row.key;draft=rowDraft(row);draft.description=entryRequest.get('entryLabel')||'';draft.creating=entryRequest.get('entryMode')==='new';if(entryRequest.get('entryMode')==='split')startFocusedSplit(row);}
+      if(row){opened=row.key;draft=rowDraft(row);draft.description=entryRequest.get('entryLabel')||'';draft.creating=entryRequest.get('entryMode')==='new';if(entryRequest.get('entryMode')==='split')startFocusedSplit(row);if(entryRequest.get('entryMode')==='restore')restoreJob(row);}
       entryRequest=null;
     }
     render();
@@ -154,9 +187,9 @@ function buildEditor(row){const box=element('div');box.className='editor';const 
   if(row.sourceLabel==='Bank')box.append(element('p','Po przypisaniu automat zapisze wydatek w wybranej kategorii.'));
   const actions=element('div');actions.className='actions';save=button(row.decision?'Zapisz zmianę':'Zapisz przypisanie',()=>{const problem=error();if(problem){announce(problem,true);return;}const split=d.mode==='NEW_ROW'&&/^T12\b/.test(d.sheet)&&d.section==='CLOTHES'&&d.split;api('save',{revision:state.revision,key:row.key,action:d.mode,sheetName:d.sheet,targetManualKey:d.target||undefined,description:split?'Zakup podzielony':d.description.trim(),person:d.person||undefined,budgetSection:dance&&d.mode==='NEW_ROW'?d.danceSection:undefined,t12Section:d.section||undefined,splits:split?d.parts.map(x=>({person:x.person,description:x.description.trim(),amountCents:parseCents(x.amount)})):undefined});},'primary');actions.append(save,button('Później',()=>api('save',{revision:state.revision,key:row.key,action:'DEFER'}),'quiet'),button('Anuluj',()=>{opened=null;draft=null;render();},'quiet'));box.append(actions);update();return box;
 }
-function render(){if(!state)return;$('rows').replaceChildren();const list=state.rows.filter(r=>!r.bridgeArchived),pending=list.filter(r=>!r.decision&&!r.postedEvidence&&!r.bridgeBlocked),saved=list.filter(r=>r.decision||r.postedEvidence||r.bridgeBlocked);$('pendingTab').textContent='Do przypisania · '+pending.length;$('savedTab').textContent='Historia · '+saved.length;['pending','saved'].forEach(t=>$(t+'Tab').setAttribute('aria-pressed',tab===t));const q=$('search').value.trim().toLocaleLowerCase('pl');const shown=(tab==='pending'?pending:saved).filter(r=>(r.description+' '+money(r.amountCents)).toLocaleLowerCase('pl').includes(q)).sort((a,b)=>a.date.localeCompare(b.date));
+function render(){if(!state)return;$('rows').replaceChildren();backgroundNotice();const hidden=new Set(backgroundJobs().filter(j=>j.phase!=='error').map(j=>j.request.key));const list=state.rows.filter(r=>!r.bridgeArchived && !hidden.has(r.key)),pending=list.filter(r=>!r.decision&&!r.postedEvidence&&!r.bridgeBlocked),saved=list.filter(r=>r.decision||r.postedEvidence||r.bridgeBlocked);$('pendingTab').textContent='Do przypisania · '+pending.length;$('savedTab').textContent='Historia · '+saved.length;['pending','saved'].forEach(t=>$(t+'Tab').setAttribute('aria-pressed',tab===t));const q=$('search').value.trim().toLocaleLowerCase('pl');const shown=(tab==='pending'?pending:saved).filter(r=>(r.description+' '+money(r.amountCents)).toLocaleLowerCase('pl').includes(q)).sort((a,b)=>a.date.localeCompare(b.date));
   if(!shown.length){const empty=element('div',q?'Brak wyników wyszukiwania.':tab==='pending'?'Brak wydatków do przypisania w ostatnio pobranych danych.':'Nie ma jeszcze zapisanych decyzji.');empty.className='empty';$('rows').append(empty);}
-  shown.forEach(row=>{const card=element('article');card.className='transaction';const posted=row.postedEvidence,blocked=row.bridgeBlocked;const sum=button('',()=>{if(posted||blocked)return;if(opened===row.key){opened=null;draft=null;}else{opened=row.key;draft=rowDraft(row);}render();},'summary');sum.setAttribute('aria-expanded',opened===row.key);sum.setAttribute('aria-label',(posted?'Zapisano: ':'Przypisz: ')+row.description+' '+money(row.amountCents));if(posted||blocked)sum.disabled=true;const info=element('span');info.className='info';info.append(element('span',row.description));info.firstChild.className='merchant';const meta=element('span',row.date+' · '+(row.sourceLabel==='Bank'?'Konto':'Karta'));meta.className='meta';info.append(meta);const badge=element('span',posted?'W budżecie':blocked||row.targetNeedsReview?'Do sprawdzenia':row.decision?(row.decision.action==='DEFER'?'Odłożone':'Czeka na zapis w budżecie'):row.sourceLabel==='Bank'?'Płatność z konta':row.confirmed?'Potwierdzone przez bank':'Oczekuje na księgowanie');badge.className='badge'+(!posted&&!row.decision&&!row.confirmed?' pending':'');info.append(badge);const amt=element('span',money(row.amountCents));amt.className='money';sum.append(info,amt);card.append(sum);
+  shown.forEach(row=>{const card=element('article');card.className='transaction';const posted=row.postedEvidence,blocked=row.bridgeBlocked;const sum=button('',()=>{if(posted||blocked)return;if(opened===row.key){opened=null;draft=null;}else{opened=row.key;draft=rowDraft(row);restoreJob(row);}render();},'summary');sum.setAttribute('aria-expanded',opened===row.key);sum.setAttribute('aria-label',(posted?'Zapisano: ':'Przypisz: ')+row.description+' '+money(row.amountCents));if(posted||blocked)sum.disabled=true;const info=element('span');info.className='info';info.append(element('span',row.description));info.firstChild.className='merchant';const meta=element('span',row.date+' · '+(row.sourceLabel==='Bank'?'Konto':'Karta'));meta.className='meta';info.append(meta);const badge=element('span',posted?'W budżecie':blocked||row.targetNeedsReview?'Do sprawdzenia':row.decision?(row.decision.action==='DEFER'?'Odłożone':'Czeka na zapis w budżecie'):row.sourceLabel==='Bank'?'Płatność z konta':row.confirmed?'Potwierdzone przez bank':'Oczekuje na księgowanie');badge.className='badge'+(!posted&&!row.decision&&!row.confirmed?' pending':'');info.append(badge);const amt=element('span',money(row.amountCents));amt.className='money';sum.append(info,amt);card.append(sum);
     if(posted||blocked){const p=element('p',blocked||'Zaksięgowano. Ten zakup nie trafi do ponownego zapisu.');p.className='saved-description';card.append(p);if(posted && posted.target)card.append(element('p','Miejsce zapisu: '+posted.target));}else if(opened===row.key)card.append(buildEditor(row));else if(row.decision){const d=row.decision,p=element('p',d.splits?d.splits.map(x=>x.person+' · '+x.description+' · '+money(x.amountCents)).join(' / '):[d.sheetName,d.budgetSection||d.t10Section,d.person,d.description||d.category].filter(Boolean).join(' · '));p.className='saved-description';card.append(p);}$('rows').append(card);});
   $('technical').hidden=!new URLSearchParams(location.search).has('diagnostyka');$('technical').replaceChildren();if(state.bridge){const source=element('p','Dane źródłowe: '+new Date(state.bridge.sourceAt).toLocaleString('pl-PL',{timeZone:'Europe/Warsaw'})+'.');source.className='muted';$('technical').append(source);}else{$('technical').append(element('p','Czekamy na wczytanie uzgodnionej listy listopadowej.'));}
 }
@@ -181,7 +214,7 @@ api('list');
       [{mode:'EXISTING_ROW',sheetName:'',targetManualKey:'',description:'',amount:'',auto:false},
        {mode:'EXISTING_ROW',sheetName:'',targetManualKey:'',description:'',amount:formatInput(row.amountCents),auto:true}];
   }
-  startFocusedSplit=row=>{active=row.key;parts=fresh(row);};
+  startFocusedSplit=(row,restored)=>{active=row.key;parts=restored||fresh(row);};
   function remain(row){
     const last=parts.at(-1);if(!last||!last.auto)return;
     let n=0;for(const p of parts.slice(0,-1)){const c=parseCents(p.amount);if(c===null){last.amount='';return;}n+=c;}
@@ -221,6 +254,10 @@ api('list');
         targetManualKey:p.targetManualKey||undefined,description:(p.description||'').trim(),
         t10Section:p.t10Section||undefined,t12Section:p.t12Section||undefined,person:p.person||undefined,
         amountCents:parseCents(p.amount)}))};
+      if(!row.decision && window.parent.expenseBackground){
+        try{backgroundSave('pkDecideDevV1',request,parts);active=null;}
+        catch(error){announce(error.message,true);}return;
+      }
       if(busy)return;busy=true;document.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
       announce('Zapisywanie podziału…');
       google.script.run.withSuccessHandler(next=>{busy=false;state=next;active=null;opened=null;draft=null;render();announce('Zapisano podział.');})
