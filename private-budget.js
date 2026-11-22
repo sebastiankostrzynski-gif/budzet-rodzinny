@@ -739,8 +739,9 @@
   function assignments(){
     return Object.keys(localStorage).filter(key=>key.startsWith(assignmentPrefix)).map(key=>JSON.parse(localStorage.getItem(key))).filter(Boolean);
   }
+  function jobKey(job){return job.method==='krSaveDEV'?'manual:'+job.request.id:job.request.key;}
   function recordAssignment(job){
-    localStorage.setItem(assignmentPrefix+job.request.key,JSON.stringify(job));
+    localStorage.setItem(assignmentPrefix+jobKey(job),JSON.stringify(job));
     window.dispatchEvent(new Event(assignmentEvent));
   }
   function assignmentGuard(data,req){
@@ -767,6 +768,7 @@
     const range=quick?queueRange:formSheet;
     try{
       if(job.phase==='ready'){
+        if(job.method==='krSaveDEV' && (!token || Date.now()>=expires))return;
         job.phase='sending';recordAssignment(job);
         const values=quick?[job.method,job.id,JSON.stringify(job.request)]:[job.id,job.method,JSON.stringify([job.request])];
         const res=await queueSheets(range(quick?'A2:D':'A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
@@ -791,7 +793,7 @@
       if(!result)return;
       if(quick?/^Błąd/i.test(result):result==='ERROR'){
         job.message=quick?result:String(cells[5]||'Sprawdź wybrane pozycje.');
-        if(!quick && !job.rebased && /STALE_REVISION|Lista zmieniła się/i.test(job.message)){
+        if(job.method!=='krSaveDEV' && !quick && !job.rebased && /STALE_REVISION|Lista zmieniła się/i.test(job.message)){
           const fresh=(await phoneQueue()).data;
           if(fresh.revision!==job.request.revision && assignmentGuard(fresh,job.request)===job.guard){
             job.id=crypto.randomUUID();job.request.revision=fresh.revision;job.row=0;
@@ -806,6 +808,7 @@
         window.dispatchEvent(new Event('budget-assignment-saved'));
       }
       recordAssignment(job);
+      if(job.method==='krSaveDEV' && job.phase==='confirmed')window.dispatchEvent(new Event('budget-manual-confirmed'));
     }catch(error){
       // Keep the same receipt across network errors and app restarts.
       if(job.phase==='sending' && /HTTP (400|403|401)\b/.test(error.message)){
@@ -822,7 +825,7 @@
   }
   function resumeAssignments(){
     if(document.hidden || window.budgetViewerRole!=='owner')return;
-    assignments().filter(j=>!['confirmed','error'].includes(j.phase)).forEach(j=>runAssignment(j.request.key));
+    assignments().filter(j=>!['confirmed','error'].includes(j.phase)).forEach(j=>runAssignment(jobKey(j)));
   }
   window.addEventListener('online',resumeAssignments);
   document.addEventListener('visibilitychange',resumeAssignments);
@@ -832,10 +835,32 @@
       activeForm.dataset.form==='expense-editor.html' && activeForm.contentWindow===caller;
   }
   window.expenseBackground={
-    list(caller){return assignmentHost(caller)?assignments():[];},
+    list(caller){return assignmentHost(caller)?assignments().filter(j=>j.method!=='krSaveDEV'):[];},
     submit(caller,method,req,row,data,editorDraft){
       if(!assignmentHost(caller)||!['pkDecideDevV1','ebQueueReviseDev'].includes(method))throw Error('Brak dostępu do zapisu.');
       submitAssignment(method,req,row,data,editorDraft);
+    }
+  };
+  function manualHost(caller){
+    return window.budgetViewerRole==='owner' && activeForm?.isConnected &&
+      activeForm.dataset.form==='manual-entry.html' && activeForm.contentWindow===caller;
+  }
+  window.manualExpenses={
+    submit(caller,request,label){
+      if(!manualHost(caller) || request.kind!=='WYDATEK')throw Error('Brak dostępu do zapisu.');
+      const job={id:request.id,method:'krSaveDEV',request,label,phase:'ready',startedAt:Date.now()};
+      const key=jobKey(job);
+      if(!storedAssignment(key))recordAssignment(job);
+      runAssignment(key);
+    },
+    list(caller){
+      return manualHost(caller)?assignments().filter(j=>j.method==='krSaveDEV'):[];
+    },
+    reconcile(caller,rows){
+      const ids=new Set(rows.map(r=>r.id));
+      for(const job of this.list(caller)){
+        if(ids.has(job.id))localStorage.removeItem(assignmentPrefix+jobKey(job));
+      }
     }
   };
   const planReceiptKey='budget-plan-pending-v1';
@@ -1077,7 +1102,7 @@
         for(const j of jobs.filter(j=>j.phase==='error')){
           const line=make('p',j.label+' · '+j.message+' ');
           const review=make('button','Sprawdź');
-          review.onclick=()=>openForm('expense-editor.html','Sprawdź przypisanie',{key:j.request.key,mode:'restore'});
+          review.onclick=()=>j.method==='krSaveDEV'?openForm('manual-entry.html','Sprawdź wydatek ręczny'):openForm('expense-editor.html','Sprawdź przypisanie',{key:j.request.key,mode:'restore'});
           line.append(review);progressNote.append(line);
         }
         if(state && !income)pendingTab.textContent='Do przypisania · '+state.pending.filter(r=>!hiddenExpense(r.key)).length;
