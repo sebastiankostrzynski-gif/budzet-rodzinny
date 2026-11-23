@@ -816,6 +816,11 @@
             job.phase='ready';job.rebased=true;job.startedAt=Date.now();recordAssignment(job);return;
           }
         }
+        if(job.method==='krSaveDEV' && /^Trwa inna operacja\.?$/i.test(job.message) && (job.lockRetries||0)<3){
+          job.lockRetries=(job.lockRetries||0)+1;
+          job.id=crypto.randomUUID();job.row=0;job.phase='ready';job.startedAt=Date.now();
+          recordAssignment(job);return;
+        }
         job.phase='error';
       }else{
         if(result!=='OK')return;
@@ -1311,7 +1316,21 @@
               },freshItem);
             };
             category.addEventListener('change',()=>{pick.textContent='Wybierz pozycję';});
-            card.append(split,pick,tools,save);
+            card.append(split,pick,tools);
+            if(row.amountCents===50000 && row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
+              const group=make('div');group.className='split-toggle';
+              for(const child of ['Julka','Olek']){
+                const position=state.data.existingRows.find(t=>t.month===row.date.slice(0,7) &&
+                  t.sheet==='T4 Finansowe' && t.label==='Kapitał na start dzieci – ETF '+child);
+                if(!position)continue;
+                const choice=make('button','Oszczędności · '+child);
+                choice.onclick=()=>{category.value=position.sheet;category.onchange();
+                  target.value=position.key;target.onchange();pick.textContent=position.label;};
+                group.append(choice);
+              }
+              if(group.childElementCount)card.append(group);
+            }
+            card.append(save);
           }
           list.append(card);
         }
