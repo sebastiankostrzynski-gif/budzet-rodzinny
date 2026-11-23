@@ -673,6 +673,25 @@
   function phoneQueue() {
     return shareRead('phoneQueue|'+token, readPhoneQueue);
   }
+  async function postedR2Payments(rows){
+    const read=name=>queueSheets(encodeURIComponent("'"+name+"'!A2:G")+'?valueRenderOption=UNFORMATTED_VALUE').then(response=>response.values||[]);
+    const [ledger,links]=await Promise.all([read('Automat konta R2 DEV'),read('Przelewy hipoteczne TEST')]);
+    const posted=new Map();
+    for(const [key,,,status,amount,target] of ledger){
+      if(status==='POSTED_TEST_R2' && target && typeof amount==='number')
+        posted.set(key,{status,target,amountCents:Math.round(amount*100)});
+    }
+    for(const [alert,,,cents,,status,bankKey] of links){
+      const entry=posted.get('mortgage-mail|'+alert);
+      if(status==='ZAKSIĘGOWANA' && bankKey && entry?.amountCents===cents && !posted.has(bankKey))posted.set(bankKey,entry);
+    }
+    const result=new Map();
+    for(const row of rows){
+      const entry=posted.get(row.key);
+      if(row.currency==='PLN' && entry && entry.amountCents===row.amountCents)result.set(row.key,entry);
+    }
+    return result;
+  }
   async function readPhoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
@@ -688,20 +707,10 @@
       }
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
-    const uncertain=rows.filter(r=>!r.decision && !r.postedEvidence &&
-      byKey.get(r.key)?.result?.startsWith('Błąd: Niepoprawny rejestr R2'));
-    if(uncertain.length){
-      const ledger=(await queueSheets(encodeURIComponent("'Automat konta R2 DEV'!A2:G")+'?valueRenderOption=UNFORMATTED_VALUE')).values||[];
-      for(const row of uncertain){
-        const req=byKey.get(row.key).request;
-        const target=data.existingRows.find(t=>t.key===req.targetManualKey && t.sheet===req.sheetName && t.month===row.date.slice(0,7));
-        if(!target || req.amountCents!==row.amountCents || req.date!==row.date)continue;
-        const month=Number(target.month.slice(5)),number=target.key.split('|')[2];
-        const cell=target.sheet+'!'+String.fromCharCode(65+month)+number;
-        const records=ledger.filter(a=>a[0]===row.key);
-        if(records.length===1 && records[0][3]==='POSTED_TEST_R2' && Math.round(Number(records[0][4])*100)===row.amountCents && records[0][5]===cell)
-          row.postedEvidence={status:records[0][3],target:cell,amountCents:row.amountCents};
-      }
+    const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
+    if(unchecked.length){
+      const evidence=await postedR2Payments(unchecked);
+      for(const row of unchecked)if(evidence.has(row.key))row.postedEvidence=evidence.get(row.key);
     }
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
@@ -800,6 +809,12 @@
     try{
       if(job.phase==='ready'){
         if(job.method==='krSaveDEV' && (!token || Date.now()>=expires))return;
+        if(quick && JSON.parse(job.guard||'null')?.[0]?.[4]==='R2'){
+          const evidence=await postedR2Payments([{...job.request,currency:JSON.parse(job.guard)[0][2]}]);
+          if(evidence.has(key)){
+            job.phase='confirmed';recordAssignment(job);window.dispatchEvent(new Event('budget-assignment-saved'));return;
+          }
+        }
         job.phase='sending';recordAssignment(job);
         const values=quick?[job.method,job.id,JSON.stringify(job.request)]:[job.id,job.method,JSON.stringify([job.request])];
         const res=await queueSheets(range(quick?'A2:D':'A:C')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
