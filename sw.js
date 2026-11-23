@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-child-savings-20261123';
+const SHELL_CACHE = 'budzet-rodzinny-shell-kids-receipts-20261123';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
