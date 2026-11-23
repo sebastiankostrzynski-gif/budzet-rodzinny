@@ -70,7 +70,7 @@ function backgroundNotice(){
   host.replaceChildren();
   if(waiting.length)host.append(element('span','Zapisywanie w tle · '+waiting.length));
   for(const j of jobs.filter(j=>j.phase==='error')){
-    const line=element('p',j.label+' · '+j.message+' ');
+    const line=element('p','Do sprawdzenia · '+j.label+' · '+j.message+' ');
     line.append(button('Sprawdź',()=>{
       const row=state.rows.find(r=>r.key===j.request.key);
       if(!row || row.decision || row.postedEvidence || row.bridgeArchived || row.bridgeBlocked){announce('Sprawdź aktualny stan zakupu w historii.',true);return;}
