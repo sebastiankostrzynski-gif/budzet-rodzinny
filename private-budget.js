@@ -1350,6 +1350,7 @@
         const visible = history?saved:state.pending.filter(r=>!hiddenExpense(r.key));
         progress();
         if (!visible.length) list.append(make('p',history?'Historia jest pusta.':'Brak kolejnych wydatków do przypisania.'));
+        const pickerMonths=new Map();
         for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
           if(editors.has(row.key)){list.append(editors.get(row.key));continue;}
           const card=make('article'), command=state.byKey.get(row.key);
@@ -1416,16 +1417,25 @@
             yes.onclick=()=>openForm('expense-editor.html','Podział wydatku',{key:row.key,mode:'split'});
             const pick=make('button','Wybierz pozycję');pick.className='pick-open';
             const freshItem=label=>openForm('expense-editor.html','Nowa pozycja',{key:row.key,mode:'new',label});
-            pick.onclick=()=>{
-              const items=BudgetPicker.index(state.data.existingRows,row.date.slice(0,7));
-              BudgetPicker.open(items,BudgetPicker.recommendations(items,state.rows,row.description),item=>{
-                category.value=item.sheet;trip.hidden=true;addTrip.hidden=true;
-                target.replaceChildren(new Option(item.label,item.key));target.value=item.key;
-                target.disabled=false;save.disabled=false;pick.textContent=item.path;
-              },freshItem);
-            };
-            category.addEventListener('change',()=>{pick.textContent='Wybierz pozycję';});
-            card.append(split,pick,tools);
+            const month=row.date.slice(0,7);
+            if(!pickerMonths.has(month))pickerMonths.set(month,BudgetPicker.index(state.data.existingRows,month));
+            const items=pickerMonths.get(month),hints=BudgetPicker.recommendations(items,state.rows,row.description);
+            const shortcut=hints.suggested[0];
+            let quick;
+            function selectItem(item){
+              category.value=item.sheet;trip.hidden=true;addTrip.hidden=true;
+              target.replaceChildren(new Option(item.label,item.key));target.value=item.key;
+              target.disabled=false;save.disabled=false;pick.textContent=item.label.replace(/^[-\s]+/,'');
+              if(quick)quick.hidden=true;
+            }
+            pick.onclick=()=>BudgetPicker.open(items,hints,selectItem,freshItem);
+            category.addEventListener('change',()=>{pick.textContent='Wybierz pozycję';if(quick)quick.hidden=true;});
+            card.append(split);
+            if(shortcut && !previous){
+              quick=make('button','Przypisz do: '+shortcut.label.replace(/^[-\s]+/,''));quick.className='pick-quick';
+              quick.onclick=()=>{selectItem(shortcut);save.click();};card.append(quick);pick.textContent='Wybierz inną';
+            }
+            card.append(pick,tools);
             if(row.amountCents===50000 && row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
               const group=make('div');group.className='split-toggle';
               for(const child of ['Julka','Olek']){
