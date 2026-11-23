@@ -27,7 +27,7 @@ const BudgetPlan = (() => {
     const plan=cachedOffsets();
     if(!plan)return null;
     const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
-    return (Math.round(Number(data.wolneSrodki)*100)+(plan.offsets[month]||0))/100;
+    return ((window.expensePreview?.base(data)??Math.round(Number(data.wolneSrodki)*100))+(plan.offsets[month]||0))/100;
   }
   function remember(state){
     if(!Number.isSafeInteger(state?.revision)||!Array.isArray(state.entries))return;
@@ -63,7 +63,7 @@ const BudgetPlan = (() => {
         amount.textContent=value===null?'…':money(Math.round(value*100));
         card.classList.toggle('main-card-negative',value!==null && value<0);
         const status=card.querySelector('.main-card-status');
-        if(status)status.lastChild.textContent=value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
+        if(status)status.lastChild.textContent=window.expensePreview?.base(data)!=null?'Po przypisaniu · podgląd':value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
       };
       document.addEventListener('budget-plan-balance',updateActiveCard);
       updateActiveCard();

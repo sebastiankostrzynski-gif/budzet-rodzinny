@@ -780,8 +780,44 @@
     return Object.keys(localStorage).filter(key=>key.startsWith(assignmentPrefix)).map(key=>JSON.parse(localStorage.getItem(key))).filter(Boolean);
   }
   function jobKey(job){return job.method==='krSaveDEV'?'manual:'+job.request.id:job.request.key;}
+  // Freeze the pre-click balance while these receipts are in flight. A later
+  // dashboard snapshot may already contain some of them.
+  const expensePreviews=new Map();
+  let previewRevision=0;
+  const previewMonth=data=>data.year+'-'+String(data.monthNumber).padStart(2,'0');
+  function trackPreview(job){
+    const key=jobKey(job), req=job.request;
+    const month=(job.previewDate||req.date)?.slice(0,7);
+    let group=expensePreviews.get(month);
+    if(job.phase==='ready' && job.previewEligible && !group?.items.has(key)){
+      const data=typeof dashboardData==='undefined'?null:dashboardData;
+      if(!data || data.isClosedMonth || previewMonth(data)!==month)return;
+      const cents=job.previewCents;
+      if(!Number.isSafeInteger(cents)||cents<=0||(data.wolneSrodki==null||!Number.isFinite(Number(data.wolneSrodki))))return;
+      if(!group){group={base:Math.round(data.wolneSrodki*100),items:new Map()};expensePreviews.set(previewMonth(data),group);}
+      group.items.set(key,{cents,confirmed:false});previewRevision++;
+    }
+    const item=group?.items.get(key);if(!item)return;
+    if(job.phase==='error'){group.items.delete(key);previewRevision++;if(!group.items.size)expensePreviews.delete(month);}
+    if(job.phase==='confirmed' && !item.confirmed){item.confirmed=true;previewRevision++;}
+    document.dispatchEvent(new Event('budget-plan-balance'));
+  }
+  window.expensePreview={
+    revision:()=>previewRevision,
+    base(data){
+      const g=expensePreviews.get(previewMonth(data));
+      return g?g.base-Array.from(g.items.values()).reduce((sum,i)=>sum+i.cents,0):null;
+    },
+    settle(data,revision){
+      const month=previewMonth(data),g=expensePreviews.get(month);
+      if(g && revision===previewRevision && Array.from(g.items.values()).every(i=>i.confirmed)){
+        expensePreviews.delete(month);previewRevision++;
+      }
+    }
+  };
   function recordAssignment(job){
     localStorage.setItem(assignmentPrefix+jobKey(job),JSON.stringify(job));
+    trackPreview(job);
     window.dispatchEvent(new Event(assignmentEvent));
   }
   function assignmentGuard(data,req){
@@ -797,7 +833,9 @@
     const prev=storedAssignment(req.key);
     if(prev && prev.phase!=='error')throw Error('Ten wydatek już czeka na potwierdzenie.');
     const job={id:crypto.randomUUID(),method,request:req,label:row.description,phase:'ready',
-      guard:assignmentGuard(data,req),editorDraft,startedAt:Date.now()};
+      previewEligible:!row.decision&&!row.postedEvidence&&!row.bridgeBlocked&&!row.bridgeArchived&&!row.targetNeedsReview && row.currency==='PLN' &&
+        (method==='ASSIGN_V1'||['EXISTING_ROW','NEW_ROW','MULTI_SPLIT'].includes(req.action)),
+      previewCents:row.amountCents,previewDate:row.date,guard:assignmentGuard(data,req),editorDraft,startedAt:Date.now()};
     recordAssignment(job);
     runAssignment(req.key);
   }
@@ -929,7 +967,7 @@
     },
     submit(caller,request,label){
       if(!manualHost(caller) || request.kind!=='WYDATEK')throw Error('Brak dostępu do zapisu.');
-      const job={id:request.id,method:'krSaveDEV',request,label,phase:'ready',startedAt:Date.now()};
+      const job={id:request.id,method:'krSaveDEV',request,label,previewEligible:true,previewCents:request.cents,phase:'ready',startedAt:Date.now()};
       const key=jobKey(job);
       if(!storedAssignment(key))recordAssignment(job);
       runAssignment(key);
@@ -1097,13 +1135,13 @@
     const status = panel.querySelector('.u47-result span');
     const time = panel.querySelector('time');
     const button = panel.querySelector('button');
+    let dirty=false;
     async function read() {
-      if (button.disabled) return;
+      if (button.disabled){dirty=true;return;}
+      dirty=false;
       button.disabled = true;
       panel.dataset.state = 'loading';
-      amount.textContent = '—';
-      status.textContent = 'Sprawdzanie…';
-      time.textContent = '';
+      status.textContent = 'Aktualizowanie…';
       try {
         const range = encodeURIComponent("'Wykonanie 2026'!U47");
         const result = await queueSheets(range + '?valueRenderOption=UNFORMATTED_VALUE');
@@ -1122,6 +1160,7 @@
         status.textContent = 'Brak aktualnych danych';
       } finally {
         button.disabled = false;
+        if(dirty && panel.isConnected)read();
       }
     }
     button.onclick = read;
@@ -1181,7 +1220,14 @@
         const jobs=assignments();
         const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
         progressNote.replaceChildren();
+        const control=root.querySelector('.u47-result span');
+        if(waiting.length && control)control.textContent='Oczekuje na zaksięgowanie';
         if(waiting.length)progressNote.append(make('span','Zapisywanie w tle · '+waiting.length));
+        const data=typeof dashboardData==='undefined'?null:dashboardData;
+        if(data && window.expensePreview.base(data)!==null){
+          const preview=BudgetPlan.available(data);
+          if(preview!==null)progressNote.append(make('p','Wolne środki po przypisaniu · '+formatPLN(preview)+' (podgląd)'));
+        }
         for(const j of jobs.filter(j=>j.phase==='error')){
           const line=make('p',j.label+' · '+j.message+' ');
           const review=make('button','Sprawdź');

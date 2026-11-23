@@ -3814,7 +3814,15 @@ function formatHistoryValue(value) {
       markMonthDashboardCacheStale_();
       lastRefreshCheckAt = 0;
       lastBackgroundFreshAt_ = 0;
+      if(activeView_==='dashboard')scheduleExpenseRefresh_();
     });
+    let expenseRefreshTimer_;
+    function scheduleExpenseRefresh_(){
+      clearTimeout(expenseRefreshTimer_);
+      expenseRefreshTimer_=setTimeout(()=>{
+        if(activeView_==='dashboard' && expenseChangePending_ && !document.hidden)refreshDashboardSilently_();
+      },100);
+    }
 
     function refreshDashboardSilently_(options) {
 
@@ -3830,6 +3838,7 @@ function formatHistoryValue(value) {
         return;
       }
 
+      const previewRevision=window.expensePreview?.revision();
       const pendingAtStart = expenseChangePending_;
       expenseChangePending_ = false;
       silentRefreshInFlight = true;
@@ -3848,6 +3857,8 @@ function formatHistoryValue(value) {
           if (!options) invalidateExpenseDetails_();
           if (selectedYear !== refreshYear_ || selectedMonth !== refreshMonth_) return;
 
+          if(pendingAtStart)window.expensePreview?.settle(data,previewRevision);
+          if(expenseChangePending_)scheduleExpenseRefresh_();
           maxYear = Number(data.maxYear);
           maxMonth = Number(data.maxMonth);
 
@@ -5573,6 +5584,7 @@ function toggleHolidayTrips() {
           dashboardData
         );
 
+        if(expenseChangePending_)scheduleExpenseRefresh_();
         if(returning)window.scrollTo(0,budgetReturnY_);
         return;
       }
