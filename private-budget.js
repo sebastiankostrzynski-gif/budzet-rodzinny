@@ -688,6 +688,21 @@
       }
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
+    const uncertain=rows.filter(r=>!r.decision && !r.postedEvidence &&
+      byKey.get(r.key)?.result?.startsWith('Błąd: Niepoprawny rejestr R2'));
+    if(uncertain.length){
+      const ledger=(await queueSheets(encodeURIComponent("'Automat konta R2 DEV'!A2:G")+'?valueRenderOption=UNFORMATTED_VALUE')).values||[];
+      for(const row of uncertain){
+        const req=byKey.get(row.key).request;
+        const target=data.existingRows.find(t=>t.key===req.targetManualKey && t.sheet===req.sheetName && t.month===row.date.slice(0,7));
+        if(!target || req.amountCents!==row.amountCents || req.date!==row.date)continue;
+        const month=Number(target.month.slice(5)),number=target.key.split('|')[2];
+        const cell=target.sheet+'!'+String.fromCharCode(65+month)+number;
+        const records=ledger.filter(a=>a[0]===row.key);
+        if(records.length===1 && records[0][3]==='POSTED_TEST_R2' && Math.round(Number(records[0][4])*100)===row.amountCents && records[0][5]===cell)
+          row.postedEvidence={status:records[0][3],target:cell,amountCents:row.amountCents};
+      }
+    }
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     for(const row of rows){
