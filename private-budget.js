@@ -748,7 +748,8 @@
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     for(const row of rows){
       const job=storedAssignment(row.key);
-      if(job?.phase==='confirmed' && (row.decision || row.postedEvidence || (job.method==='ASSIGN_V1' && byKey.has(row.key))))
+      const obsoleteError = job?.phase==='error' && row.postedEvidence && job.request?.key===row.key;
+      if(obsoleteError || (job?.phase==='confirmed' && (row.decision || row.postedEvidence || (job.method==='ASSIGN_V1' && byKey.has(row.key)))))
         localStorage.removeItem(assignmentPrefix+row.key);
     }
     return {data,rows,pending,byKey,incomeCommands,stamp};
@@ -1262,7 +1263,7 @@
           if(preview!==null)progressNote.append(make('p','Wolne środki po przypisaniu · '+formatPLN(preview)+' (podgląd)'));
         }
         for(const j of jobs.filter(j=>j.phase==='error')){
-          const line=make('p',j.label+' · '+j.message+' ');
+          const line=make('p','Do sprawdzenia · '+j.label+' · '+j.message+' ');
           const review=make('button','Sprawdź');
           review.onclick=()=>j.method==='krSaveDEV'?openForm('manual-entry.html','Sprawdź wydatek ręczny'):openForm('expense-editor.html','Sprawdź przypisanie',{key:j.request.key,mode:'restore'});
           line.append(review);progressNote.append(line);
