@@ -31,14 +31,16 @@ const BudgetPlan = (() => {
   }
   function remember(state){
     if(!Number.isSafeInteger(state?.revision)||!Array.isArray(state.entries))return;
-    if(cachedOffsets()?.revision>=state.revision)return;
-    const offsets={};
+    const previous=cachedOffsets();
+    if(previous && (previous.revision>state.revision || (previous.revision===state.revision && previous.savings)))return;
+    const offsets={}, savings={};
     for(const e of state.entries){
       if(!Number.isSafeInteger(e.cents))return;
       offsets[e.source]=(offsets[e.source]||0)-e.cents;
+      if(e.kind==='save' && !e.cancelled && !e.transfer)savings[e.source]=(savings[e.source]||0)+e.cents;
       if(e.target)offsets[e.target]=(offsets[e.target]||0)+e.cents;
     }
-    confirmed={revision:state.revision,offsets};
+    confirmed={revision:state.revision,offsets,savings};
     try{localStorage.setItem(cacheKey,JSON.stringify(confirmed));}catch{}
     document.dispatchEvent(new Event('budget-plan-balance'));
   }
@@ -174,5 +176,9 @@ const BudgetPlan = (() => {
       catch(error){notice.textContent=error.message;render();}
     }
   }
-  return {mount,totals,available};
+  function reservedSavings(month){
+    const byMonth=cachedOffsets()?.savings || {};
+    return Object.entries(byMonth).reduce((sum,[source,cents])=>source<=month?sum+cents:sum,0)/100;
+  }
+  return {mount,totals,available,remember,reservedSavings};
 })();

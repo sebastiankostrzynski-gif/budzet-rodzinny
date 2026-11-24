@@ -5788,6 +5788,7 @@ function savingsStatus_() {
  const el=document.getElementById('savings-status');if(!el)return;
  const timestamp=savingsData_ ? new Date(savingsData_.fetchedAt).toLocaleString('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
  el.textContent=savingsBusy_?'Odświeżanie…':savingsError_ ? (navigator.onLine?'Nie udało się odświeżyć. Pokazujemy zapisane dane.':'Bez internetu · pokazujemy zapisane dane')+(timestamp?' · '+timestamp:'') : timestamp ? 'Odświeżono · '+timestamp : 'Pierwsze pobranie danych';
+ if(savingsPlanError_)el.textContent+=' · Nie udało się odświeżyć rezerwacji';
  const button=document.getElementById('savings-refresh');if(button){button.textContent=savingsError_?'Spróbuj ponownie':'↻';button.disabled=savingsBusy_;button.setAttribute('aria-busy',String(savingsBusy_));}
 }
 function savingsLabel_(key){const [year,month]=key.split('-').map(Number);return new Date(year,month-1,1).toLocaleDateString('pl-PL',{month:'long',year:'numeric'});}
@@ -5798,7 +5799,26 @@ async function savingsRestore_(){
  if(savingsData_ && activeView_==='savings')renderSavings_();
  try{const cache=await caches.open('budzet-rodzinny-runtime-v8');const hit=await cache.match(savingsCacheURL_());if(hit && savingsAdopt_(await hit.json()) && activeView_==='savings')renderSavings_();}catch(_){}
 }
+let savingsPlanRead_, savingsPlanError_=false;
+function refreshSavingsPlan_(){
+ if(!window.budgetPlanApi || savingsPlanRead_)return;
+ savingsPlanRead_=window.budgetPlanApi.read().then(state=>{
+   savingsPlanError_=false;BudgetPlan.remember(state);
+ }).catch(()=>{savingsPlanError_=true;}).finally(()=>{
+   savingsPlanRead_=null;if(activeView_==='savings')savingsStatus_();
+ });
+}
+document.addEventListener('budget-plan-balance',()=>{if(activeView_==='savings')renderSavings_();});
+function savingsWithReserve_(p){
+ if(!p)return p;
+ const reserve=BudgetPlan.reservedSavings(p.key);
+ if(!reserve)return p;
+ const cash=p.groups.cash;
+ return {...p,total:p.total+reserve,groups:{...p.groups,cash:{...cash,value:cash.value+reserve,
+   items:[...cash.items,{name:'Rezerwacja z budżetu',value:reserve}]}}};
+}
 function savingsRefresh_(automatic=false){
+ if(activeView_==='savings')refreshSavingsPlan_();
  if(savingsBusy_ || (automatic && !balanceNeedsRead_(savingsData_,savingsError_)))return;
  if(!navigator.onLine){savingsError_='Brak internetu';if(activeView_==='savings')renderSavings_();return;}
  savingsBusy_=true;savingsError_='';if(!savingsData_&&activeView_==='savings')renderSavings_();else savingsStatus_();
@@ -5956,7 +5976,7 @@ function historyPlot_(rows,values,selected,color,scope){
 }
 
 function savingsChart_(period){
- const rows=savingsData_.periods.filter(p=>savingsRange_==='all'||p.year===period.year);
+ const rows=savingsData_.periods.filter(p=>savingsRange_==='all'||p.year===period.year).map(savingsWithReserve_);
  if(!rows.length)return '';
  const vals=rows.map(savingsValue_),max=Math.max(...vals,1),min=Math.min(...vals,0),span=max-min||1;
  const time=p=>Date.UTC(p.year,p.month-1,1),first=time(rows[0]),last=time(rows[rows.length-1]);
@@ -5978,7 +5998,7 @@ function renderSavingsContentV24_(){
  const scroll=same?window.scrollY:null;
  app.dataset.savingsView=key;
  if(!savingsData_){app.innerHTML=`<div class="sav-wrap"><h1>Oszczędności</h1><section class="sav-panel" aria-live="polite"><h2>${savingsError_?'Nie udało się pobrać oszczędności':'Przygotowujemy Twoje oszczędności'}</h2><p>${savingsError_?(navigator.onLine?'Sprawdź połączenie i spróbuj ponownie.':'Połącz się z internetem, aby pobrać dane po raz pierwszy.'):'To pierwsze otwarcie. Kolejnym razem pokażemy zapisane kwoty od razu.'}</p>${savingsError_?'<button class="back-button" onclick="savingsRefresh_()">Spróbuj ponownie</button>':''}<button class="back-button" onclick="showMainDashboard()">Wróć do budżetu</button></section></div>`;return;}
- const at=savingsData_.periods.findIndex(p=>p.key===savingsPeriod_),p=savingsData_.periods[at],prev=savingsData_.periods[at-1];
+ const at=savingsData_.periods.findIndex(p=>p.key===savingsPeriod_),p=savingsWithReserve_(savingsData_.periods[at]),prev=savingsWithReserve_(savingsData_.periods[at-1]);
  const value=savingsValue_(p),delta=prev?value-savingsValue_(prev):null;
  const comparison=prev?'Porównanie: '+savingsLabel_(prev.key):'Początek zapisanej historii';
  const title=savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności i inwestycje razem';
@@ -5989,7 +6009,7 @@ function renderSavingsContentV24_(){
  else if(!savingsGroup_) {content=`<section class="sav-groups"><h2>Twoje oszczędności</h2><p class="sav-muted">Wybierz grupę, aby zobaczyć szczegóły.</p><div class="sav-grid">${Object.entries(savingsMeta_).map(([key,meta])=>`<button class="sav-card balance-card" onclick="savingsDetail_('${key}')"><span class="sav-card-heading"><span class="sav-icon glass-mini" data-art="${key}" aria-hidden="true"></span><span class="sav-name">${meta.name}</span><span class="sav-chevron" aria-hidden="true">›</span></span><strong>${savingsPLN_(p.groups[key].value)}</strong><span class="sav-muted">${balanceChange_(p.groups[key].value,prev?prev.groups[key].value:null,prev)}</span></button>`).join('')}</div></section>`;}
  app.innerHTML=`<div class="sav-wrap">${unifiedHeader_('sav',savingsGroup_?savingsMeta_[savingsGroup_].name:'Oszczędności',savingsData_.periods,p.key,savingsGroup_?'savingsBack_()':null)}
  <div class="sav-status"><span id="savings-status" role="status"></span><button id="savings-refresh" onclick="savingsRefresh_()" aria-label="Odśwież oszczędności">↻</button></div>
- <section class="sav-hero savings-hero"><div>${title}</div><strong class="savings-total ${savingsPLN_(value).length>15?'savings-total-long':''}">${savingsPLN_(value)}</strong><span class="savings-change">${changeLine}</span></section>
+ <section class="sav-hero savings-hero"><div>${title}</div><strong class="savings-total ${savingsPLN_(value).length>15?'savings-total-long':''}">${savingsPLN_(value)}</strong><span class="savings-change">${changeLine}</span>${(!savingsGroup_ || savingsGroup_==='cash') && BudgetPlan.reservedSavings(p.key) ? '<small>W tym rezerwacja z budżetu · '+savingsPLN_(BudgetPlan.reservedSavings(p.key))+'</small>' : ''}</section>
 
  ${content}${savingsChart_(p)}
  ${(savingsData_.warnings||[]).length?`<details class="sav-panel" data-sav-disclosure="warnings"><summary id="sav-warnings">Niektóre dane wymagają sprawdzenia (${savingsData_.warnings.length})</summary>${savingsData_.warnings.map(x=>`<p>${escapeHtml(x)}</p>`).join('')}</details>`:''}</div>`;
@@ -6272,7 +6292,7 @@ function renderSubEntriesV23_(el,state){
 function balanceSignatureV24_(data,view){return JSON.stringify([view,data],(key,value)=>key==='fetchedAt'?undefined:value);}
 function renderSavings_(){
  if(activeView_!=='savings')return;
- const app=document.getElementById('app'),sig=balanceSignatureV24_(savingsData_,[savingsGroup_,savingsPeriod_,savingsRange_]);
+ const app=document.getElementById('app'),sig=balanceSignatureV24_(savingsData_,[savingsGroup_,savingsPeriod_,savingsRange_,savingsData_?.periods.map(p=>BudgetPlan.reservedSavings(p.key))]);
  if(savingsData_&&app.querySelector('#savings-status')&&app.dataset.balanceSignature===sig){savingsStatus_();return;}
  renderSavingsContentV24_();app.dataset.balanceSignature=sig;historyInitV24_();
 }

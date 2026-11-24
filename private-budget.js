@@ -535,7 +535,9 @@
   }
   function queueSheetsRequest(path, options = {}) { return diagnosticMeasure(options.method&&options.method!=='GET'?'sheets-write':'sheets-read',()=>queueSheetsRequestRaw(path,options)); }
   async function queueSheetsRequestRaw(path, options = {}) {
-    if (window.budgetViewerRole !== 'owner' || !token || Date.now() >= expires)
+    const viewerPlanRead = window.budgetViewerRole==='viewer' && (!options.method || options.method==='GET') &&
+      path===encodeURIComponent("'Decyzje budżetowe'!A2:B");
+    if ((!viewerPlanRead && window.budgetViewerRole !== 'owner') || !token || Date.now() >= expires)
       throw Error('Zaloguj się ponownie jako właściciel budżetu.');
     const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + testFileId + '/values/' + path, {
       ...options, cache:'no-store', redirect:'error', headers:{Authorization:'Bearer ' + token,'Content-Type':'application/json'}
