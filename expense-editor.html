@@ -273,8 +273,16 @@ api('list');
             p.mode='EXISTING_ROW';p.sheetName=choice.sheet;p.targetManualKey=choice.key;refresh();
           },label=>{p.mode='NEW_ROW';p.targetManualKey='';p.description=label;refresh();});
         });card.append(quick);
-        const category=control('Kategoria', [['','Wybierz kategorię'],...state.expenseSheets.map(x=>[x,clean(x)])],p.sheetName,v=>{
-          p.sheetName=v;p.targetManualKey='';p.t10Section='';p.t12Section='';p.person='';refresh();});card.append(category);
+        const savingsTargets=row.currency==='PLN' && /\bXTB\b/i.test(row.description||'')
+          ? state.existingRows.filter(target=>target.month===row.date.slice(0,7) && target.sheet==='T4 Finansowe' &&
+              ['Kapitał na start dzieci – ETF Julka','Kapitał na start dzieci – ETF Olek'].includes(target.label)) : [];
+        const savingsChoices=savingsTargets.map(target=>[target.key,'Oszczędności · '+target.label.split(' ').pop()]);
+        const chosenSaving=savingsTargets.some(target=>target.key===p.targetManualKey);
+        const category=control('Kategoria', [['','Wybierz kategorię'],...savingsChoices,...state.expenseSheets.map(x=>[x,clean(x)])],chosenSaving?p.targetManualKey:p.sheetName,v=>{
+          const saving=savingsTargets.find(target=>target.key===v);
+          p.sheetName=saving?saving.sheet:v;p.targetManualKey=saving?saving.key:'';
+          if(saving)p.mode='EXISTING_ROW';
+          p.t10Section='';p.t12Section='';p.person='';refresh();});card.append(category);
         const mode=control('Gdzie zapisać?', [['EXISTING_ROW','Dodaj do istniejącej pozycji'],['NEW_ROW','Nowa pozycja']],p.mode,v=>{p.mode=v;refresh();});card.append(mode);
         if(p.mode==='EXISTING_ROW'){
           const rows=state.existingRows.filter(x=>x.sheet===p.sheetName&&x.month===row.date.slice(0,7));
