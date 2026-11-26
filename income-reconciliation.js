@@ -24,7 +24,8 @@ function reconcileIncomeRows(rows, commands = new Map()) {
     const mail = candidates[0];
     const hasState = row => row.decision || commands.has(row.key);
     if (hasState(bank) && hasState(mail)) continue;
-    hidden.add(hasState(bank) ? mail : bank);
+    if (hasState(bank) || hasState(mail)) hidden.add(hasState(bank) ? mail : bank);
+    else hidden.add(bank.settledRedemption && !mail.settledRedemption ? mail : bank);
   }
   return rows.filter(row => !hidden.has(row));
 }
