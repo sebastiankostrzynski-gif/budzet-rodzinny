@@ -1710,11 +1710,15 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
 .budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a,.assignment-links button{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06);width:100%;text-align:left;cursor:pointer}.assignment-links a:focus-visible,.assignment-links button:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
 .assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}
-#app .balance-card .glass-mini[data-art="iphone"] {
+#app .sav-hero.debt-hero.loan-summary::before{display:none;content:none}
+#app .loan-icons{display:flex;flex-wrap:wrap;gap:6px}
+#app .loan-icons:empty{display:none}
+#app .loan-icons .glass-mini{display:block;width:40px;height:40px;border-radius:9px;background:#fcfaf4 url('./icons/credit-savings-atlas.webp') var(--glass-cell,66.6667% 100%)/400% 300% no-repeat}
+#app :is(.balance-card,.loan-icons) .glass-mini[data-art="iphone"] {
   position:relative;
   background:radial-gradient(ellipse at center,#efe3f5, #fcfaf4 75%);
 }
-#app .balance-card .glass-mini[data-art="iphone"]::before {
+#app :is(.balance-card,.loan-icons) .glass-mini[data-art="iphone"]::before {
   content:"";position:absolute;left:10px;top:4px;width:19px;height:30px;
   border:1px solid #7c5989;border-radius:4px;transform:rotate(10deg);
   background:
@@ -6043,8 +6047,8 @@ const debtKey_='budzet-debts-v1';
 function debtValid_(x){return x&&x.schema===1&&Number.isFinite(x.fetchedAt)&&Array.isArray(x.periods)&&x.periods.length>0&&x.periods.every(p=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(p.key)&&[p.total,p.principal,p.interest].every(n=>Number.isFinite(n)&&n>=0)&&Array.isArray(p.items)&&p.items.every(i=>typeof i.id==='string'&&typeof i.name==='string'&&[i.total,i.principal,i.interest].every(n=>Number.isFinite(n)&&n>=0)));}
 function debtAdopt_(x){if(!debtValid_(x)||debtData_&&debtData_.fetchedAt>x.fetchedAt)return false;const followingLatest=debtPeriod_===debtData_?.periods.at(-1)?.key;debtBase_=x;x=FamilyLoans.apply(x);debtData_=x;if(followingLatest||!x.periods.some(p=>p.key===debtPeriod_))debtPeriod_=x.periods.at(-1).key;return true;}
 function debtURL_(){return new URL('./__debts_v1__.json',location.href).href;}
-async function debtRestore_(){if(debtLoaded_)return;debtLoaded_=true;try{debtAdopt_(JSON.parse(localStorage.getItem(debtKey_)));}catch(_){}if(activeView_==='debts')renderDebts_();try{const c=await caches.open('budzet-rodzinny-runtime-v8'),r=await c.match(debtURL_());if(r&&debtAdopt_(await r.json())&&activeView_==='debts')renderDebts_();}catch(_){}}
-function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');FamilyLoans.restore();FamilyLoans.refresh();debtRestore_();renderDebts_();debtRefresh_(true);window.scrollTo(0,0);}
+async function debtRestore_(){if(debtLoaded_)return;debtLoaded_=true;FamilyLoans.restore();try{debtAdopt_(JSON.parse(localStorage.getItem(debtKey_)));}catch(_){}if(activeView_==='debts')renderDebts_();try{const c=await caches.open('budzet-rodzinny-runtime-v8'),r=await c.match(debtURL_());if(r&&debtAdopt_(await r.json())&&activeView_==='debts')renderDebts_();}catch(_){}}
+function openDebts_(){cleanupDetailSticky_();activeView_='debts';activeCategory_=null;setBudgetTab_('debts');debtRestore_();FamilyLoans.refresh();renderDebts_();debtRefresh_(true);window.scrollTo(0,0);}
 function debtRefresh_(automatic=false){
  if(!automatic)FamilyLoans.refresh();
  if(automatic && activeView_==='debts' && document.querySelector('.installment-panel details[open]'))return;
@@ -6058,9 +6062,10 @@ function debtMove_(d){const n=debtData_.periods.findIndex(p=>p.key===debtPeriod_
 function debtDetail_(id){if(!debtId_)debtReturnY_=window.scrollY;debtId_=id;renderDebts_();window.scrollTo(0,0);}
 function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,debtReturnY_);}
 function debtAmount_(p,metric){const item=debtId_?p.items.find(i=>i.id===debtId_):p;return item?item[metric]:null;}
+function debtIcon_(i){return /\biphone\b/i.test(i.name)?'iphone':i.id;}
 function debtCard_(i,period){
  const at=debtData_.periods.findIndex(p=>p.key===period),prev=debtData_.periods[at-1],old=prev&&prev.items.find(j=>j.id===i.id);
- const icon = /\biphone\b/i.test(i.name) ? 'iphone' : i.id;
+ const icon = debtIcon_(i);
  const subtitle=i.subtitle?i.subtitle.replace(/^Obecna pozycja:\s*/,''):'';
  return `<button class="debt-card balance-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="sav-card-heading"><span class="sav-icon glass-mini" data-art="${escapeHtml(icon)}" aria-hidden="true"></span><span class="sav-name">${escapeHtml(i.name)}</span><span class="sav-chevron" aria-hidden="true">›</span></span>${subtitle?`<span class="sav-muted debt-subtitle">${escapeHtml(subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="sav-muted balance-card-change">${balanceChange_(i.total,old?old.total:null,prev,true)}</span><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;
 }
@@ -6120,7 +6125,7 @@ function renderDebtsContentV24_(){
 
  app.innerHTML=`<div class="sav-wrap debt-wrap">${unifiedHeader_('debt',title,debtData_.periods,p.key,debtId_?'debtBack_()':null)}
  <div class="sav-status"><span id="debt-status" role="status"></span><button id="debt-refresh" onclick="debtRefresh_()" aria-label="Odśwież kredyty">↻</button></div>
- ${item?`<section class="sav-hero debt-hero"><div>${debtId_?'Pozostało do spłaty':'Pozostało do spłaty łącznie'}</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section>${!debtId_?debtComposition_(active):''}${item.asOf&&item.asOf<p.key?'<p class="sav-muted debt-note">Ostatni zapis: '+savingsLabel_(item.asOf)+'.</p>':''}`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
+ ${item?`<section class="sav-hero debt-hero loan-summary"><div class="loan-icons" aria-hidden="true">${(debtId_?[item]:active).map(i=>`<span class="glass-mini" data-art="${escapeHtml(debtIcon_(i))}" title="${escapeHtml(i.name)}"></span>`).join('')}</div><div>${debtId_?'Pozostało do spłaty':'Pozostało do spłaty łącznie'}</div><strong class="balance-total ${savingsPLN_(item.total).length>15?'balance-total-long':''}">${savingsPLN_(item.total)}</strong><span class="savings-change">${change}</span><div class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(item.principal)}</b></span><span>Odsetki <b>${savingsPLN_(item.interest)}</b></span></div>${p.inProgress?'<span class="debt-progress">Miesiąc w trakcie</span>':''}</section>${!debtId_?debtComposition_(active):''}${item.asOf&&item.asOf<p.key?'<p class="sav-muted debt-note">Ostatni zapis: '+savingsLabel_(item.asOf)+'.</p>':''}`:'<section class="sav-panel">Brak zapisu tego zobowiązania w wybranym okresie.</section>'}
 
  <div id="family-loan-actions"></div>
  ${installmentPanel_(p)}
