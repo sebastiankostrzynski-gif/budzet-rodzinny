@@ -737,6 +737,7 @@
         (kind === 'INCOME_V1' ? incomeCommands : byKey).set(request.key,{request,result});
       }
     }
+    if (data.income?.rows) data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
     const rows = data.rows.filter(r => !r.bridgeArchived);
     const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
     if(unchecked.length){

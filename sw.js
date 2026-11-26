@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-savings-reservations-20261124';
+const SHELL_CACHE = 'budzet-rodzinny-shell-income-reconciliation-20261126';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
@@ -14,7 +14,7 @@ const APP_SHELL = [
   './assignment-form.css',
   './budget-plan.js', './budget-picker.js', './finance-ui.css',
   './assignment-form.js',
-  './inflows.html',
+  './inflows.html', './income-reconciliation.js',
   './queue-transport.js',
   './manifest.webmanifest',
   './icons/wallet-192.png',

@@ -23,14 +23,14 @@ label{display:block;margin:13px 0 5px;font-size:14px;font-weight:600}.card{backg
 <nav class="tabs"><button id="pending" aria-pressed="true">Do przypisania</button><button id="saved" aria-pressed="false">Zapisane</button></nav>
 <section id="rows"></section><p id="freshness" class="small"></p>
 </main><script src="./queue-transport.js"></script>
-<script>
+<script src="./income-reconciliation.js"></script><script>
 'use strict';
 const $=id=>document.getElementById(id),fmt=n=>new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(n/100);
 let state=null,tab='pending',busy=false,opened=null;
 function node(tag,value){const e=document.createElement(tag);if(value!==undefined)e.textContent=value;return e}
 function status(message,error){$('status').textContent=message;$('status').className=error?'error':''}
 function load(){if(busy)return;busy=true;$('reload').disabled=true;status('Odczyt listy…');
- google.script.run.withSuccessHandler(r=>{state=r;busy=false;$('reload').disabled=false;render();status('Lista gotowa.')})
+ google.script.run.withSuccessHandler(r=>{state={...r,rows:reconcileIncomeRows(r.rows)};busy=false;$('reload').disabled=false;render();status('Lista gotowa.')})
  .withFailureHandler(e=>{busy=false;$('reload').disabled=false;status(e.message||String(e),true)}).ebIncomeListDev();}
 function render(){const rows=state.rows.filter(x=>!!x.decision===(tab==='saved'));$('rows').replaceChildren();
  $('pending').textContent='Do przypisania · '+state.rows.filter(x=>!x.decision).length;
