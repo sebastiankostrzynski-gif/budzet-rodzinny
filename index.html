@@ -1709,7 +1709,22 @@ body.amounts-hidden .history-chart{visibility:hidden}
 .alerty24-progress{height:8px;margin:14px 0 9px;border-radius:999px;background:#e8efe9;overflow:hidden}.alerty24-progress>span{display:block;height:100%;border-radius:inherit;background:#39aa6b}.alerty24-card.is-over .alerty24-progress>span{background:#d76659}
 .alerty24-meta{display:flex;flex-wrap:wrap;gap:6px 13px;align-items:center;color:#64716a;font-size:12px}.alerty24-session{margin-top:10px;padding-top:10px;border-top:1px solid #edf1ee;color:#9a5c14;font-size:12px;font-weight:650}.alerty24-session.is-expired{color:#c43f33}.alerty24-refresh{margin-left:auto;border:0;background:transparent;color:#24764b;font:650 13px system-ui;cursor:pointer;padding:5px 0}.alerty24-refresh:disabled{opacity:.5;cursor:default}
 .budget-tabs button[data-tab="assignments"]{display:none}.assignment-wrap{max-width:760px;margin:auto;padding:16px 14px 32px;color:#253b2d}.assignment-wrap h1{font-size:26px;margin:4px 0 8px}.assignment-wrap>p{font-size:14px;line-height:1.5;color:#64716a}.assignment-links{display:grid;gap:12px;margin:20px 0}.assignment-links a,.assignment-links button{display:flex;align-items:center;justify-content:space-between;min-height:64px;border:1px solid #dce8df;border-radius:16px;padding:16px 20px;background:#fff;color:#246b4b;font:650 16px system-ui;text-decoration:none;box-shadow:0 3px 14px rgba(20,64,39,.06);width:100%;text-align:left;cursor:pointer}.assignment-links a:focus-visible,.assignment-links button:focus-visible{outline:3px solid #287c54;outline-offset:2px}.assignment-links a span{font-size:26px}.budget-tabs button[data-tab="assignments"].selected{background:#287c54;color:#fff}@media(max-width:760px){.budget-tabs button{font-size:11px;gap:2px}.budget-tabs button svg{width:18px;height:18px}.assignment-wrap{padding:4px 14px 100px}}
-.assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}</style>
+.assignment-embedded{max-width:900px;padding-bottom:90px}.assignment-toolbar{display:flex;gap:12px;padding:4px 0 12px}.assignment-toolbar button{border:0;background:#e3f0e8;color:#246b4b;border-radius:10px;padding:10px 14px;font:650 14px system-ui;cursor:pointer}.assignment-embedded iframe{display:block;width:100%;height:calc(100dvh - 160px);min-height:500px;border:0;border-radius:14px;background:#f4f7f5}
+#app .balance-card .glass-mini[data-art="iphone"] {
+  position:relative;
+  background:radial-gradient(ellipse at center,#efe3f5, #fcfaf4 75%);
+}
+#app .balance-card .glass-mini[data-art="iphone"]::before {
+  content:"";position:absolute;left:10px;top:4px;width:19px;height:30px;
+  border:1px solid #7c5989;border-radius:4px;transform:rotate(10deg);
+  background:
+    radial-gradient(circle at 4px 4px,#241c34 1.2px,#a68ab6 2px,transparent 2.5px),
+    radial-gradient(circle at 9px 7px,#31243e 1.2px,#b19bc0 2px,transparent 2.5px),
+    radial-gradient(circle at 4px 10px,#241c34 1.2px,#a68ab6 2px,transparent 2.5px),
+    linear-gradient(135deg,#d7c3e5,#f5ebfa 42%,#b99bc9 76%,#886499);
+  box-shadow:inset 1px 0 1px white,1px 1px 0 #6e517a,2px 3px 3px #58326630;
+}
+</style>
 
 <style>.form-return-status:empty{display:none}</style>
 <link rel="stylesheet" href="./finance-ui.css"><link rel="stylesheet" href="./loan-terms.css"><script src="./new-loans.js"></script><script src="./budget-plan.js"></script><script src="./budget-picker.js"></script></head>
@@ -6045,8 +6060,9 @@ function debtBack_(){debtId_=null;renderDebts_();window.scrollTo(0,debtReturnY_)
 function debtAmount_(p,metric){const item=debtId_?p.items.find(i=>i.id===debtId_):p;return item?item[metric]:null;}
 function debtCard_(i,period){
  const at=debtData_.periods.findIndex(p=>p.key===period),prev=debtData_.periods[at-1],old=prev&&prev.items.find(j=>j.id===i.id);
+ const icon = /\biphone\b/i.test(i.name) ? 'iphone' : i.id;
  const subtitle=i.subtitle?i.subtitle.replace(/^Obecna pozycja:\s*/,''):'';
- return `<button class="debt-card balance-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="sav-card-heading"><span class="sav-icon glass-mini" data-art="${escapeHtml(i.id)}" aria-hidden="true"></span><span class="sav-name">${escapeHtml(i.name)}</span><span class="sav-chevron" aria-hidden="true">›</span></span>${subtitle?`<span class="sav-muted debt-subtitle">${escapeHtml(subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="sav-muted balance-card-change">${balanceChange_(i.total,old?old.total:null,prev,true)}</span><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;
+ return `<button class="debt-card balance-card" data-debt-id="${escapeHtml(i.id)}" onclick="debtDetail_(this.dataset.debtId)"><span class="sav-card-heading"><span class="sav-icon glass-mini" data-art="${escapeHtml(icon)}" aria-hidden="true"></span><span class="sav-name">${escapeHtml(i.name)}</span><span class="sav-chevron" aria-hidden="true">›</span></span>${subtitle?`<span class="sav-muted debt-subtitle">${escapeHtml(subtitle)}</span>`:''}<strong>${savingsPLN_(i.total)}</strong><span class="sav-muted balance-card-change">${balanceChange_(i.total,old?old.total:null,prev,true)}</span><span class="debt-breakdown"><span>Kapitał <b>${savingsPLN_(i.principal)}</b></span><span>Odsetki <b>${savingsPLN_(i.interest)}</b></span></span>${i.asOf<period?`<span class="sav-muted">Ostatni zapis: ${savingsLabel_(i.asOf)}</span>`:''}</button>`;
 }
 function debtComposition_(items){
  const mortgage=items.filter(i=>i.id==='hipoteka'),other=items.filter(i=>i.id!=='hipoteka');
