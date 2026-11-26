@@ -723,6 +723,29 @@
     }
     return result;
   }
+  async function markSettledRedemptions(rows) {
+    const candidates = rows.filter(row => !row.decision && row.account === 'R2' &&
+      (row.currency || 'PLN') === 'PLN' && row.amountCents > 0 &&
+      /BIURO MAKLERSKIE PKO/i.test(row.merchant || '') && /^\d{4}-\d{2}-\d{2}$/.test(row.date));
+    if (!candidates.length) return;
+    const years = [...new Set(candidates.map(row => row.date.slice(0,4)))];
+    const query = new URLSearchParams({fields:'sheets(properties(title),data(rowData(values(effectiveValue,note))))'});
+    for (const year of years) query.append('ranges', "'Wykonanie " + year + "'!A37:N37");
+    const ledger = await portfolioRequest('?' + query);
+    for (const sheet of ledger.sheets || []) {
+      const cells = sheet.data?.[0]?.rowData?.[0]?.values || [];
+      if (cells[0]?.effectiveValue?.stringValue !== 'Wykup obligacji') continue;
+      for (const row of candidates) {
+        if (sheet.properties.title !== 'Wykonanie ' + row.date.slice(0,4)) continue;
+        const cell = cells[Number(row.date.slice(5,7)) + 1];
+        if (!(cell?.effectiveValue?.numberValue < 0) || !cell.note) continue;
+        const mail = /^external-mail\|([a-f0-9]{16})$/.exec(row.key);
+        const bank = /\|(\d{4}-\d{2}-\d{2}\/\d+\/\d+)$/.exec(row.key);
+        const ids = cell.note.match(/[a-f0-9]{16}|\d{4}-\d{2}-\d{2}\/\d+\/\d+/gi) || [];
+        if ((mail && ids.includes(mail[1])) || (bank && ids.includes(bank[1]))) row.settledRedemption = true;
+      }
+    }
+  }
   async function readPhoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
@@ -737,7 +760,10 @@
         (kind === 'INCOME_V1' ? incomeCommands : byKey).set(request.key,{request,result});
       }
     }
-    if (data.income?.rows) data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
+    if (data.income?.rows) {
+      await markSettledRedemptions(data.income.rows);
+      data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
+    }
     const rows = data.rows.filter(r => !r.bridgeArchived);
     const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
     if(unchecked.length){
@@ -770,7 +796,7 @@
   function pendingIncome(state) {
     return (state.data.income?.rows || []).filter(row => {
       const command = state.incomeCommands.get(row.key);
-      return !row.decision && (!command || Boolean(command.result));
+      return !row.settledRedemption && !row.decision && (!command || Boolean(command.result));
     });
   }
   const formMethods = {
@@ -1463,7 +1489,7 @@
         if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
         const waiting=row=>{const cmd=state.incomeCommands.get(row.key);return cmd && !cmd.result;};
         const pending=pendingIncome(state);
-        const saved=data.rows.filter(row=>row.decision||waiting(row));
+        const saved=data.rows.filter(row=>row.settledRedemption||row.decision||waiting(row));
         pendingTab.textContent='Do przypisania · '+pending.length;historyTab.textContent='Zapisane · '+saved.length;
         pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
         const visible=history?saved:pending;
@@ -1472,6 +1498,7 @@
           const card=make('article'), command=state.incomeCommands.get(row.key);
           card.className='phone-expense';list.append(card);
           card.append(make('strong',row.merchant),make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100)),make('small',row.date+' · '+row.account));
+          if(row.settledRedemption){card.append(make('p','Wykup obligacji · rozliczono'));continue;}
           if(waiting(row)){card.append(make('p','Oczekuje na potwierdzenie'),make('small',command.request.sheetName+' · '+command.request.description));continue;}
           if(command?.result?.startsWith('Błąd'))card.append(make('p',command.result));
           if(row.decision)card.append(make('p',row.decision.sheetName+' · '+row.decision.description));
