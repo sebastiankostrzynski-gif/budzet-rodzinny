@@ -27,7 +27,7 @@ const BudgetPlan = (() => {
     const plan=cachedOffsets();
     if(!plan)return null;
     const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
-    return ((window.expensePreview?.base(data)??Math.round(Number(data.wolneSrodki)*100))+(plan.offsets[month]||0))/100;
+    return (((window.budgetViewerRole==='owner'?window.expensePreview?.base(data):null)??Math.round(Number(data.wolneSrodki)*100))+(plan.offsets[month]||0))/100;
   }
   function remember(state){
     if(!Number.isSafeInteger(state?.revision)||!Array.isArray(state.entries))return;
@@ -54,7 +54,8 @@ const BudgetPlan = (() => {
     if(!root)return;
     const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
     const base=Math.round(Number(data.wolneSrodki)*100);
-    if(window.budgetViewerRole==='owner'){
+    const canEdit=window.budgetViewerRole==='owner';
+    if(canEdit || window.budgetViewerRole==='viewer'){
       if(updateActiveCard)document.removeEventListener('budget-plan-balance',updateActiveCard);
       updateActiveCard=()=>{
         if(!root.isConnected || data.isClosedMonth)return;
@@ -65,7 +66,7 @@ const BudgetPlan = (() => {
         amount.textContent=value===null?'…':money(Math.round(value*100));
         card.classList.toggle('main-card-negative',value!==null && value<0);
         const status=card.querySelector('.main-card-status');
-        if(status)status.lastChild.textContent=window.expensePreview?.base(data)!=null?'Po przypisaniu · podgląd':value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
+        if(status)status.lastChild.textContent=canEdit && window.expensePreview?.base(data)!=null?'Po przypisaniu · podgląd':value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
       };
       document.addEventListener('budget-plan-balance',updateActiveCard);
       updateActiveCard();
@@ -75,7 +76,8 @@ const BudgetPlan = (() => {
     root.append(notice);
     try {state=await api.read();}catch {notice.textContent='Nie udało się odczytać planu miesiąca.';root.append(action('Spróbuj ponownie',()=>{root.replaceChildren();mount(root,data,api);}));return;}
     function render(){
-      if(window.budgetViewerRole==='owner')remember(state);
+      if(!root.isConnected)return;
+      remember(state);
       const t=totals(state.entries,month,base);
       const grid=root.closest('.monthly-settlement')?.querySelector('.disposition-grid');
       if(grid){
@@ -100,15 +102,13 @@ const BudgetPlan = (() => {
           tile.querySelector('.disposition-item-value').textContent='+'+money(t.saved);
         }else if(tile){tile.remove();}
       }
-      root.replaceChildren(element('h2','Zarządzaj nadwyżką'));
+      root.replaceChildren(element('h2',canEdit?'Zarządzaj nadwyżką':'Podsumowanie rezerwacji'));
       const dl=document.createElement('dl');
       for(const [label,value] of [['Wolne środki przed decyzjami',base],['Przeniesione z wcześniejszych miesięcy',t.incoming],['Odłożono na oszczędności',t.saved],['Na przyszłe miesiące',t.reserved],['Pozostałe wolne środki',t.available]]){
         const row=element('div','');row.append(element('dt',label),element('dd',money(value)));dl.append(row);
       }
       root.append(dl);
-      if(window.budgetViewerRole!=='owner'&&root.isConnected&&!data.isClosedMonth){
-        const card=document.querySelector('.main-card-value');if(card)card.textContent=money(t.available);
-      }
+      if(!canEdit)return;
       if(t.available<0)root.append(Object.assign(element('p','Do pokrycia po zmianach w budżecie: '+money(-t.available)),{className:'plan-warning'}));
       const actions=element('div','');actions.className='plan-actions';
       const form=document.createElement('div');
@@ -170,8 +170,9 @@ const BudgetPlan = (() => {
       }
     }
     render();
+    if(!canEdit)return;
     const pending=api.pending();
-    if(pending && api.resume){
+    if(canEdit && pending && api.resume){
       try{const confirmed=await api.resume(pending);if(confirmed){state=confirmed;notice.textContent='Decyzja zapisana.';render();}}
       catch(error){notice.textContent=error.message;render();}
     }
