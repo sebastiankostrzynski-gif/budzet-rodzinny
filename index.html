@@ -4150,7 +4150,7 @@ function alerty24Start_() {
       const mainCardValue =
         isClosedMonth
           ? monthlyResult
-          : window.budgetViewerRole==='owner' && window.budgetPlanApi
+          : ['owner','viewer'].includes(window.budgetViewerRole) && window.budgetPlanApi
             ? BudgetPlan.available(data)
             : wolneSrodki;
 
@@ -4467,7 +4467,7 @@ function alerty24Start_() {
             </div>
           </div>
 
-        ${window.budgetViewerRole==="owner" ? '<details class="surplus-disclosure"><summary>Zarządzaj nadwyżką</summary><section class="plan-panel" id="surplus-plan" aria-label="Zarządzaj nadwyżką"></section></details>' : ""}
+        ${window.budgetViewerRole==="owner" ? '<details class="surplus-disclosure"><summary>Zarządzaj nadwyżką</summary><section class="plan-panel" id="surplus-plan" aria-label="Zarządzaj nadwyżką"></section></details>' : window.budgetViewerRole==="viewer" ? '<details class="surplus-disclosure"><summary>Rezerwacje w budżecie</summary><section class="plan-panel" id="surplus-plan" aria-label="Rezerwacje w budżecie"></section></details>' : ""}
           </div>
         </details>
 
