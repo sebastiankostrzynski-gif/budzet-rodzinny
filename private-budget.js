@@ -1466,13 +1466,13 @@
               quick.onclick=()=>{selectItem(shortcut);save.click();};card.append(quick);pick.textContent='Wybierz inną';
             }
             card.append(pick,tools);
-            if(row.amountCents===50000 && row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
+            if(row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
               const group=make('div');group.className='split-toggle';
-              for(const child of ['Julka','Olek']){
+              for(const [label,caption] of [['ETF Julka','Julka'],['ETF Olek','Olek'],['XTB ETF po połowie','Po połowie']]){
                 const position=state.data.existingRows.find(t=>t.month===row.date.slice(0,7) &&
-                  t.sheet==='T4 Finansowe' && t.label==='Kapitał na start dzieci – ETF '+child);
+                  t.sheet==='T4 Finansowe' && t.label==='Kapitał na start dzieci – '+label);
                 if(!position)continue;
-                const choice=make('button','Oszczędności · '+child);
+                const choice=make('button','Oszczędności · '+caption);
                 choice.onclick=()=>{category.value=position.sheet;category.onchange();
                   target.value=position.key;target.onchange();pick.textContent=position.label;};
                 group.append(choice);
