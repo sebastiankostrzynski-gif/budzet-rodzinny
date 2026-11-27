@@ -36,7 +36,7 @@
     lines.push('Otwarcie '+duration.toFixed(1)+' ms; wyszukiwanie '+timings.map(n=>n.toFixed(1)).join(' / ')+' ms (600 pozycji, synchroniczna obsługa DOM).');
     const fixture='<section id="panel" class="plan-panel"></section>';
     const planScript='<script src="../budget-plan.js"></'+'script>';
-    frame.srcdoc='<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../finance-ui.css">'+fixture+planScript+'<script>window.mountPlan=BudgetPlan.mount;window.getTotals=BudgetPlan.totals;</'+'script>';
+    frame.srcdoc='<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../finance-ui.css">'+fixture+planScript+'<script>window.budgetViewerRole="owner";window.mountPlan=BudgetPlan.mount;window.getTotals=BudgetPlan.totals;</'+'script>';
     await new Promise(resolve=>frame.onload=resolve);
     const pd=frame.contentDocument,pw=frame.contentWindow,entries=[];
     let approve;

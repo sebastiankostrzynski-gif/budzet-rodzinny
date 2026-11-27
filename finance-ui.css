@@ -39,3 +39,14 @@ button,input,select,textarea{font-family:inherit}
 .pick-option small{font-weight:400;color:var(--finance-muted)}.pick-option strong{font-weight:600}
 .phone-expense .pick-quick{grid-column:1/-1;min-height:44px;border:0;border-radius:10px;background:var(--finance-accent);color:white;padding:10px 14px;text-align:left;font-weight:600}
 .phone-expense .pick-quick[hidden]{display:none}
+
+.assignment-wrap .assignment-modes{display:inline-flex;gap:3px;padding:3px;background:#e9eee9;border-radius:13px}
+.assignment-wrap .assignment-modes button,.assignment-wrap .assignment-filters button{min-height:44px;padding:8px 12px;border:0;border-radius:10px;color:var(--finance-muted);background:transparent;font:600 14px/1.25 system-ui}
+.assignment-wrap .assignment-modes button[aria-pressed=true]{color:white;background:var(--finance-accent)}
+.assignment-wrap .assignment-filters{display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin-top:8px}
+.assignment-wrap .assignment-filters button[aria-pressed=true]{background:#e2eee6;color:var(--finance-accent)}
+.assignment-wrap .assignment-filters button:last-child{margin-inline-start:auto}
+.assignment-wrap .phone-expense>strong{overflow-wrap:anywhere}
+
+.budget-status .data-freshness{min-width:0;white-space:normal;justify-content:flex-start}
+.budget-status button{flex-shrink:0}

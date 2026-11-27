@@ -9,7 +9,7 @@
 <aside class="bank-access" id="bankAccess" data-state="LOADING" role="status" aria-live="polite"><strong id="bankAccessTitle">Sprawdzam dostęp do banku…</strong><p id="bankAccessDetail">Lista wydatków z e-maili działa niezależnie od sesji bankowej.</p><small id="bankAccessUpdated"></small></aside>
 <p id="mailState" role="status"></p>
 <div id="status" class="status" role="status" aria-live="polite"></div>
-<nav class="tabs" aria-label="Widok wydatków"><button id="pendingTab" aria-pressed="true">Do przypisania</button><button id="savedTab" aria-pressed="false">Historia</button></nav>
+<nav class="tabs" aria-label="Widok wydatków"><button id="pendingTab" aria-live="polite" aria-pressed="true">Do przypisania</button><button id="savedTab" aria-pressed="false">Historia</button></nav>
 <input id="search" class="search" type="search" aria-label="Szukaj sklepu lub kwoty" placeholder="Szukaj sklepu lub kwoty">
 <section id="rows" aria-label="Zakupy"></section><section id="technical"></section>
 </section></main><script src="./queue-transport.js"></script>
@@ -235,27 +235,7 @@ showQueue(true);
       if(active===row.key)active=null;else{active=row.key;parts=fresh(row);}render();
     });toggle.className='quiet';container.append(toggle,splitMode?view(row):baseEditor(row));return container;
   };
-  // In the saved tab, the original renderer lists clothing splits only. The editor
-  // above opens an existing MULTI_SPLIT decision and displays every part for editing.
-  // In-app notice: poll the DEV queue while the app page is open. No email,
-  // browser permission, or budget write. A closed app cannot receive this notice.
-  const pendingStorage='budget-dev-pending-ids-v1';let known=null,notice=null;
-  try{const raw=localStorage.getItem(pendingStorage);if(raw)known=new Set(JSON.parse(raw));}catch(_){known=null;}
-  function pendingKeys(){return (state&&state.rows||[]).filter(r=>!r.bridgeArchived&&!r.bridgeBlocked&&
-    !r.decision&&!r.postedEvidence).map(r=>r.key);}
-  function refreshNotice(){
-    if(!state)return;const current=pendingKeys(),set=new Set(current);
-    if(known===null)known=set;else{const added=current.filter(k=>!known.has(k));if(added.length)showNotice(added.length);known=set;}
-    try{localStorage.setItem(pendingStorage,JSON.stringify(current));}catch(_){}
-  }
-  function showNotice(n){
-    if(!notice){notice=element('div');notice.className='notice';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
-      notice.style.margin='12px 0';notice.style.display='flex';notice.style.justifyContent='space-between';notice.style.alignItems='center';
-      const host=$('status');host.parentNode.insertBefore(notice,host);}
-    notice.replaceChildren(element('span',n+' nowych wydatków do przypisania'));
-    notice.append(button('Pokaż',()=>{tab='pending';opened=null;draft=null;render();notice.hidden=true;}));notice.hidden=false;
-  }
-  const originalRender=render;render=function(){originalRender();refreshNotice();};
+
   let polling = false;
   function refreshQueue() {
     if (polling || busy || opened || document.hidden || $('queueScreen').hidden || !navigator.onLine) return;

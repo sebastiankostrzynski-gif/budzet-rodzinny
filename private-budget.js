@@ -764,6 +764,20 @@
       }
     }
   }
+  function assignmentCommands(rows) {
+    const byKey=new Map(), incomeCommands=new Map();
+    for(const [kind,,body,result] of rows){
+      if(kind!=='ASSIGN_V1' && kind!=='INCOME_V1')continue;
+      const request=JSON.parse(body);
+      const commands=kind==='INCOME_V1'?incomeCommands:byKey;
+      const receipt={request,result};
+      const confirmed=result==='OK'?receipt:commands.get(request.key)?.confirmed;
+      // A rejected retry must not reopen an earlier confirmed assignment.
+      const effective=confirmed && /^Błąd/i.test(result || '')?confirmed:receipt;
+      commands.set(request.key,{...effective,confirmed});
+    }
+    return {byKey,incomeCommands};
+  }
   async function readPhoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
@@ -771,13 +785,7 @@
       throw Error('Niepełny odczyt kolejki.');
     const bytes = Uint8Array.from(atob(chunks.slice(0,+parts).join('')), c => c.charCodeAt(0));
     const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
-    const byKey = new Map(), incomeCommands = new Map();
-    for (const [kind,id,body,result] of commands.values || []) {
-      if (kind === 'ASSIGN_V1' || kind === 'INCOME_V1') {
-        const request = JSON.parse(body);
-        (kind === 'INCOME_V1' ? incomeCommands : byKey).set(request.key,{request,result});
-      }
-    }
+    const {byKey,incomeCommands}=assignmentCommands(commands.values || []);
     if (data.income?.rows) {
       await markSettledRedemptions(data.income.rows);
       data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
@@ -807,7 +815,7 @@
   function pendingIncome(state) {
     return (state.data.income?.rows || []).filter(row => {
       const command = state.incomeCommands.get(row.key);
-      return !row.settledRedemption && !row.decision && (!command || Boolean(command.result));
+      return !row.settledRedemption && !row.decision && !incomeReceiptActive(command);
     });
   }
   const formMethods = {
@@ -1053,7 +1061,7 @@
     reconcile(caller,rows){
       const ids=new Set(rows.map(r=>r.id));
       for(const job of this.list(caller)){
-        if(ids.has(job.id))localStorage.removeItem(assignmentPrefix+jobKey(job));
+        if(ids.has(job.request.id))localStorage.removeItem(assignmentPrefix+jobKey(job));
       }
     }
   };
@@ -1265,7 +1273,7 @@
       const head = make('h1','Przypisz wydatki'), status = make('p'), list = make('section');
       status.setAttribute('role','status');
       const tabs = make('div'), pendingTab = make('button','Do przypisania'), historyTab = make('button','Historia'), refresh = make('button','Odśwież');
-      tabs.append(pendingTab,historyTab,refresh);
+      tabs.className='assignment-filters';tabs.append(pendingTab,historyTab,refresh);
       const advanced = make('div');
       const links = make('div'); links.className='assignment-links';
       async function openForm(file,title,selection) {
@@ -1291,6 +1299,7 @@
         const btn=make('button',title);btn.type='button';btn.onclick=()=>openForm(file,title);links.append(btn);
       }
       const modes=make('div'), expenses=make('button','Wydatki'), incomes=make('button','Wpływy');
+      modes.className='assignment-modes';modes.setAttribute('role','group');modes.setAttribute('aria-label','Rodzaj operacji');
       modes.append(expenses,incomes); advanced.append(links);root.append(head);
       mountSettlementControl(root);
       root.append(modes,tabs,status,list,advanced);
@@ -1301,8 +1310,6 @@
         const jobs=assignments();
         const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
         progressNote.replaceChildren();
-        const control=root.querySelector('.u47-result span');
-        if(waiting.length && control)control.textContent='Oczekuje na zaksięgowanie';
         if(waiting.length)progressNote.append(make('span','Zapisywanie w tle · '+waiting.length));
         const data=typeof dashboardData==='undefined'?null:dashboardData;
         if(data && window.expensePreview.base(data)!==null){
@@ -1319,21 +1326,25 @@
       }
       function hiddenExpense(key){const j=storedAssignment(key);return j && j.phase!=='error';}
       window.addEventListener(assignmentEvent,progress);
-      function onConfirmed(){
+      function onConfirmed(event){
         if(!root.contains(progressNote)){window.removeEventListener('budget-assignment-saved',onConfirmed);return;}
         root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
-        phoneQueue().then(next=>{
-          if(!root.contains(progressNote))return;
-          followPosting(next);lastCountRead=0;refreshExpenseCount(next);
+        const seq=++generation;
+        const read=event.detail?.snapshot?Promise.resolve(event.detail.snapshot):phoneQueue();
+        read.then(next=>{
+          if(seq!==generation || !root.contains(progressNote))return;
+          state=next;render(true);followPosting(next);lastCountRead=0;refreshExpenseCount(next);
         }).catch(()=>{});
       }
       window.addEventListener('budget-assignment-saved',onConfirmed);
       let income=false;
       function switchMode(next) {
-        if(saving)return;
+        if(saving || next===income)return;
         income=next;history=false;head.textContent=income?'Przypisz wpływy':'Przypisz wydatki';
         incomes.setAttribute('aria-pressed',String(income));expenses.setAttribute('aria-pressed',String(!income));
-        advanced.hidden=income;list.replaceChildren();reload();
+        advanced.hidden=income;
+        if(state)render();
+        if(!state || Date.now()-Date.parse(state.stamp)>120000)reload();
       }
       incomes.onclick=()=>switchMode(true);expenses.onclick=()=>switchMode(false);
       expenses.setAttribute('aria-pressed','true');incomes.setAttribute('aria-pressed','false');
@@ -1389,7 +1400,7 @@
           ? new Map(Array.from(list.querySelectorAll('[data-expense-key]'),card=>[card.dataset.expenseKey,card])) : new Map();
         list.replaceChildren();
         renderNotices();
-        if(income){renderIncome();return;}
+        if(income){progress();renderIncome();return;}
         const pending = new Set(state.pending);
         const saved = state.rows.filter(r=>!pending.has(r));
         pendingTab.textContent='Do przypisania · '+pending.size;
@@ -1404,7 +1415,7 @@
           const card=make('article'), command=state.byKey.get(row.key);
           if(!history)card.dataset.expenseKey=row.key;
           card.className='phone-expense';
-          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN'}).format(row.amountCents/100)), make('small',[row.date,row.accountLabel||row.account||row.sourceLabel].filter(Boolean).join(' · ')));
+          card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN',useGrouping:true}).format(row.amountCents/100)), make('small',[row.date,row.accountLabel||row.account||row.sourceLabel].filter(Boolean).join(' · ')));
           if(history) {
             card.append(make('p',row.postedEvidence?'Zaksięgowano':row.bridgeBlocked==='XTB_PENDING_MATCH'?'Oczekuje na uzgodnienie z wpłatą XTB z maila':row.bridgeBlocked?'Do sprawdzenia':row.decision?.action==='DEFER'?'Odłożone':'Oczekuje na zaksięgowanie'));
             const category=row.decision?.sheetName || command?.request.sheetName;
@@ -1505,9 +1516,9 @@
       function renderIncome() {
         const data=state.data.income;
         if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
-        const waiting=row=>{const cmd=state.incomeCommands.get(row.key);return cmd && !cmd.result;};
+        const unreflected=row=>!row.decision && incomeReceiptActive(state.incomeCommands.get(row.key));
         const pending=pendingIncome(state);
-        const saved=data.rows.filter(row=>row.settledRedemption||row.decision||waiting(row));
+        const saved=data.rows.filter(row=>row.settledRedemption||row.decision||unreflected(row));
         pendingTab.textContent='Do przypisania · '+pending.length;historyTab.textContent='Zapisane · '+saved.length;
         pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
         const visible=history?saved:pending;
@@ -1517,7 +1528,9 @@
           card.className='phone-expense';list.append(card);
           card.append(make('strong',row.merchant),make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100)),make('small',row.date+' · '+row.account));
           if(row.settledRedemption){card.append(make('p','Wykup obligacji · rozliczono'));continue;}
-          if(waiting(row)){card.append(make('p','Oczekuje na potwierdzenie'),make('small',command.request.sheetName+' · '+command.request.description));continue;}
+          if(unreflected(row) || (command && !command.result)){
+            card.append(make('p',command.result==='OK'?'Przypisanie potwierdzone':'Oczekuje na potwierdzenie'),make('small',command.request.sheetName+' · '+command.request.description));continue;
+          }
           if(command?.result?.startsWith('Błąd'))card.append(make('p',command.result));
           if(row.decision)card.append(make('p',row.decision.sheetName+' · '+row.decision.description));
           const form=make('details');form.style.gridColumn='1 / -1';card.append(form);
@@ -1551,21 +1564,22 @@
             !row.bridgeBlocked && row.decision?.action!=='DEFER';
         });
         if(!waiting || !root.isConnected)return;
+        const seq=generation;
         postingTimer=setTimeout(async()=>{
-          if(!root.isConnected)return;
+          if(seq!==generation || !root.isConnected)return;
           if(document.hidden || saving){followPosting(snapshot);return;}
           try{
             const fresh=await phoneQueue();
-            if(!root.isConnected)return;
+            if(seq!==generation || !root.isConnected)return;
             const posted=fresh.rows.some(row=>row.postedEvidence &&
               snapshot.byKey.has(row.key) && !snapshot.rows.find(old=>old.key===row.key)?.postedEvidence);
             if(posted){
-              window.dispatchEvent(new Event('budget-assignment-saved'));
-              root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
+              window.dispatchEvent(new CustomEvent('budget-assignment-saved',{detail:{snapshot:fresh}}));
+              status.textContent='Koszt zaksięgowany.';
+              return;
             }
             state=fresh;render(true);followPosting(fresh);
-            if(posted)status.textContent='Koszt zaksięgowany.';
-          } catch {followPosting(snapshot);}
+          } catch {if(seq===generation)followPosting(snapshot);}
         },5000);
       }
       async function reload(message) {
@@ -1574,7 +1588,11 @@
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
           state=next;render();followPosting(next);root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
           lastCountRead=0;refreshExpenseCount(next);
-        }catch(e){if(seq===generation){list.replaceChildren();root.querySelector('.account-notice-list')?.remove();state=null;status.textContent=e.message;}}
+        }catch(e){
+          if(seq!==generation || !root.isConnected)return;
+          console.warn('Assignment queue refresh failed',e);
+          status.textContent=state?'Nie udało się odświeżyć. Ostatni odczyt: '+new Date(state.stamp).toLocaleString('pl-PL')+'.':'Nie udało się wczytać listy. Wybierz „Odśwież”, aby spróbować ponownie.';
+        }
       }
       refresh.onclick=()=>{if(!saving)reload();};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
       reload();

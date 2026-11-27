@@ -32,14 +32,16 @@ function status(message,error){$('status').textContent=message;$('status').class
 function load(){if(busy)return;busy=true;$('reload').disabled=true;status('Odczyt listy…');
  google.script.run.withSuccessHandler(r=>{state={...r,rows:reconcileIncomeRows(r.rows)};busy=false;$('reload').disabled=false;render();status('Lista gotowa.')})
  .withFailureHandler(e=>{busy=false;$('reload').disabled=false;status(e.message||String(e),true)}).ebIncomeListDev();}
-function render(){const rows=state.rows.filter(x=>!!x.decision===(tab==='saved'));$('rows').replaceChildren();
- $('pending').textContent='Do przypisania · '+state.rows.filter(x=>!x.decision).length;
- $('saved').textContent='Zapisane · '+state.rows.filter(x=>x.decision).length;
+function isSaved(row){return Boolean(row.decision || row.settledRedemption)}
+function render(){const rows=state.rows.filter(x=>isSaved(x)===(tab==='saved'));$('rows').replaceChildren();
+ $('pending').textContent='Do przypisania · '+state.rows.filter(x=>!isSaved(x)).length;
+ $('saved').textContent='Zapisane · '+state.rows.filter(isSaved).length;
  for(const t of ['pending','saved'])$(t).setAttribute('aria-pressed',t===tab);
  if(!rows.length){$('rows').append(node('div',tab==='pending'?'Brak wpływów do przypisania.':'Nie ma zapisanych decyzji.'));$('rows').firstChild.className='empty'}
  rows.forEach(x=>{const card=node('article');card.className='card';const head=node('div');head.className='head';
  head.append(node('strong',x.merchant),node('span',fmt(x.amountCents)));head.lastChild.className='money';card.append(head);
  const meta=node('div',x.date+' · '+x.account);meta.className='meta';card.append(meta);
+ if(x.settledRedemption){const p=node('p','Wykup obligacji · rozliczono');p.className='badge';card.append(p);$('rows').append(card);return}
  if(x.decision){const p=node('p',x.decision.sheetName.replace(/^T\d+\s+/,'')+' · '+x.decision.description);p.className='badge';card.append(p)}
  const toggle=node('button',x.decision?'Zmień przypisanie':'Przypisz');toggle.onclick=()=>{opened=opened===x.key?null:x.key;render()};card.append(toggle);
  if(opened===x.key){const f=node('div');f.className='fields';const label=node('label','Rodzaj wpływu');const select=node('select');

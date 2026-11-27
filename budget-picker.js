@@ -51,14 +51,14 @@ const BudgetPicker=(()=>{
     const el=(tag,txt)=>Object.assign(document.createElement(tag),{textContent:txt||''});
     const btn=(title,fn)=>{const b=el('button',title);b.type='button';b.onclick=fn;return b;};
     const header=el('header');header.append(el('h2','Wybierz pozycję'),btn('Zamknij',()=>dialog.close()));
-    const input=el('input');input.type='search';input.placeholder='Co kupiłeś?';input.setAttribute('aria-label',input.placeholder);
+    const input=el('input');input.type='search';input.placeholder='Szukaj kategorii lub pozycji…';input.setAttribute('aria-label',input.placeholder);
     const results=el('div');results.className='pick-results';dialog.append(header,input,results);
     const choose=i=>{dialog.close();onSelect(i);};
     function option(i){
       const b=btn('',()=>choose(i));b.className='pick-option';
       const group=clean(i.sheet),section=clean(i.sectionName).replace(/^[IVXLCDM]+\.\s*/i,'');
       const context=[group];
-      if(section && fold(section)!==fold(group) && items.some(j=>j.key!==i.key && j.sheet===i.sheet && fold(clean(j.label))===fold(clean(i.label))))context.push(section);
+      if(section && fold(section)!==fold(group))context.push(section);
       b.append(el('strong',clean(i.label)),el('small',context.join(' · ')));b.title=i.path;return b;
     }
     function section(title,list){if(!list.length)return;const group=el('section');group.append(el('h3',title));for(const i of list)group.append(option(i));results.append(group);}

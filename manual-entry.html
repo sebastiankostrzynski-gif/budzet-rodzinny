@@ -144,7 +144,7 @@ function showReceipt(){
  const active=!!lastExpense;
  $('expenseReceipt').hidden=!active;$('form').hidden=active;
  if(!active)return;
- const job=window.parent.manualExpenses?.list(window).find(j=>j.id===lastExpense.id);
+ const job=window.parent.manualExpenses?.list(window).find(j=>j.request?.id===lastExpense.id);
  if(job && lastExpense.phase!==job.phase){lastExpense.phase=job.phase;lastExpense.message=job.message;rememberReceipt();}
  $('receiptStatus').textContent=lastExpense.phase==='confirmed'?'Wydatek zapisany':lastExpense.phase==='error'?'Zapis wymaga sprawdzenia':'Zapisywanie wydatku w tle…';
  $('receiptSummary').textContent=[lastExpense.label,money(lastExpense.cents),lastExpense.account,lastExpense.phase==='error'?lastExpense.message:''].filter(Boolean).join(' · ');

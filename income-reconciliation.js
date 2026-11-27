@@ -1,3 +1,7 @@
+function incomeReceiptActive(command) {
+  return Boolean(command && !/^Błąd/i.test(command.result || ''));
+}
+
 // A receipt can reach the R2 income queue before its bank confirmation.
 function reconcileIncomeRows(rows, commands = new Map()) {
   const sender = row => String(row.merchant || '').normalize('NFD')
@@ -22,10 +26,10 @@ function reconcileIncomeRows(rows, commands = new Map()) {
   for (const [bank, candidates] of pairs) {
     if (candidates.length !== 1 || counts.get(candidates[0]) !== 1) continue;
     const mail = candidates[0];
-    const hasState = row => row.decision || commands.has(row.key);
+    const hasState = row => row.settledRedemption || row.decision || incomeReceiptActive(commands.get(row.key));
     if (hasState(bank) && hasState(mail)) continue;
     if (hasState(bank) || hasState(mail)) hidden.add(hasState(bank) ? mail : bank);
-    else hidden.add(bank.settledRedemption && !mail.settledRedemption ? mail : bank);
+    else hidden.add(bank);
   }
   return rows.filter(row => !hidden.has(row));
 }
