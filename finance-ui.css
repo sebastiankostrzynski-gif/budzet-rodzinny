@@ -50,3 +50,24 @@ button,input,select,textarea{font-family:inherit}
 
 .budget-status .data-freshness{min-width:0;white-space:normal;justify-content:flex-start}
 .budget-status button{flex-shrink:0}
+
+/* The expense is the primary task; reconciliation expands when it needs attention. */
+.assignment-wrap details.u47-control{margin:4px 0 12px;padding:0 12px;background:#edf3ee;color:#29553f;border-radius:12px}
+.assignment-wrap .u47-control>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font:600 14px/1.35 system-ui;cursor:pointer;list-style:none}
+.u47-control>summary::-webkit-details-marker{display:none}
+.u47-control>summary::after{content:'';width:7px;height:7px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.u47-control[open]>summary::after{transform:rotate(225deg)}
+.assignment-wrap .u47-control[data-state=difference]{background:#664423;color:#fffaf0}
+.assignment-wrap .u47-control[data-state=unknown]{background:#fbefdf;color:#664423}
+.assignment-wrap .u47-control[data-state=ok] .u47-footer{border-color:#cbd9cf}
+.assignment-wrap .assignment-progress{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:6px 0;color:var(--finance-muted);font-size:13px}
+.assignment-progress:empty{display:none}
+.assignment-progress p{margin:0;width:100%}
+.expense-pager{display:flex;gap:6px;align-items:center;color:var(--finance-muted);font:600 14px/1.3 system-ui;margin-top:10px}
+.expense-pager span{margin-right:auto}
+.assignment-wrap .expense-pager button{width:44px;min-height:44px;border:1px solid var(--finance-line);background:white;color:var(--finance-accent);border-radius:12px;font:24px/1 system-ui}
+.expense-pager button:disabled{opacity:.38}
+.assignment-wrap .expense-split-link{justify-self:start;padding:0 6px;background:none;border:0;color:var(--finance-accent);min-height:44px;font:600 14px/1.4 system-ui}
+.assignment-wrap .expense-save{min-height:44px;padding:8px 12px;border:0;border-radius:10px;background:var(--finance-accent);color:white;font:600 15px/1.4 system-ui}
+.expense-save:disabled{display:none}
+.assignment-wrap .pick-tools>summary{min-height:44px;box-sizing:border-box;cursor:pointer;color:var(--finance-muted)}

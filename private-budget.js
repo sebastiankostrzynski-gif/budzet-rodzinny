@@ -899,7 +899,7 @@
   function recordAssignment(job){
     localStorage.setItem(assignmentPrefix+jobKey(job),JSON.stringify(job));
     trackPreview(job);
-    window.dispatchEvent(new Event(assignmentEvent));
+    window.dispatchEvent(new CustomEvent(assignmentEvent,{detail:{key:jobKey(job),phase:job.phase}}));
   }
   function assignmentGuard(data,req){
     const row=data.rows.find(r=>r.key===req.key);
@@ -1011,6 +1011,7 @@
     submit(caller,method,req,row,data,editorDraft){
       if(!assignmentHost(caller)||!['pkDecideDevV1','ebQueueReviseDev'].includes(method))throw Error('Brak dostępu do zapisu.');
       submitAssignment(method,req,row,data,editorDraft);
+      activeForm.dispatchEvent(new Event('assignment-enqueued'));
     }
   };
   function manualHost(caller){
@@ -1213,15 +1214,15 @@
   function mountSettlementControl(root) {
     // showBudget checks getViewerRole on the server before installing this view.
     if (window.budgetViewerRole !== 'owner') return;
-    const panel = document.createElement('section');
+    const panel = document.createElement('details');
     panel.className = 'u47-control';
-    panel.setAttribute('aria-label', 'Kontrola rozliczenia');
-    panel.innerHTML = `<div class="u47-heading"><span>Kontrola rozliczenia</span></div>
-      <div class="u47-result" role="status"><strong>—</strong><span>Sprawdzanie…</span></div>
+    panel.dataset.state = 'loading';
+    panel.innerHTML = `<summary><span class="u47-title">Sprawdzanie rozliczenia…</span></summary>
+      <div class="u47-result"><strong>—</strong></div>
       <div class="u47-footer"><time></time><button type="button" aria-label="Odśwież kontrolę rozliczenia">Odśwież</button></div>`;
     root.append(panel);
     const amount = panel.querySelector('strong');
-    const status = panel.querySelector('.u47-result span');
+    const title = panel.querySelector('.u47-title');
     const time = panel.querySelector('time');
     const button = panel.querySelector('button');
     let dirty=false;
@@ -1229,8 +1230,8 @@
       if (button.disabled){dirty=true;return;}
       dirty=false;
       button.disabled = true;
-      panel.dataset.state = 'loading';
-      status.textContent = 'Aktualizowanie…';
+      panel.setAttribute('aria-busy','true');
+      button.textContent = 'Odświeżanie…';
       try {
         const range = encodeURIComponent("'Wykonanie 2026'!U47");
         const result = await queueSheets(range + '?valueRenderOption=UNFORMATTED_VALUE');
@@ -1238,17 +1239,23 @@
         if (!Number.isFinite(value)) throw Error('Brak kwoty');
         if (!panel.isConnected) return;
         const cents = Math.sign(value) * Math.round(Math.abs(value) * 100);
-        amount.textContent = new Intl.NumberFormat('pl-PL', {style:'currency',currency:'PLN'}).format((cents || 0) / 100);
-        panel.dataset.state = cents === 0 ? 'ok' : 'difference';
-        status.textContent = cents === 0 ? 'Rozliczenie zgodne' : 'Różnica do wyjaśnienia';
+        const state = cents === 0 ? 'ok' : 'difference';
+        if(state!==panel.dataset.state)panel.open=state==='difference';
+        panel.dataset.state = state;
+        amount.textContent = new Intl.NumberFormat('pl-PL', {style:'currency',currency:'PLN',useGrouping:true}).format((cents || 0) / 100);
+        title.textContent = cents === 0 ? '✓ Rozliczenie zgodne' : 'Różnica do wyjaśnienia';
         const now = new Date();
         time.dateTime = now.toISOString();
         time.textContent = 'Odczyt ' + now.toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       } catch {
         panel.dataset.state = 'unknown';
-        status.textContent = 'Brak aktualnych danych';
+        panel.open = true;
+        title.textContent = 'Nie udało się odświeżyć rozliczenia';
+        if (time.dateTime) time.textContent = time.textContent.replace(/^Odczyt /,'Ostatni odczyt ');
       } finally {
         button.disabled = false;
+        button.textContent = 'Odśwież';
+        panel.setAttribute('aria-busy','false');
         if(dirty && panel.isConnected)read();
       }
     }
@@ -1278,8 +1285,14 @@
       const links = make('div'); links.className='assignment-links';
       async function openForm(file,title,selection) {
         const panel=make('section'), back=make('button','← Przypisz'), notice=make('p');
-        back.onclick=()=>window.openAssignments_();notice.setAttribute('role','status');notice.className='form-return-status';
-        root.replaceChildren(panel);panel.append(back,notice);formNotice=notice;
+        const returnToQueue=()=>{
+          if(!panel.isConnected)return;
+          activeForm=null;formNotice=null;panel.remove();root.hidden=false;
+          render(true);
+          (list.querySelector('.pick-quick,.pick-open')||pendingTab).focus({preventScroll:true});
+        };
+        back.onclick=returnToQueue;notice.setAttribute('role','status');notice.className='form-return-status';
+        root.hidden=true;root.after(panel);panel.className='assignment-wrap';panel.append(back,notice);formNotice=notice;
         const prior=localStorage.getItem(receiptKey);
         if(prior){
           notice.textContent='Sprawdzam poprzedni zapis…';
@@ -1293,6 +1306,7 @@
         frame.src=formURL.href;
         frame.style.cssText='display:block;width:100%;height:calc(100dvh - 175px);min-height:320px;border:0';
         if(file==='manual-entry.html')manualPublished=state?.data;
+        if(selection)frame.addEventListener('assignment-enqueued',()=>queueMicrotask(returnToQueue),{once:true});
         activeForm=frame;panel.append(frame);
       }
       for (const [file,title] of [['expense-editor.html','Podział, nowa pozycja lub korekta'],['manual-entry.html','Dodaj wydatek ręcznie']]) {
@@ -1302,15 +1316,17 @@
       modes.className='assignment-modes';modes.setAttribute('role','group');modes.setAttribute('aria-label','Rodzaj operacji');
       modes.append(expenses,incomes); advanced.append(links);root.append(head);
       mountSettlementControl(root);
-      root.append(modes,tabs,status,list,advanced);
+      root.append(modes,tabs,list,status,advanced);
       const progressNote=make('p');
-      progressNote.setAttribute('role','status');status.after(progressNote);
+      progressNote.className='assignment-progress';
+      progressNote.setAttribute('role','status');list.before(progressNote);
+      let confirmationUntil=0, confirmationTimer;
       function progress(){
-        if(!root.contains(progressNote)){window.removeEventListener(assignmentEvent,progress);return;}
         const jobs=assignments();
         const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
         progressNote.replaceChildren();
-        if(waiting.length)progressNote.append(make('span','Zapisywanie w tle · '+waiting.length));
+        if(waiting.length)progressNote.append(make('span','Trwa zapis · '+waiting.length));
+        if(Date.now()<confirmationUntil)progressNote.append(make('span','✓ Zapisano'));
         const data=typeof dashboardData==='undefined'?null:dashboardData;
         if(data && window.expensePreview.base(data)!==null){
           const preview=BudgetPlan.available(data);
@@ -1325,7 +1341,18 @@
         if(state && !income)pendingTab.textContent='Do przypisania · '+state.pending.filter(r=>!hiddenExpense(r.key)).length;
       }
       function hiddenExpense(key){const j=storedAssignment(key);return j && j.phase!=='error';}
-      window.addEventListener(assignmentEvent,progress);
+      function onJobChanged(event){
+        if(!progressNote.isConnected){window.removeEventListener(assignmentEvent,onJobChanged);clearTimeout(confirmationTimer);return;}
+        const phase=event.detail?.phase;
+        if(phase==='confirmed'){
+          confirmationUntil=Date.now()+3500;
+          clearTimeout(confirmationTimer);confirmationTimer=setTimeout(progress,3600);
+        }
+        if(state && !income && !history && (phase==='error'||phase==='ready')){
+          render(true);
+        }else progress();
+      }
+      window.addEventListener(assignmentEvent,onJobChanged);
       function onConfirmed(event){
         if(!root.contains(progressNote)){window.removeEventListener('budget-assignment-saved',onConfirmed);return;}
         root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));
@@ -1349,6 +1376,26 @@
       incomes.onclick=()=>switchMode(true);expenses.onclick=()=>switchMode(false);
       expenses.setAttribute('aria-pressed','true');incomes.setAttribute('aria-pressed','false');
       let state, history=false, saving=false, generation=0;
+      let focusedKey, focusedIndex=0;
+      function focusExpense(rows){
+        if(!rows.length){focusedKey=null;focusedIndex=0;return [];}
+        const same=rows.findIndex(row=>row.key===focusedKey);
+        focusedIndex=same>=0?same:Math.min(focusedIndex,rows.length-1);
+        focusedKey=rows[focusedIndex].key;
+        const nav=make('nav');nav.className='expense-pager';nav.setAttribute('aria-label','Wydatki do przypisania');
+        const position=make('span',(focusedIndex+1)+' z '+rows.length);
+        nav.append(position);
+        if(rows.length>1){
+          for(const [step,label,arrow] of [[-1,'Poprzedni wydatek','‹'],[1,'Następny wydatek','›']]){
+            const b=make('button',arrow);b.type='button';b.setAttribute('aria-label',label);
+            b.disabled=!rows[focusedIndex+step];
+            b.onclick=()=>{focusedKey=rows[focusedIndex+step].key;render();list.querySelector('article strong')?.focus({preventScroll:true});};
+            nav.append(b);
+          }
+        }
+        list.append(nav);
+        return [rows[focusedIndex]];
+      }
       function renderNotices() {
         const old = root.querySelector('.account-notice-list');
         if (old) old.remove();
@@ -1410,7 +1457,8 @@
         progress();
         if (!visible.length) list.append(make('p',history?'Historia jest pusta.':'Brak kolejnych wydatków do przypisania.'));
         const pickerMonths=new Map();
-        for (const row of visible.slice().sort((a,b)=>b.date.localeCompare(a.date))) {
+        const ordered=visible.slice().sort((a,b)=>b.date.localeCompare(a.date));
+        for (const row of history?ordered:focusExpense(ordered)) {
           if(editors.has(row.key)){list.append(editors.get(row.key));continue;}
           const card=make('article'), command=state.byKey.get(row.key);
           if(!history)card.dataset.expenseKey=row.key;
@@ -1421,6 +1469,7 @@
             const category=row.decision?.sheetName || command?.request.sheetName;
             if(category)card.append(make('small',category));
           } else {
+            card.querySelector('strong').tabIndex=-1;
             if(command?.result)card.append(make('p',command.result));
             const category=make('select'),target=make('select'),save=make('button','Zapisz przypisanie');
             category.setAttribute('aria-label','Kategoria');target.setAttribute('aria-label','Pozycja budżetu');
@@ -1458,23 +1507,24 @@
               target.disabled=target.length<=1; save.disabled=true;
             };
             category.onchange();target.onchange=()=>save.disabled=!target.value;
+            const renderedData=state.data;
             save.onclick=()=>{
-              if(!target.value)return;
+              if(save.disabled||!target.value)return;
+              const valid=state.data.existingRows.some(t=>t.key===target.value && t.sheet===category.value && t.month===row.date.slice(0,7));
               const req={key:row.key,date:row.date,amountCents:row.amountCents,sheetName:category.value,targetManualKey:target.value};
-              try{submitAssignment('ASSIGN_V1',req,row,state.data,null);card.remove();progress();}
-              catch(error){status.textContent=error.message;}
+              if(!valid || assignmentGuard(renderedData,req)!==assignmentGuard(state.data,req)){
+                render();status.textContent='Dane zakupu lub kategorii zmieniły się. Sprawdź wybór.';return;
+              }
+              try{
+                submitAssignment('ASSIGN_V1',req,row,state.data,null);
+                (list.querySelector('.pick-quick,.pick-open')||pendingTab).focus({preventScroll:true});
+              }catch(error){status.textContent=error.message;}
             };
             const previous=storedAssignment(row.key);
-            if(previous?.phase==='error' && previous.method==='ASSIGN_V1'){
-              category.value=previous.request.sheetName;category.onchange();
-              target.value=previous.request.targetManualKey;target.onchange();
-            }
             const tools=make('details');tools.className='pick-tools';tools.append(make('summary','Wybór według kategorii'),category,trip,addTrip,target);
-            const split=make('div');split.className='split-toggle';const no=make('button','Nie'),yes=make('button','Tak');
-            no.setAttribute('aria-pressed','true');yes.setAttribute('aria-pressed','false');
-            split.append(make('span','Podzielić wydatek?'),no,yes);
-            yes.onclick=()=>openForm('expense-editor.html','Podział wydatku',{key:row.key,mode:'split'});
-            const pick=make('button','Wybierz pozycję');pick.className='pick-open';
+            const split=make('button','Podziel kwotę');split.className='expense-split-link';
+            split.onclick=()=>openForm('expense-editor.html','Podział wydatku',{key:row.key,mode:'split'});
+            const pick=make('button','Wybierz kategorię');pick.className='pick-open';
             const freshItem=label=>openForm('expense-editor.html','Nowa pozycja',{key:row.key,mode:'new',label});
             const month=row.date.slice(0,7);
             if(!pickerMonths.has(month))pickerMonths.set(month,BudgetPicker.index(state.data.existingRows,month));
@@ -1488,13 +1538,16 @@
               if(quick)quick.hidden=true;
             }
             pick.onclick=()=>BudgetPicker.open(items,hints,selectItem,freshItem);
-            category.addEventListener('change',()=>{pick.textContent='Wybierz pozycję';if(quick)quick.hidden=true;});
-            card.append(split);
+            category.addEventListener('change',()=>{pick.textContent='Wybierz kategorię';if(quick)quick.hidden=true;});
+            if(previous?.phase==='error' && previous.method==='ASSIGN_V1'){
+              const item=items.find(t=>t.key===previous.request.targetManualKey && t.sheet===previous.request.sheetName);
+              if(item)selectItem(item);
+            }
             if(shortcut && !previous){
               quick=make('button','Przypisz do: '+shortcut.label.replace(/^[-\s]+/,''));quick.className='pick-quick';
               quick.onclick=()=>{selectItem(shortcut);save.click();};card.append(quick);pick.textContent='Wybierz inną';
             }
-            card.append(pick,tools);
+            card.append(pick);
             if(row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
               const group=make('div');group.className='split-toggle';
               for(const [label,caption] of [['ETF Julka','Julka'],['ETF Olek','Olek'],['XTB ETF po połowie','Po połowie']]){
@@ -1502,13 +1555,12 @@
                   t.sheet==='T4 Finansowe' && t.label==='Kapitał na start dzieci – '+label);
                 if(!position)continue;
                 const choice=make('button','Oszczędności · '+caption);
-                choice.onclick=()=>{category.value=position.sheet;category.onchange();
-                  target.value=position.key;target.onchange();pick.textContent=position.label;};
+                choice.onclick=()=>selectItem(position);
                 group.append(choice);
               }
               if(group.childElementCount)card.append(group);
             }
-            card.append(save);
+            save.className='expense-save';card.append(save,split,tools);
           }
           list.append(card);
         }
@@ -1586,7 +1638,7 @@
         const seq=++generation;status.textContent='Pobieranie kolejki…';
         try {
           const next=await phoneQueue();if(seq!==generation||!root.isConnected)return;
-          state=next;render();followPosting(next);root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
+          state=next;render();followPosting(next);window.budgetDiagnosticMark('queue-current');status.textContent=message||'Stan kolejki z '+new Date(state.stamp).toLocaleString('pl-PL');
           lastCountRead=0;refreshExpenseCount(next);
         }catch(e){
           if(seq!==generation || !root.isConnected)return;
@@ -1594,7 +1646,7 @@
           status.textContent=state?'Nie udało się odświeżyć. Ostatni odczyt: '+new Date(state.stamp).toLocaleString('pl-PL')+'.':'Nie udało się wczytać listy. Wybierz „Odśwież”, aby spróbować ponownie.';
         }
       }
-      refresh.onclick=()=>{if(!saving)reload();};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
+      refresh.onclick=()=>{if(!saving){reload();root.querySelector('.u47-control')?.dispatchEvent(new Event('refresh-settlement'));}};pendingTab.onclick=()=>{history=false;render();};historyTab.onclick=()=>{history=true;render();};
       reload();
     };
   }

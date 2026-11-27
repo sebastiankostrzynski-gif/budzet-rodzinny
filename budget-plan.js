@@ -29,18 +29,29 @@ const BudgetPlan = (() => {
     const month=data.year+'-'+String(data.monthNumber).padStart(2,'0');
     return (((window.budgetViewerRole==='owner'?window.expensePreview?.base(data):null)??Math.round(Number(data.wolneSrodki)*100))+(plan.offsets[month]||0))/100;
   }
+  function savingsCaption(month){
+    const cents=cachedOffsets()?.monthlySaved?.[month]||0;
+    if(!cents)return '';
+    const decimals=cents%100===0?0:2;
+    const amount=(cents/100).toLocaleString('pl-PL',{useGrouping:true,minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+    return 'Po odłożeniu '+amount+' zł na oszczędności';
+  }
   function remember(state){
     if(!Number.isSafeInteger(state?.revision)||!Array.isArray(state.entries))return;
     const previous=cachedOffsets();
-    if(previous && (previous.revision>state.revision || (previous.revision===state.revision && previous.savings)))return;
-    const offsets={}, savings={};
+    if(previous && (previous.revision>state.revision || (previous.revision===state.revision && previous.monthlySaved)))return;
+    const offsets={}, savings={}, monthlySaved={};
     for(const e of state.entries){
       if(!Number.isSafeInteger(e.cents))return;
+      if(e.cancelled)continue;
       offsets[e.source]=(offsets[e.source]||0)-e.cents;
-      if(e.kind==='save' && !e.cancelled && !e.transfer)savings[e.source]=(savings[e.source]||0)+e.cents;
+      if(e.kind==='save'){
+        monthlySaved[e.source]=(monthlySaved[e.source]||0)+e.cents;
+        if(!e.transfer)savings[e.source]=(savings[e.source]||0)+e.cents;
+      }
       if(e.target)offsets[e.target]=(offsets[e.target]||0)+e.cents;
     }
-    confirmed={revision:state.revision,offsets,savings};
+    confirmed={revision:state.revision,offsets,savings,monthlySaved};
     try{localStorage.setItem(cacheKey,JSON.stringify(confirmed));}catch{}
     document.dispatchEvent(new Event('budget-plan-balance'));
   }
@@ -64,6 +75,8 @@ const BudgetPlan = (() => {
         const value=available(data);
         const amount=card.querySelector('.main-card-value');
         amount.textContent=value===null?'…':money(Math.round(value*100));
+        const caption=card.querySelector('.main-card-description');
+        if(caption)caption.textContent=savingsCaption(month)||'Środki pozostające po bieżących wydatkach';
         card.classList.toggle('main-card-negative',value!==null && value<0);
         const status=card.querySelector('.main-card-status');
         if(status)status.lastChild.textContent=canEdit && window.expensePreview?.base(data)!=null?'Po przypisaniu · podgląd':value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';
@@ -181,5 +194,5 @@ const BudgetPlan = (() => {
     const byMonth=cachedOffsets()?.savings || {};
     return Object.entries(byMonth).reduce((sum,[source,cents])=>source<=month?sum+cents:sum,0)/100;
   }
-  return {mount,totals,available,remember,reservedSavings};
+  return {mount,totals,available,remember,reservedSavings,savingsCaption};
 })();

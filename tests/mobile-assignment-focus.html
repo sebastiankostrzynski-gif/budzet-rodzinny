@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../finance-ui.css">
+<link rel="stylesheet" href="../category-art-test.css">
+<title>Przypisywanie na telefonie</title>
+<main id="app"><div class="assignment-wrap"></div></main>
+<pre id="result">Uruchamianie…</pre>
+<script>
+const fixtureValues=new Map();
+Object.defineProperty(window,'localStorage',{value:{
+  getItem:key=>fixtureValues.get(key)??null,
+  setItem(key,value){fixtureValues.set(key,value);Object.defineProperty(this,key,{value,configurable:true,enumerable:true});},
+  removeItem(key){fixtureValues.delete(key);delete this[key];}
+}});
+</script>
+<script src="../budget-picker.js"></script>
+<script src="../budget-plan.js"></script>
+<script>
+(async()=>{
+  const lines=[];
+  function check(value,label){if(!value)throw Error(label);lines.push(label);}
+  const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+  const find=(selector,text)=>[...document.querySelectorAll(selector)].find(el=>el.textContent===text);
+  const source=await (await fetch('../private-budget.js')).text();
+  const part=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
+  const month='2026-11',sheet='T4 Finansowe';
+  const item={key:'sklep',label:'Sklep',month,sheet};
+  const items=[item,...['ETF Julka','ETF Olek','XTB ETF po połowie'].map((label,i)=>({...item,key:'child'+i,label:'Kapitał na start dzieci – '+label}))];
+  const row={key:'one',date:month+'-26',amountCents:1800,description:'Sklep A',account:'R2',currency:'PLN'};
+  const rows=[row,{...row,key:'two',description:'XTB S.A.'},{...row,key:'three',description:'Kino'}];
+  const history=['past1','past2'].map(key=>({...row,key,decision:{action:'EXISTING_ROW',targetManualKey:item.key}}));
+  const state={data:{rows:[...rows,...history],existingRows:items,expenseSheets:[sheet]},pending:rows,rows:[...rows,...history],stamp:new Date().toISOString(),byKey:new Map()};
+  let control=0, receipt='', attempt, writes=0;
+  const transport=async(path,options)=>{
+    if(decodeURIComponent(path).includes('U47')){
+      if(control===null)throw Error('offline');
+      return {values:[[control]]};
+    }
+    if(options){attempt=JSON.parse(options.body).values[0];writes++;return {updates:{updatedRange:'Sheet!A2:D2'}};}
+    return {values:[[attempt[0],attempt[1],'',receipt]]};
+  };
+  try{
+    // Use the live view, picker and durable assignment writer, with an isolated receipt transport.
+    const integration=new Function('phoneQueue','queueSheets',`
+      const assignmentPrefix='fixture-focus:',assignmentWork=new Map(),assignmentEvent='budget-assignment-progress';
+      const queueRange=r=>r, formSheet=r=>r, receiptKey='fixture-form',travelSheet='T13',tripCreator=()=>document.createElement('button');
+      let lastCountRead=0,lastEditorData,activeForm,formNotice,manualPublished;function refreshExpenseCount(){}
+      window.openAssignments_=()=>{};window.budgetDiagnosticMark=()=>{};
+      function trackPreview(){}
+      ${part('  function storedAssignment(', '  // Freeze')}
+      ${part('  function recordAssignment(', '  function resumeAssignments(')}
+      ${part('  function mountSettlementControl(', '  let countBusy')}
+      installAssignmentView();window.openAssignments_();
+      return {deliverAssignment,storedAssignment};
+    `);
+    window.budgetViewerRole='owner';
+    const engine=integration(async()=>state,transport);
+    await tick();
+    const panel=document.querySelector('.u47-control');
+    check(!panel.open && panel.dataset.state==='ok','Zgodne rozliczenie jest zwinięte');
+    panel.querySelector('summary').click();
+    const time=panel.querySelector('time').dateTime;
+    check(!!time && panel.querySelector('strong').textContent.includes('0,00'),'Szczegóły pokazują datę odczytu i kwotę');
+    control=12.34;panel.querySelector('button').click();await tick();
+    check(panel.open && panel.dataset.state==='difference' && panel.querySelector('strong').textContent.includes('12,34'),'Różnica jest rozwinięta');
+    control=null;panel.querySelector('button').click();await tick();
+    check(panel.open && panel.dataset.state==='unknown' && panel.querySelector('time').textContent.startsWith('Ostatni odczyt'),'Błąd odczytu zachowuje datowany wynik');
+    control=0;panel.querySelector('button').click();await tick();
+    check(!panel.open && panel.dataset.state==='ok','Powrót do zera zwija kontrolę');
+    check(document.querySelectorAll('[data-expense-key]').length===1 && document.querySelector('.expense-pager span').textContent==='1 z 3','Jedna karta i licznik');
+    document.querySelector('[aria-label="Następny wydatek"]').click();
+    check(document.querySelector('.expense-pager span').textContent==='2 z 3' && find('button','Oszczędności · Po połowie'),'Przejście dalej i wybór podziału oszczędności XTB');
+    document.querySelector('[aria-label="Poprzedni wydatek"]').click();
+    const started=performance.now();
+    document.querySelector('.pick-quick').click();
+    const duration=performance.now()-started;
+    check(document.querySelector('[data-expense-key]').dataset.expenseKey==='two' && document.querySelector('.assignment-progress').textContent.includes('Trwa zapis · 1'),'Następny zakup od razu, przed odpowiedzią serwera');
+    check(!document.querySelector('.assignment-progress').textContent.includes('Zapisano'),'Brak przedwczesnego potwierdzenia');
+    await tick();await tick();
+    receipt='Błąd: sprawdź wybór';await engine.deliverAssignment('one');
+    check(engine.storedAssignment('one').phase==='error','Odmowa zachowana do sprawdzenia');
+    document.querySelector('[aria-label="Poprzedni wydatek"]').click();
+    check(!document.querySelector('.expense-save').disabled && document.querySelector('.pick-open').textContent==='Sklep','Poprzedni wybór dostępny do ponowienia');
+    receipt='';document.querySelector('.expense-save').click();await tick();await tick();
+    receipt='OK';await engine.deliverAssignment('one');await tick();
+    check(document.querySelector('.assignment-progress').textContent.includes('Zapisano') && writes===2,'Potwierdzenie po odpowiedzi OK, jedno żądanie na próbę');
+    find('button','Historia · 2').click();
+    check(document.querySelectorAll('article.phone-expense').length===2,'Pełna historia pozostaje dostępna');
+    find('button','Do przypisania · 2').click();
+    find('button','Podziel kwotę').click();
+    check(document.querySelector('iframe').src.includes('entryMode=split') && document.querySelector('iframe').src.includes('entryKey=two'),'Podział wskazuje właściwy zakup');
+    document.querySelector('iframe').dispatchEvent(new Event('assignment-enqueued'));await tick();
+    check(!document.querySelector('iframe') && !document.querySelector('.assignment-wrap').hidden,'Powrót z podziału do kolejki po przyjęciu zapisu');
+    document.querySelector('#app').innerHTML='<details class="monthly-settlement"><summary class="main-card"><strong class="main-card-value"></strong><small class="main-card-description"></small></summary><div id="plan"></div></details>';
+    const entry={kind:'save',source:month,cents:200000}, carry={kind:'carry',source:month,target:'2026-12',cents:50000};
+    const data={year:2026,monthNumber:11,wolneSrodki:6000};
+    const api={read:async()=>({revision:2,entries:[entry,carry]}),pending:()=>null};
+    for(const role of ['owner','viewer']){
+      window.budgetViewerRole=role;await BudgetPlan.mount(document.querySelector('#plan'),data,api);
+      check(document.querySelector('.main-card-description').textContent.replace(/\s/g,' ')==='Po odłożeniu 2 000 zł na oszczędności' && BudgetPlan.available(data)===3500 && !document.querySelector('.monthly-settlement').open,'Wolne środki i rezerwacja dla '+role);
+    }
+    BudgetPlan.remember({revision:3,entries:[{...entry,cents:12345,transfer:'linked'}]});
+    check(BudgetPlan.savingsCaption(month).includes('123,45') && BudgetPlan.reservedSavings(month)===0 && !BudgetPlan.savingsCaption('2026-12'),'Powiązanie, grosze i izolacja miesiąca');
+    BudgetPlan.remember({revision:4,entries:[]});
+    check(!BudgetPlan.savingsCaption(month) && BudgetPlan.available(data)===6000,'Cofnięcie usuwa opis i przywraca kwotę');
+    const index=await (await fetch('../index.html')).text();
+    BudgetPlan.remember({revision:5,entries:[entry]});
+    const privacy=new Function('amountsHidden_',index.slice(index.indexOf('const amountOriginal_'),index.indexOf('function toggleAmounts_'))+';return applyAmountPrivacy_');
+    privacy(true)();
+    check(!document.querySelector('.main-card-description').textContent.includes('2'),'Tryb prywatny zasłania kwotę rezerwacji');
+    document.querySelector('#result').textContent='OK\n'+lines.join('\n')+'\nPrzejście do następnego wydatku: '+duration.toFixed(1)+' ms';
+  }catch(error){document.querySelector('#result').textContent='Błąd: '+error.stack+'\n'+lines.join('\n');}
+})();
+</script>

@@ -4406,7 +4406,7 @@ function alerty24Start_() {
                         ? 'Wpływy były wyższe od wydatków · miesiąc zamknięty'
                         : 'Wpływy pokryły wydatki · miesiąc zamknięty'
                   )
-                : 'Środki pozostające po bieżących wydatkach'
+                : (window.budgetPlanApi && BudgetPlan.savingsCaption(data.year+'-'+String(data.monthNumber).padStart(2,'0'))) || 'Środki pozostające po bieżących wydatkach'
             }
           </div>
 
