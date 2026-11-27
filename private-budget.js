@@ -844,6 +844,7 @@
       if(obsoleteError || (job?.phase==='confirmed' && (row.decision || row.postedEvidence || (job.method==='ASSIGN_V1' && byKey.has(row.key)))))
         localStorage.removeItem(assignmentPrefix+row.key);
     }
+    observeCardDecisions(rows);
     return {data,rows,pending,byKey,incomeCommands,stamp,transfers};
   }
   function applyPublishedTargets(manual, published) {
@@ -910,32 +911,121 @@
   const expensePreviews=new Map();
   let previewRevision=0;
   const previewMonth=data=>data.year+'-'+String(data.monthNumber).padStart(2,'0');
+  // The command receipt acknowledges the decision. The card importer posts
+  // its expense later, identified by the Gmail ID in column A of the ledger.
+  const cardPreviewKey='budget-card-preview:'+testFileId;
+  function rememberCardPreview(month,group){
+    try{
+      const items=Array.from(group?.items||[]).filter(([,item])=>item.card);
+      if(items.length && items.length===group.items.size)sessionStorage.setItem(cardPreviewKey+month,JSON.stringify({base:group.base,items}));
+      else sessionStorage.removeItem(cardPreviewKey+month);
+    }catch{}
+  }
+  function previewGroup(month){
+    if(!expensePreviews.has(month)){
+      try{
+        const saved=JSON.parse(sessionStorage.getItem(cardPreviewKey+month));
+        if(saved && Number.isSafeInteger(saved.base))expensePreviews.set(month,{base:saved.base,items:new Map(saved.items)});
+      }catch{}
+    }
+    return expensePreviews.get(month);
+  }
+  function isCardExpense(row,req){
+    return row.accountLabel==='R1' && /^alerty24-queue\|[a-f0-9]+$/.test(row.key) &&
+      /^T(?:[4-9]|1[0-5])\b/.test(req.sheetName||'');
+  }
+  // Restore decisions made before a reload or on another device. Establish
+  // their baseline from the same Sheets read as their posting evidence.
+  function observeCardDecisions(rows){
+    const data=typeof dashboardData==='undefined'?null:dashboardData;
+    if(!data || data.isClosedMonth)return;
+    const month=previewMonth(data);
+    const candidates=rows.filter(row=>row.date?.slice(0,7)===month && !row.postedEvidence &&
+      !row.bridgeArchived && !row.bridgeBlocked && !row.targetNeedsReview && row.currency==='PLN' &&
+      ['NEW_ROW','EXISTING_ROW'].includes(row.decision?.action) && isCardExpense(row,row.decision));
+    if(candidates.length)checkCardPreview(data,candidates);
+  }
+  let cardCheckBusy=false;
+  async function checkCardPreview(data,candidates=[]){
+    const month=previewMonth(data);
+    const group=previewGroup(month);
+    if(cardCheckBusy || document.hidden || window.budgetViewerRole!=='owner' ||
+      (!candidates.length && !Array.from(group?.items.values()||[]).some(i=>i.card)))return;
+    cardCheckBusy=true;
+    const revision=previewRevision;
+    try{
+      // Row 4 contains the month dates. Resolve the selected month in the same read.
+      const ranges=new URLSearchParams({valueRenderOption:'UNFORMATTED_VALUE'});
+      ranges.append('ranges',"'Automat karty DEV'!A9:F");
+      const sheet="'Wykonanie "+Number(data.year)+"'!";
+      ranges.append('ranges',sheet+'C4:N4');
+      ranges.append('ranges',sheet+'C26:N26');
+      const {valueRanges}=await portfolioRequest('/values:batchGet?'+ranges);
+      const column=valueRanges[1].values?.[0]?.findIndex(serial=>typeof serial==='number' &&
+        new Date((serial-25569)*86400000).toISOString().slice(0,7)===month);
+      const actual=valueRanges[2].values?.[0]?.[column];
+      if(typeof actual!=='number' || !Number.isFinite(data.wydatki) || !Number.isFinite(data.wolneSrodki) ||
+        data!==dashboardData || revision!==previewRevision)return;
+      const posted=new Set((valueRanges[0].values||[]).filter(r=>/^POSTED_TEST(?:_|$)/.test(r[3]) && r[5]).map(r=>'alerty24-queue|'+r[0]));
+      const current=group||{base:Math.round(data.wolneSrodki*100),items:new Map()};
+      const caughtUp=Math.round(actual*100)===Math.round(data.wydatki*100);
+      for(const row of candidates){
+        if((!posted.has(row.key) || !caughtUp) && !current.items.has(row.key) && Number.isSafeInteger(row.amountCents) && row.amountCents>0){
+          current.items.set(row.key,{cents:row.amountCents,confirmed:true,card:true});
+        }
+      }
+      if(!current.items.size)return;
+      expensePreviews.set(month,current);
+      const entries=Array.from(current.items.entries());
+      const cards=entries.filter(([,i])=>i.card);
+      if(!cards.length)return;
+      if(cards.every(([k])=>posted.has(k)) && entries.every(([k,i])=>i.confirmed || posted.has(k)) && caughtUp){
+        expensePreviews.delete(month);
+        rememberCardPreview(month,null);
+      }else{
+        if(cards.length===entries.length){
+          const included=cards.reduce((sum,[key,item])=>sum+(posted.has(key)?item.cents:0),0);
+          current.base=Math.round(data.wolneSrodki*100)+Math.round(data.wydatki*100)-Math.round(actual*100)+included;
+        }
+        rememberCardPreview(month,current);
+        if(!caughtUp && activeView_==='dashboard')refreshDashboardSilently_();
+      }
+      previewRevision++;
+      document.dispatchEvent(new Event('budget-plan-balance'));
+    }catch{/* Keep the last preview until a verified read succeeds. */}
+    finally{cardCheckBusy=false;}
+  }
+  setInterval(()=>{
+    if(typeof dashboardData!=='undefined' && dashboardData && !dashboardData.isClosedMonth && activeView_==='dashboard')
+      checkCardPreview(dashboardData);
+  },15000);
   function trackPreview(job){
     const key=jobKey(job), req=job.request;
     const month=(job.previewDate||req.date)?.slice(0,7);
-    let group=expensePreviews.get(month);
+    let group=previewGroup(month);
     if(job.phase==='ready' && job.previewEligible && !group?.items.has(key)){
       const data=typeof dashboardData==='undefined'?null:dashboardData;
       if(!data || data.isClosedMonth || previewMonth(data)!==month)return;
       const cents=job.previewCents;
       if(!Number.isSafeInteger(cents)||cents<=0||(data.wolneSrodki==null||!Number.isFinite(Number(data.wolneSrodki))))return;
       if(!group){group={base:Math.round(data.wolneSrodki*100),items:new Map()};expensePreviews.set(previewMonth(data),group);}
-      group.items.set(key,{cents,confirmed:false});previewRevision++;
+      group.items.set(key,{cents,confirmed:false,card:job.cardExpense===true});previewRevision++;
     }
     const item=group?.items.get(key);if(!item)return;
     if(job.phase==='error'){group.items.delete(key);previewRevision++;if(!group.items.size)expensePreviews.delete(month);}
     if(job.phase==='confirmed' && !item.confirmed){item.confirmed=true;previewRevision++;}
+    rememberCardPreview(month,group);
     document.dispatchEvent(new Event('budget-plan-balance'));
   }
   window.expensePreview={
     revision:()=>previewRevision,
     base(data){
-      const g=expensePreviews.get(previewMonth(data));
+      const g=previewGroup(previewMonth(data));
       return g?g.base-Array.from(g.items.values()).reduce((sum,i)=>sum+i.cents,0):null;
     },
     settle(data,revision){
       const month=previewMonth(data),g=expensePreviews.get(month);
-      if(g && revision===previewRevision && Array.from(g.items.values()).every(i=>i.confirmed)){
+      if(g && revision===previewRevision && Array.from(g.items.values()).every(i=>i.confirmed && !i.card)){
         expensePreviews.delete(month);previewRevision++;
       }
     }
@@ -961,7 +1051,7 @@
     const job={id:crypto.randomUUID(),method,request:req,label:row.description,phase:'ready',
       previewEligible:!row.decision&&!row.postedEvidence&&!row.bridgeBlocked&&!row.bridgeArchived&&!row.targetNeedsReview && row.currency==='PLN' &&
         (method==='ASSIGN_V1'||['EXISTING_ROW','NEW_ROW','MULTI_SPLIT'].includes(req.action)),
-      previewCents:row.amountCents,previewDate:row.date,guard:assignmentGuard(data,req),editorDraft,startedAt:Date.now()};
+      cardExpense:isCardExpense(row,req),previewCents:row.amountCents,previewDate:row.date,guard:assignmentGuard(data,req),editorDraft,startedAt:Date.now()};
     recordAssignment(job);
     runAssignment(req.key);
   }

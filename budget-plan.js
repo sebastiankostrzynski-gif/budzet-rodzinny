@@ -76,7 +76,11 @@ const BudgetPlan = (() => {
         const amount=card.querySelector('.main-card-value');
         amount.textContent=value===null?'…':money(Math.round(value*100));
         const caption=card.querySelector('.main-card-description');
-        if(caption)caption.textContent=savingsCaption(month)||'Środki pozostające po bieżących wydatkach';
+        if(caption){
+          const reserved=savingsCaption(month);
+          const pending=canEdit && window.expensePreview?.base(data)!=null;
+          caption.textContent=[pending?'Po przypisaniu · podgląd':'',reserved].filter(Boolean).join(' · ')||'Środki pozostające po bieżących wydatkach';
+        }
         card.classList.toggle('main-card-negative',value!==null && value<0);
         const status=card.querySelector('.main-card-status');
         if(status)status.lastChild.textContent=canEdit && window.expensePreview?.base(data)!=null?'Po przypisaniu · podgląd':value===null?'Obliczanie…':value<0?'Saldo ujemne':value>0?'Dostępne':'Brak wolnych środków';

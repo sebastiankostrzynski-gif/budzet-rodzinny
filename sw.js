@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-ikze-v1';
+const SHELL_CACHE = 'budzet-rodzinny-shell-card-budget-v1';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
