@@ -48,7 +48,9 @@ button,input,select,textarea{font-family:inherit}
 .assignment-wrap .assignment-filters button:last-child{margin-inline-start:auto}
 .assignment-wrap .phone-expense>strong{overflow-wrap:anywhere}
 
-.budget-status .data-freshness{min-width:0;white-space:normal;justify-content:flex-start}
+.budget-status .data-freshness{flex:1 1 auto;min-width:0;white-space:normal;justify-content:flex-start}
+.budget-status .data-freshness>span{flex:0 1 auto;overflow-wrap:normal}
+.budget-status .data-freshness>.data-freshness-dot{flex:none}
 .budget-status button{flex-shrink:0}
 
 /* The expense is the primary task; reconciliation expands when it needs attention. */
