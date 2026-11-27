@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-active-loan-icons-v1';
+const SHELL_CACHE = 'budzet-rodzinny-shell-r2-blik-reconciliation-v1';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
