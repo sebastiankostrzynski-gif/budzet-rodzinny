@@ -12,10 +12,22 @@ const BudgetPicker=(()=>{
     return edits+a.length-i+b.length-j<=1;
   }
   const clean=s=>String(s||'').replace(/^T\d+\s+|^[-\s]+/g,'').trim();
+  function ikzeLabel(target){
+    if(target.sheet!=='T4 Finansowe')return '';
+    const match=/^Emerytura\s*[-–—]\s*(IKZE (?:Seba|Ewa))$/i.exec(String(target.label||'').trim());
+    return match?'Oszczędności · '+match[1]:'';
+  }
+  function ikzeOptions(rows,row){
+    if(!row||row.currency!=='PLN'||(row.accountLabel||row.account)!=='R2')return [];
+    const month=row.date.slice(0,7);
+    return rows.filter(target=>target.month===month && target.key && ikzeLabel(target))
+      .map(target=>({target,caption:ikzeLabel(target)}));
+  }
   function index(rows,month){
     return rows.filter(r=>r.month===month&&clean(r.label)).map(r=>{
       const path=[clean(r.sheet),clean(r.sectionName),clean(r.label)].filter(Boolean).join(' → ');
       const words=fold(path).split(/[^a-z0-9]+/);
+      if(ikzeLabel(r))words.push('oszczednosci');
       if(words.some(w=>w==='obuwie'||w==='buty'))words.push('obuwie','buty');
       return {...r,path,words,plain:fold(path)};
     });
@@ -83,5 +95,5 @@ const BudgetPicker=(()=>{
     dialog.onclose=()=>{viewport?.removeEventListener('resize',fit);viewport?.removeEventListener('scroll',fit);dialog.remove();};
     document.body.append(dialog);dialog.showModal();fit();viewport?.addEventListener('resize',fit);viewport?.addEventListener('scroll',fit);input.focus({preventScroll:true});
   }
-  return {index,search,recommendations,open};
+  return {index,search,recommendations,open,ikzeOptions};
 })();

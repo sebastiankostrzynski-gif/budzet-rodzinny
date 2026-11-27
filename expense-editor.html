@@ -150,10 +150,19 @@ async function api(method,request){
 }
 function rowDraft(row){const d=row.decision||{},split=Array.isArray(d.splits);const parts=split?d.splits.map(x=>({person:x.person,description:x.description,amount:formatInput(x.amountCents),auto:false})):[{person:'',description:'',amount:'',auto:false},{person:'',description:'',amount:'',auto:true}];if(!split)fillRemainder(parts,row.amountCents);return {sheet:d.sheetName||'',mode:d.action==='EXISTING_ROW'?'EXISTING_ROW':'NEW_ROW',target:d.targetManualKey||'',description:d.description==='Zakup podzielony'?'':d.description||'',person:d.person||'',danceSection:d.budgetSection||d.t10Section||'',section:d.t12Section||'',split,parts};}
 function buildEditor(row){const box=element('div');box.className='editor';const d=draft;if(row.targetNeedsReview){const note=element('p','Po odświeżeniu arkusza wybierz ponownie właściwą pozycję i zapisz zmianę.');note.className='notice';box.append(note);}
-  const cat=select([['','Wybierz kategorię'],...state.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')])],d.sheet,'Kategoria zakupu');cat.onchange=()=>{d.sheet=cat.value;d.danceSection='';d.mode=d.creating?'NEW_ROW':'EXISTING_ROW';d.target='';d.section='';d.person='';d.split=false;render();};box.append(field('Kategoria',cat));
+  const ikze=BudgetPicker.ikzeOptions(state.existingRows,row);
+  const chosenIkze=d.mode==='EXISTING_ROW' && ikze.find(o=>o.target.key===d.target);
+  const cat=select([['','Wybierz kategorię'],...ikze.map(o=>[o.target.key,o.caption]),
+    ...state.expenseSheets.map(x=>[x,x.replace(/^T\d+\s+/, '')])],chosenIkze?d.target:d.sheet,'Kategoria zakupu');
+  cat.onchange=()=>{
+    const saving=ikze.find(o=>o.target.key===cat.value);
+    d.sheet=saving?saving.target.sheet:cat.value;d.target=saving?saving.target.key:'';
+    d.mode=d.creating && !saving?'NEW_ROW':'EXISTING_ROW';
+    d.danceSection='';d.section='';d.person='';d.split=false;render();
+  };box.append(field('Kategoria',cat));
   if(!d.sheet)return box;const dance=!/^T12\b/.test(d.sheet);const groups=(state.sections||[]).filter(x=>x.sheet===d.sheet).map(x=>x.name);if(groups.length===1)d.danceSection=groups[0];
   const targets=state.existingRows.filter(x=>x.sheet===d.sheet&&x.month===row.date.slice(0,7));
-  const choices=element('div');choices.className='choice';for(const [value,label] of [['NEW_ROW','Osobny wpis'],['EXISTING_ROW','Dodaj do pozycji']]){const b=button(value==='EXISTING_ROW'?'Dodaj do istniejącej pozycji':'Dodaj nową pozycję',()=>{d.mode=value;render();});b.setAttribute('aria-pressed',d.mode===value);choices.append(b);}box.append(choices);
+  const choices=element('div');choices.className='choice';for(const [value,label] of [['NEW_ROW','Osobny wpis'],['EXISTING_ROW','Dodaj do pozycji']]){const b=button(value==='EXISTING_ROW'?'Dodaj do istniejącej pozycji':'Dodaj nową pozycję',()=>{d.mode=value;render();});b.setAttribute('aria-pressed',d.mode===value);choices.append(b);}if(!chosenIkze)box.append(choices);
   const competition = /^T10\b/.test(d.sheet) && groups.find(name=>/^Zawody\s*\//i.test(name));
   if(competition){
     const add=button('+ Dodaj nowe zawody Julki',()=>{
@@ -167,7 +176,7 @@ function buildEditor(row){const box=element('div');box.className='editor';const 
   let splitContainer, balance,save;
   function error(){if(!d.sheet)return 'Wybierz kategorię.';if(dance&&d.mode==='NEW_ROW'&&!d.danceSection)return 'Wybierz sekcję.';if(d.mode==='EXISTING_ROW')return targets.some(x=>x.key===d.target)?'':'Wybierz istniejącą pozycję.';if(/^T12\b/.test(d.sheet)){if(!d.section)return 'Wybierz rodzaj zakupu.';if(d.section==='CLOTHES'){if(d.split)return validateSplit(d.parts,row.amountCents);if(!d.person)return 'Wybierz osobę.';}}return d.description.trim()?'':'Napisz krótko, co kupiono.';}
   function update(){const msg=error();save.disabled=busy||!!msg;save.title=msg||'';if(balance){const sum=d.parts.reduce((s,x)=>s+(parseCents(x.amount)||0),0),left=row.amountCents-sum;balance.replaceChildren(element('span',left===0?'Cała kwota rozpisana':left>0?'Pozostało do podziału':'Przekroczono kwotę'),element('strong',money(Math.abs(left))));balance.className='balance '+(left===0?'good':'error');}}
-  if(d.mode==='EXISTING_ROW'){const t=select([['',targets.length?'Wybierz pozycję':'Brak pozycji dla tego miesiąca'],...targets.map(x=>{const group=x.sectionName;return [x.key,group?group+' → '+x.label:x.label];})],d.target,'Pozycja budżetu');t.onchange=()=>{d.target=t.value;update();};box.append(field('Do której pozycji?',t));if(dance&&!targets.length)box.append(element('p','Brak pozycji dla tego miesiąca w tym budżecie. Pozostaw zakup bez przypisania.'));}
+  if(d.mode==='EXISTING_ROW'){const t=select([['',targets.length?'Wybierz pozycję':'Brak pozycji dla tego miesiąca'],...targets.map(x=>{const group=x.sectionName;return [x.key,group?group+' → '+x.label:x.label];})],d.target,'Pozycja budżetu');t.onchange=()=>{d.target=t.value;update();};if(!chosenIkze)box.append(field('Do której pozycji?',t));if(dance&&!targets.length)box.append(element('p','Brak pozycji dla tego miesiąca w tym budżecie. Pozostaw zakup bez przypisania.'));}
   else{
     if(/^T12\b/.test(d.sheet)){const s=select([['','Wybierz rodzaj'],...sections],d.section,'Rodzaj zakupu');s.onchange=()=>{d.section=s.value;render();};box.append(field('Rodzaj zakupu',s));
       if(d.section==='CLOTHES'){const choice=element('div');choice.className='choice';[[false,'Jedna pozycja'],[true,'Podziel zakup']].forEach(([value,label])=>{const b=button(label,()=>{d.split=value;render();});b.setAttribute('aria-pressed',d.split===value);choice.append(b);});box.append(choice);
@@ -184,7 +193,8 @@ function buildEditor(row){const box=element('div');box.className='editor';const 
       renderSplits();const add=button('+ Dodaj pozycję',()=>{addSplit(d.parts,row.amountCents);renderSplits();update();});add.disabled=d.parts.length>=20;box.append(add);balance=element('div');balance.setAttribute('aria-live','polite');box.append(balance);
     }else{const isCompetition=competition && d.danceSection===competition;const desc=input(d.description,isCompetition?'Nazwa zawodów':'Co kupiono');desc.maxLength=200;desc.placeholder='Krótka nazwa wydatku';desc.oninput=()=>{d.description=desc.value;update();};box.append(field(isCompetition?'Nazwa zawodów':dance?'Nazwa nowej pozycji':'Co kupiono?',desc));}
   }
-  if(row.sourceLabel==='Bank')box.append(element('p','Po przypisaniu automat zapisze wydatek w wybranej kategorii.'));
+  if(chosenIkze)box.append(element('p','Wpłata trafi do oszczędności emerytalnych za miesiąc przelewu.'));
+  else if(row.sourceLabel==='Bank')box.append(element('p','Po przypisaniu automat zapisze wydatek w wybranej kategorii.'));
   const actions=element('div');actions.className='actions';save=button(row.decision?'Zapisz zmianę':'Zapisz przypisanie',()=>{const problem=error();if(problem){announce(problem,true);return;}const split=d.mode==='NEW_ROW'&&/^T12\b/.test(d.sheet)&&d.section==='CLOTHES'&&d.split;api('save',{revision:state.revision,key:row.key,action:d.mode,sheetName:d.sheet,targetManualKey:d.target||undefined,description:split?'Zakup podzielony':d.description.trim(),person:d.person||undefined,budgetSection:dance&&d.mode==='NEW_ROW'?d.danceSection:undefined,t12Section:d.section||undefined,splits:split?d.parts.map(x=>({person:x.person,description:x.description.trim(),amountCents:parseCents(x.amount)})):undefined});},'primary');actions.append(save,button('Później',()=>api('save',{revision:state.revision,key:row.key,action:'DEFER'}),'quiet'),button('Anuluj',()=>{opened=null;draft=null;render();},'quiet'));box.append(actions);update();return box;
 }
 function render(){if(!state)return;$('rows').replaceChildren();backgroundNotice();const hidden=new Set(backgroundJobs().filter(j=>j.phase!=='error').map(j=>j.request.key));const list=state.rows.filter(r=>!r.bridgeArchived && !hidden.has(r.key)),pending=list.filter(r=>!r.decision&&!r.postedEvidence&&!r.bridgeBlocked),saved=list.filter(r=>r.decision||r.postedEvidence||r.bridgeBlocked);$('pendingTab').textContent='Do przypisania · '+pending.length;$('savedTab').textContent='Historia · '+saved.length;['pending','saved'].forEach(t=>$(t+'Tab').setAttribute('aria-pressed',tab===t));const q=$('search').value.trim().toLocaleLowerCase('pl');const shown=(tab==='pending'?pending:saved).filter(r=>(r.description+' '+money(r.amountCents)).toLocaleLowerCase('pl').includes(q)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -273,20 +283,23 @@ api('list');
             p.mode='EXISTING_ROW';p.sheetName=choice.sheet;p.targetManualKey=choice.key;refresh();
           },label=>{p.mode='NEW_ROW';p.targetManualKey='';p.description=label;refresh();});
         });card.append(quick);
-        const savingsTargets=row.currency==='PLN' && /\bXTB\b/i.test(row.description||'')
+        const xtbTargets=row.currency==='PLN' && /\bXTB\b/i.test(row.description||'')
           ? state.existingRows.filter(target=>target.month===row.date.slice(0,7) && target.sheet==='T4 Finansowe' &&
               ['Kapitał na start dzieci – ETF Julka','Kapitał na start dzieci – ETF Olek'].includes(target.label)) : [];
-        const savingsChoices=savingsTargets.map(target=>[target.key,'Oszczędności · '+target.label.split(' ').pop()]);
-        const chosenSaving=savingsTargets.some(target=>target.key===p.targetManualKey);
+        const ikze=BudgetPicker.ikzeOptions(state.existingRows,row);
+        const savingsTargets=[...xtbTargets,...ikze.map(o=>o.target)];
+        const savingsChoices=[...xtbTargets.map(target=>[target.key,'Oszczędności · '+target.label.split(' ').pop()]),
+          ...ikze.map(o=>[o.target.key,o.caption])];
+        const chosenSaving=p.mode==='EXISTING_ROW' && savingsTargets.some(target=>target.key===p.targetManualKey);
         const category=control('Kategoria', [['','Wybierz kategorię'],...savingsChoices,...state.expenseSheets.map(x=>[x,clean(x)])],chosenSaving?p.targetManualKey:p.sheetName,v=>{
           const saving=savingsTargets.find(target=>target.key===v);
           p.sheetName=saving?saving.sheet:v;p.targetManualKey=saving?saving.key:'';
           if(saving)p.mode='EXISTING_ROW';
           p.t10Section='';p.t12Section='';p.person='';refresh();});card.append(category);
-        const mode=control('Gdzie zapisać?', [['EXISTING_ROW','Dodaj do istniejącej pozycji'],['NEW_ROW','Nowa pozycja']],p.mode,v=>{p.mode=v;refresh();});card.append(mode);
+        const mode=control('Gdzie zapisać?', [['EXISTING_ROW','Dodaj do istniejącej pozycji'],['NEW_ROW','Nowa pozycja']],p.mode,v=>{p.mode=v;refresh();});if(!chosenSaving)card.append(mode);
         if(p.mode==='EXISTING_ROW'){
           const rows=state.existingRows.filter(x=>x.sheet===p.sheetName&&x.month===row.date.slice(0,7));
-          card.append(control('Pozycja', [['','Wybierz pozycję'],...rows.map(x=>[x.key,x.label])],p.targetManualKey,v=>{p.targetManualKey=v;status();}));
+          if(!chosenSaving)card.append(control('Pozycja', [['','Wybierz pozycję'],...rows.map(x=>[x.key,x.label])],p.targetManualKey,v=>{p.targetManualKey=v;status();}));
         }else{
           if(/^T10\b/.test(p.sheetName))card.append(control('Część Tańca Julki',[['','Wybierz część'],...t10],p.t10Section,v=>{p.t10Section=v;status();}));
           if(/^T12\b/.test(p.sheetName)){
@@ -388,10 +401,18 @@ api('list');
     box.append(element('p','Obecnie: '+loaded.current.map(p=>p.label+' · '+money(p.amountCents)).join(' / ')));
     box.append(element('p','Wybierz nowe pozycje. Saldo konta i karty pozostanie bez zmian.'));
     const list=element('div'),status=element('div');status.className='balance';box.append(list);
+    const purchase=state.rows.find(row=>row.key===openedKey);
+    const ikze=BudgetPicker.ikzeOptions(state.existingRows,purchase);
     function rerender(){list.replaceChildren();lines.forEach((part,i)=>{
       const group=element('div');group.className='split';group.append(element('h3','Część '+(i+1)));
-      const category=select([['','Wybierz kategorię'],...state.expenseSheets.map(s=>[s,s.replace(/^T\d+\s+/, '')])],part.sheetName,'Kategoria '+(i+1));
-      category.onchange=()=>{part.sheetName=category.value;part.newClothing=false;part.targetManualKey='';rerender();};group.append(field('Kategoria',category));
+      const saving=ikze.find(o=>o.target.key===part.targetManualKey);
+      const category=select([['','Wybierz kategorię'],...ikze.map(o=>[o.target.key,o.caption]),
+        ...state.expenseSheets.map(s=>[s,s.replace(/^T\d+\s+/, '')])],saving?part.targetManualKey:part.sheetName,'Kategoria '+(i+1));
+      category.onchange=()=>{
+        const next=ikze.find(o=>o.target.key===category.value);
+        part.sheetName=next?next.target.sheet:category.value;part.targetManualKey=next?next.target.key:'';
+        part.newClothing=false;rerender();
+      };group.append(field('Kategoria',category));
       if(part.sheetName==='T12 Ubrania i prezenty'){
         const mode=select([['existing','Istniejąca pozycja'],['new','Nowe ubranie dla Ewy']],part.newClothing?'new':'existing','Sposób przypisania');
         mode.onchange=()=>{part.newClothing=mode.value==='new';rerender();};
@@ -401,8 +422,8 @@ api('list');
         const name=input(part.description,'Nazwa ubrania '+(i+1));name.maxLength=100;
         name.oninput=()=>{part.description=name.value;update();};
         group.append(field('Nazwa ubrania',name));
-      }else{
-        const choices=state.existingRows.filter(x=>x.sheet===part.sheetName&&x.month==='2026-11');
+      }else if(!saving){
+        const choices=state.existingRows.filter(x=>x.sheet===part.sheetName&&x.month===purchase?.date.slice(0,7));
         const target=select([['','Wybierz pozycję'],...choices.map(x=>[x.key,x.label])],part.targetManualKey,'Pozycja '+(i+1));
         target.onchange=()=>{part.targetManualKey=target.value;update();};group.append(field('Pozycja budżetu',target));
       }

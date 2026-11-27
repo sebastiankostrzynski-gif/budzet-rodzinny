@@ -1562,11 +1562,15 @@
             const category=make('select'),target=make('select'),save=make('button','Zapisz przypisanie');
             category.setAttribute('aria-label','Kategoria');target.setAttribute('aria-label','Pozycja budżetu');
             category.add(new Option('Wybierz kategorię',''));
+            const ikze=BudgetPicker.ikzeOptions(state.data.existingRows,row);
+            for(const option of ikze)category.add(new Option(option.caption,option.target.key));
             for(const sheet of state.data.expenseSheets)category.add(new Option(sheet.replace(/^T\d+\s+/,''),sheet));
             const trip=make('select'),addTrip=tripCreator();
             trip.setAttribute('aria-label','Wyjazd');trip.hidden=true;addTrip.hidden=true;
             category.onchange=()=>{
               trip.hidden=true;addTrip.hidden=true;
+              const saving=ikze.find(o=>o.target.key===category.value);
+              if(saving){selectItem(saving.target);return;}
               if(/^T12\b/.test(category.value)){
                 target.disabled=true;save.disabled=true;
                 openForm('expense-editor.html','Nowe ubranie lub prezent',{key:row.key});
@@ -1598,8 +1602,10 @@
             const renderedData=state.data;
             save.onclick=()=>{
               if(save.disabled||!target.value)return;
-              const valid=state.data.existingRows.some(t=>t.key===target.value && t.sheet===category.value && t.month===row.date.slice(0,7));
-              const req={key:row.key,date:row.date,amountCents:row.amountCents,sheetName:category.value,targetManualKey:target.value};
+              const saving=ikze.find(o=>o.target.key===category.value);
+              const sheetName=saving?saving.target.sheet:category.value;
+              const valid=state.data.existingRows.some(t=>t.key===target.value && t.sheet===sheetName && t.month===row.date.slice(0,7));
+              const req={key:row.key,date:row.date,amountCents:row.amountCents,sheetName,targetManualKey:target.value};
               if(!valid || assignmentGuard(renderedData,req)!==assignmentGuard(state.data,req)){
                 render();status.textContent='Dane zakupu lub kategorii zmieniły się. Sprawdź wybór.';return;
               }
@@ -1620,13 +1626,14 @@
             const shortcut=hints.suggested[0];
             let quick;
             function selectItem(item){
-              category.value=item.sheet;trip.hidden=true;addTrip.hidden=true;
+              const saving=ikze.find(o=>o.target.key===item.key);
+              category.value=saving?item.key:item.sheet;trip.hidden=true;addTrip.hidden=true;
               target.replaceChildren(new Option(item.label,item.key));target.value=item.key;
               target.disabled=false;save.disabled=false;pick.textContent=item.label.replace(/^[-\s]+/,'');
               if(quick)quick.hidden=true;
             }
             pick.onclick=()=>BudgetPicker.open(items,hints,selectItem,freshItem);
-            category.addEventListener('change',()=>{pick.textContent='Wybierz kategorię';if(quick)quick.hidden=true;});
+            category.addEventListener('change',()=>{if(!target.value)pick.textContent='Wybierz kategorię';if(quick)quick.hidden=true;});
             if(previous?.phase==='error' && previous.method==='ASSIGN_V1'){
               const item=items.find(t=>t.key===previous.request.targetManualKey && t.sheet===previous.request.sheetName);
               if(item)selectItem(item);
@@ -1636,6 +1643,13 @@
               quick.onclick=()=>{selectItem(shortcut);save.click();};card.append(quick);pick.textContent='Wybierz inną';
             }
             card.append(pick);
+            if(ikze.length && /\bIKZE\b|\bING AKCJI EUROPEJSKICH\b/i.test(row.description)){
+              const choices=make('div');choices.className='split-toggle';
+              for(const option of ikze){
+                const choice=make('button',option.caption);choice.onclick=()=>selectItem(option.target);choices.append(choice);
+              }
+              card.append(choices);
+            }
             if(row.currency==='PLN' && /\bXTB\b/i.test(row.description)){
               const group=make('div');group.className='split-toggle';
               for(const [label,caption] of [['ETF Julka','Julka'],['ETF Olek','Olek'],['XTB ETF po połowie','Po połowie']]){
