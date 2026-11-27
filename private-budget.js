@@ -754,8 +754,50 @@
       }
     }
   }
-  async function reconcileExpenseRows(rows){
-    const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
+  const trLedgerRange = encodeURIComponent("'Trade Republic transfery TEST'!A2:H");
+  const trLabelsRange = encodeURIComponent("'Oznaczenia Trade Republic TEST'!A:B");
+  const readTradeLedger = () => queueSheets(trLedgerRange+'?valueRenderOption=UNFORMATTED_VALUE');
+  function tradeLedgerEntries(values) {
+    const entries = [];
+    for (const [id,date,from,to,value,,mail,bank] of values || []) {
+      const cents = Math.round(Number(value)*100);
+      if (!id || !Number.isSafeInteger(cents) || !cents) continue;
+      const destination = String(cents>0 ? to : from);
+      if (!/^Trade Republic\b/i.test(destination)) continue;
+      const source = String(cents>0 ? from : to);
+      const account = /\bR2\b/i.test(source) ? 'R2' : /\b(R1|9073)\b/i.test(source) ? 'R1' : '';
+      if (!account) continue;
+      const aliases = new Set([String(id)]);
+      const gmail = mail || (String(id).startsWith('mail|') && id.slice(5));
+      if (gmail) for (const prefix of ['mail|','external-mail|','alerty24-queue|']) aliases.add(prefix+gmail);
+      for (const raw of [bank, String(id).startsWith('api|') && id.slice(4)]) {
+        if (!raw) continue;
+        const key = String(raw).replace(/^(api|bank-n26)\|/,'');
+        for (const prefix of ['','api|','bank-n26|']) aliases.add(prefix+key);
+      }
+      const day = typeof date==='number' ? new Date((date-25569)*86400000).toISOString().slice(0,10) : String(date);
+      entries.push({id,aliases,account,date:day,cents});
+    }
+    return entries;
+  }
+  function identifyTradeTransfer(row, entries, incoming=false) {
+    if (row.decision || row.postedEvidence || (row.currency||'PLN')!=='PLN' || !(row.amountCents>0)) return;
+    const account = row.accountLabel || row.account;
+    const match = entries.find(e=>e.account===account && e.cents===(incoming?-row.amountCents:row.amountCents) && e.aliases.has(row.key));
+    if (match) return match;
+    const label = String(row.description||'').replace(/^\s*\*+\s*|\s*\*+\s*$/g,'').trim();
+    if (!incoming && account==='R1' && /^Trade Republic Berlin$/i.test(label) &&
+        /^(alerty24-queue|bank-n26)\|/.test(row.key)) {
+      return {id:row.key,aliases:new Set([row.key]),account,date:row.date,cents:row.amountCents,card:true};
+    }
+  }
+  async function reconcileExpenseRows(rows, transfers){
+    if (!transfers) transfers=tradeLedgerEntries((await readTradeLedger()).values);
+    for (const row of rows) {
+      const tr = identifyTradeTransfer(row,transfers);
+      if (tr) row.bridgeBlocked='TRADE_REPUBLIC_TRANSFER';
+    }
+    const unchecked=rows.filter(row=>row.accountLabel==='R2' && row.bridgeBlocked!=='TRADE_REPUBLIC_TRANSFER' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
     if(unchecked.length){
       const evidence=await postedR2Payments(unchecked);
       for(const row of unchecked){
@@ -779,7 +821,8 @@
     return {byKey,incomeCommands};
   }
   async function readPhoneQueue() {
-    const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
+    const [snapshot, commands, trLedger] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D')),readTradeLedger()]);
+    const transfers=tradeLedgerEntries(trLedger.values);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
     if (tag !== 'QUEUE_V1' || !Number.isInteger(+parts) || +parts < 1 || chunks.length < +parts)
       throw Error('Niepełny odczyt kolejki.');
@@ -787,11 +830,12 @@
     const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
     const {byKey,incomeCommands}=assignmentCommands(commands.values || []);
     if (data.income?.rows) {
+      for(const row of data.income.rows) if(identifyTradeTransfer(row,transfers,true)) row.tradeTransfer=true;
       await markSettledRedemptions(data.income.rows);
       data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
-    await reconcileExpenseRows(rows);
+    await reconcileExpenseRows(rows,transfers);
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     for(const row of rows){
@@ -800,7 +844,7 @@
       if(obsoleteError || (job?.phase==='confirmed' && (row.decision || row.postedEvidence || (job.method==='ASSIGN_V1' && byKey.has(row.key)))))
         localStorage.removeItem(assignmentPrefix+row.key);
     }
-    return {data,rows,pending,byKey,incomeCommands,stamp};
+    return {data,rows,pending,byKey,incomeCommands,stamp,transfers};
   }
   function applyPublishedTargets(manual, published) {
     if (!Array.isArray(published.existingRows) || !Array.isArray(published.expenseSheets))
@@ -815,7 +859,7 @@
   function pendingIncome(state) {
     return (state.data.income?.rows || []).filter(row => {
       const command = state.incomeCommands.get(row.key);
-      return !row.settledRedemption && !row.decision && !incomeReceiptActive(command);
+      return !row.tradeTransfer && !row.settledRedemption && !row.decision && !incomeReceiptActive(command);
     });
   }
   const formMethods = {
@@ -911,6 +955,7 @@
       row.decision||null,!!row.bridgeArchived,!!row.postedEvidence,!!row.bridgeBlocked,!!row.targetNeedsReview],targets]);
   }
   function submitAssignment(method,req,row,data,editorDraft){
+    if (row.bridgeBlocked==='TRADE_REPUBLIC_TRANSFER') throw Error('To zasilenie Trade Republic.');
     const prev=storedAssignment(req.key);
     if(prev && prev.phase!=='error')throw Error('Ten wydatek już czeka na potwierdzenie.');
     const job={id:crypto.randomUUID(),method,request:req,label:row.description,phase:'ready',
@@ -1441,6 +1486,47 @@
         }
         list.after(section);
       }
+      function tradeFundingPanel() {
+        const panel=make('details'), summary=make('summary','Zasilenia Trade Republic');
+        panel.className='phone-expense'; panel.append(summary);
+        panel.ontoggle=async()=>{
+          if (!panel.open || panel.childElementCount>1) return;
+          const body=make('div'), message=make('small','Wczytywanie…');panel.append(body);body.append(message);
+          try {
+            const receipts=(await queueSheets(trLabelsRange)).values||[];
+            const entries=state.transfers.filter(e=>e.cents>0);
+            for(const row of state.rows){
+              if(row.bridgeBlocked!=='TRADE_REPUBLIC_TRANSFER')continue;
+              const entry=identifyTradeTransfer(row,entries);
+              if(entry && !entries.some(e=>e.aliases.has(entry.id)))entries.push(entry);
+            }
+            body.replaceChildren();
+            if (!entries.length) body.append(make('p','Brak zasileń.'));
+            for(const entry of entries.sort((a,b)=>b.date.localeCompare(a.date))){
+              const label=make('label'), select=make('select'), status=make('small');
+              status.setAttribute('role','status');
+              const amount=(entry.cents/100).toLocaleString('pl-PL',{style:'currency',currency:'PLN'});
+              label.append(make('span',entry.date+' · '+entry.account+' · '+amount+(entry.card?' · zasilenie kartą':'')),select);
+              for(const [val,name] of [['','Bez oznaczenia'],['Moje środki','Moje środki'],['Dla taty','Dla taty']])select.add(new Option(name,val));
+              let previous=receipts.filter(r=>entry.aliases.has(r[0])).pop()?.[1]||'';
+              select.value=previous;
+              select.onchange=async()=>{
+                const value=select.value;select.disabled=true;status.textContent='Zapisuję…';
+                try {
+                  const receipt=await queueSheets(trLabelsRange+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+                    method:'POST',body:JSON.stringify({values:[[entry.id,value||'']]})
+                  });
+                  if(receipt.updates?.updatedRows!==1)throw Error('Brak potwierdzenia zapisu.');
+                  previous=value;status.textContent='Zapisano';
+                }catch(err){select.value=previous;status.textContent='Zapis wymaga sprawdzenia. Otwórz historię ponownie.';}
+                finally{select.disabled=false;}
+              };
+              body.append(label,status);
+            }
+          }catch(err){body.textContent='Nie udało się odczytać zasileń. Odśwież historię.';}
+        };
+        return panel;
+      }
       function render(keepEditors=false) {
         if (!state || !root.isConnected) return;
         const editors=keepEditors && !income && !history
@@ -1448,6 +1534,7 @@
         list.replaceChildren();
         renderNotices();
         if(income){progress();renderIncome();return;}
+        if(history)list.append(tradeFundingPanel());
         const pending = new Set(state.pending);
         const saved = state.rows.filter(r=>!pending.has(r));
         pendingTab.textContent='Do przypisania · '+pending.size;
@@ -1465,6 +1552,7 @@
           card.className='phone-expense';
           card.append(make('strong',row.description), make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:row.currency||'PLN',useGrouping:true}).format(row.amountCents/100)), make('small',[row.date,row.accountLabel||row.account||row.sourceLabel].filter(Boolean).join(' · ')));
           if(history) {
+            if(row.bridgeBlocked==='TRADE_REPUBLIC_TRANSFER'){card.append(make('p','Zasilenie Trade Republic'));list.append(card);continue;}
             card.append(make('p',row.postedEvidence?'Zaksięgowano':row.bridgeBlocked==='XTB_PENDING_MATCH'?'Oczekuje na uzgodnienie z wpłatą XTB z maila':row.bridgeBlocked?'Do sprawdzenia':row.decision?.action==='DEFER'?'Odłożone':'Oczekuje na zaksięgowanie'));
             const category=row.decision?.sheetName || command?.request.sheetName;
             if(category)card.append(make('small',category));
@@ -1570,7 +1658,7 @@
         if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
         const unreflected=row=>!row.decision && incomeReceiptActive(state.incomeCommands.get(row.key));
         const pending=pendingIncome(state);
-        const saved=data.rows.filter(row=>row.settledRedemption||row.decision||unreflected(row));
+        const saved=data.rows.filter(row=>row.tradeTransfer||row.settledRedemption||row.decision||unreflected(row));
         pendingTab.textContent='Do przypisania · '+pending.length;historyTab.textContent='Zapisane · '+saved.length;
         pendingTab.setAttribute('aria-pressed',String(!history));historyTab.setAttribute('aria-pressed',String(history));
         const visible=history?saved:pending;
@@ -1579,6 +1667,7 @@
           const card=make('article'), command=state.incomeCommands.get(row.key);
           card.className='phone-expense';list.append(card);
           card.append(make('strong',row.merchant),make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100)),make('small',row.date+' · '+row.account));
+          if(row.tradeTransfer){card.append(make('p','Transfer z Trade Republic'));continue;}
           if(row.settledRedemption){card.append(make('p','Wykup obligacji · rozliczono'));continue;}
           if(unreflected(row) || (command && !command.result)){
             card.append(make('p',command.result==='OK'?'Przypisanie potwierdzone':'Oczekuje na potwierdzenie'),make('small',command.request.sheetName+' · '+command.request.description));continue;
