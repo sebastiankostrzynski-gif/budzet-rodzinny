@@ -701,13 +701,21 @@
     }
     // A weekend transfer can appear at the bank on Monday before the importer
     // publishes its ID mapping. Flag a possible repeat instead of sending a second write.
+    const blikReference=label=>String(label||'').match(/\bref[.:\s]+(\d{6,})\b/i)?.[1];
+    const xtbPurchase=label=>/\bXTB\s+S\.?\s*A\b/i.test(label);
     const unresolved=new Set(external.filter(r=>r[2]==='DBIT' && !r[4]).map(r=>'external-mail|'+r[0]));
     const possibleRepeats=new Set();
     for(const row of bankRows){
       const child=childTransferName(row.description);
-      if(!child || row.currency!=='PLN' || row.amountCents!==50000 || posted.has(row.key))continue;
+      if(row.currency!=='PLN' || posted.has(row.key))continue;
+      const bankRef=blikReference(row.description);
+      const bankPurchase=xtbPurchase(row.description);
+      if(!bankPurchase && !(child && row.amountCents===50000))continue;
       const candidate=ledger.some(([id,date,label,,amount])=>{
-        if(!unresolved.has(id)||!posted.has(id)||amount!==500||childTransferName(label)!==child)return false;
+        if(!unresolved.has(id)||!posted.has(id)||Math.round(amount*100)!==row.amountCents)return false;
+        const mailRef=blikReference(label);
+        const samePurchase=bankPurchase && /\bBLIK\b/i.test(label) && xtbPurchase(label) && mailRef && (!bankRef || bankRef===mailRef);
+        if(!samePurchase && !(child && row.amountCents===50000 && childTransferName(label)===child))return false;
         const next=new Date(date+'T12:00:00Z');
         if(!Number.isFinite(next.getTime()))return false;
         do{next.setUTCDate(next.getUTCDate()+1);}while([0,6].includes(next.getUTCDay()));
@@ -746,6 +754,16 @@
       }
     }
   }
+  async function reconcileExpenseRows(rows){
+    const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
+    if(unchecked.length){
+      const evidence=await postedR2Payments(unchecked);
+      for(const row of unchecked){
+        if(evidence.has(row.key))row.postedEvidence=evidence.get(row.key);
+        else if(evidence.possibleRepeats.has(row.key))row.bridgeBlocked='XTB_PENDING_MATCH';
+      }
+    }
+  }
   async function readPhoneQueue() {
     const [snapshot, commands] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D'))]);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
@@ -765,14 +783,7 @@
       data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
-    const unchecked=rows.filter(row=>row.accountLabel==='R2' && !row.decision && !row.postedEvidence && !row.targetNeedsReview);
-    if(unchecked.length){
-      const evidence=await postedR2Payments(unchecked);
-      for(const row of unchecked){
-        if(evidence.has(row.key))row.postedEvidence=evidence.get(row.key);
-        else if(evidence.possibleRepeats.has(row.key))row.bridgeBlocked='XTB_PENDING_MATCH';
-      }
-    }
+    await reconcileExpenseRows(rows);
     const pending = rows.filter(r => !r.decision && !r.postedEvidence && !r.bridgeBlocked &&
       (!byKey.has(r.key) || byKey.get(r.key).result?.startsWith('Błąd')));
     for(const row of rows){
@@ -909,8 +920,9 @@
     try{
       if(job.phase==='ready'){
         if(job.method==='krSaveDEV' && (!token || Date.now()>=expires))return;
-        if(quick && JSON.parse(job.guard||'null')?.[0]?.[4]==='R2'){
-          const evidence=await postedR2Payments([{...job.request,description:job.label,currency:JSON.parse(job.guard)[0][2]}]);
+        const guardedRow=JSON.parse(job.guard||'null')?.[0];
+        if(guardedRow?.[4]==='R2' && (quick || ['pkDecideDevV1','ebQueueReviseDev'].includes(job.method)) && !guardedRow[6] && !guardedRow[8]){
+          const evidence=await postedR2Payments([{...job.request,description:job.label,amountCents:guardedRow[1],date:guardedRow[2],currency:guardedRow[3]}]);
           if(evidence.possibleRepeats.has(key)){job.phase='error';job.message='Oczekuje na uzgodnienie z wpłatą XTB z maila.';recordAssignment(job);return;}
           if(evidence.has(key)){
             job.phase='confirmed';recordAssignment(job);window.dispatchEvent(new Event('budget-assignment-saved'));return;
@@ -1106,7 +1118,10 @@
     if (method === 'krRefreshDEV') method = 'krGetDEV';
     if ((method==='ebListSectionsDev' || method==='ebQueueListDev') && !refreshEditor) {
       const snapshot=await phoneQueue();
-      if (lastEditorData && Date.parse(snapshot.stamp)<lastEditorData.time) return lastEditorData.data;
+      if (lastEditorData && Date.parse(snapshot.stamp)<lastEditorData.time) {
+        await reconcileExpenseRows(lastEditorData.data.rows);
+        return lastEditorData.data;
+      }
       return snapshot.data;
     }
     const write=formWrites.has(method);
@@ -1130,7 +1145,10 @@
       } else {
         data = await waitForForm(receipt);
       }
-      if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets))lastEditorData={data,time:Date.now()};
+      if(data?.revision && Array.isArray(data.rows) && Array.isArray(data.expenseSheets)){
+        await reconcileExpenseRows(data.rows);
+        lastEditorData={data,time:Date.now()};
+      }
       if(method==='ebListSectionsDev')refreshEditor=false;
       if(method==='kzPostDevV1'){lastEditorData=null;refreshEditor=true;}
       if(write) { window.budgetDiagnosticMark('write-confirmed'); window.dispatchEvent(new Event('budget-assignment-saved')); }
