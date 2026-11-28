@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-mobile-refund-picker-v1';
+const SHELL_CACHE = 'budzet-rodzinny-shell-category-month-marker-v1';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [
