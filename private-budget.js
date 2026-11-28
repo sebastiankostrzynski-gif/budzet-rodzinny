@@ -1561,6 +1561,7 @@
       progressNote.setAttribute('role','status');list.before(progressNote);
       let confirmationUntil=0, confirmationTimer;
       function progress(){
+        if(income){progressNote.replaceChildren();return;}
         const jobs=assignments();
         const waiting=jobs.filter(j=>!['error','confirmed'].includes(j.phase));
         progressNote.replaceChildren();
@@ -1635,49 +1636,42 @@
         list.append(nav);
         return [rows[focusedIndex]];
       }
-      function renderNotices() {
-        const old = root.querySelector('.account-notice-list');
-        if (old) old.remove();
-        if (history) return;
-        const notices = (state.data.bridge?.accountNoticesTEST || [])
-          .filter(row => row.direction === (income ? 'CRDT' : 'DBIT'))
-          .sort((a,b) => b.received.localeCompare(a.received));
+      function renderBankAlertArchive() {
+        const previous = root.querySelector('.account-notice-list');
+        const keepOpen = previous?.open && previous.dataset.direction === (income ? 'CRDT' : 'DBIT');
+        previous?.remove();
+        if (!history) return;
+        const direction = income ? 'CRDT' : 'DBIT';
+        const notices = (state.data.bridge?.accountNoticesTEST || []).filter(row => row.direction === direction);
         if (!notices.length) return;
-        const section = make('details');
+        const section = make('details'), body = make('div');
         section.className = 'account-notice-list';
-        section.append(make('summary', 'Powiadomienia oczekujące na uzgodnienie · ' + notices.length));
-        for (const row of notices) {
-          const card = make('article');
-          card.className = 'phone-expense';
-          const amount = row.currency === 'PLN' && Number.isSafeInteger(row.amountCents) && row.amountCents > 0
-            ? new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100) : '';
-          card.append(make('strong',row.label),make('b',amount),make('small',row.date),
-            make('p',row.status === 'OCZEKUJE NA POTWIERDZENIE API' ? 'Alert odebrany · oczekuje na uzgodnienie z bankiem' : 'Wymaga sprawdzenia'));
-          if (row.account === 'R2' && row.currency === 'PLN' && row.date >= '2026-11-15' &&
-              row.status === 'OCZEKUJE NA POTWIERDZENIE API' && /^[a-f0-9]{16}$/.test(row.id) &&
-              Number.isSafeInteger(row.amountCents) && row.amountCents > 0) {
-            const choose = make('button', income ? 'Przenieś do przypisania wpływów' : 'Przenieś do przypisania wydatków');
-            choose.type = 'button';
-            choose.onclick = async () => {
-              if (choose.disabled || !window.confirm('Potwierdzasz operację zewnętrzną na ' + amount +
-                '? Przelewy między własnymi kontami, wypłaty z bankomatu i spłaty karty rozlicza się osobno.')) return;
-              choose.disabled = true;
-              try {
-                const path = encodeURIComponent("'Klasyfikacja alertów R2 TEST'!A:G");
-                const values = [[row.id,row.date,row.direction,row.amountCents,row.account,row.currency,'EXTERNAL']];
-                const ack = await queueSheets(path + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
-                  {method:'POST',body:JSON.stringify({values})});
-                if (ack.updates?.updatedRows !== 1) throw Error();
-                choose.textContent = 'Przyjęto · oczekuje na synchronizację';
-              } catch {
-                choose.disabled = false;
-                choose.textContent = 'Brak potwierdzenia · ponów';
-              }
-            };
-            card.append(choose);
+        section.dataset.direction = direction;
+        section.append(make('summary','Archiwum alertów bankowych'),body);
+        let limit = keepOpen ? Number(previous.dataset.limit) || 10 : 10;
+        function show() {
+          if (!section.open) return;
+          body.replaceChildren();
+          notices.sort((a,b)=>String(b.received || b.date).localeCompare(String(a.received || a.date)));
+          for (const row of notices.slice(0,limit)) {
+            const card = make('article');
+            card.className = 'phone-expense';
+            card.append(make('strong',row.label));
+            if (row.currency === 'PLN' && Number.isSafeInteger(row.amountCents) && row.amountCents > 0)
+              card.append(make('b',formatPLN(row.amountCents/100)));
+            card.append(make('small',row.date));
+            body.append(card);
           }
-          section.append(card);
+          section.dataset.limit = String(limit);
+          if (limit < notices.length) {
+            const older = make('button','Pokaż starsze alerty');
+            older.type = 'button';
+            older.onclick = () => { limit += 10; show(); };
+            body.append(older);
+          }
         }
+        section.ontoggle = show;
+        section.open = !!keepOpen;
         list.after(section);
       }
       function tradeFundingPanel() {
@@ -1726,7 +1720,7 @@
         const editors=keepEditors && !income && !history
           ? new Map(Array.from(list.querySelectorAll('[data-expense-key]'),card=>[card.dataset.expenseKey,card])) : new Map();
         list.replaceChildren();
-        renderNotices();
+        renderBankAlertArchive();
         if(income){progress();renderIncome();return;}
         if(history)list.append(tradeFundingPanel());
         const pending = new Set(state.pending);
