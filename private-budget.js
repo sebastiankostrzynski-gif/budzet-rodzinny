@@ -806,6 +806,108 @@
       }
     }
   }
+  const creditTab = 'Zwroty na kartę TEST';
+  const creditPending = 'DO PRZYPISANIA';
+  function cardCredits(values) {
+    const rows = [], seen = new Set();
+    for (const [index, cells] of (values || []).entries()) {
+      const [id,date,account,net,merchant,bank,stage,,choice,original] = cells;
+      if (!id) continue;
+      if (!/^[a-f0-9]{16}$/.test(id) || seen.has(id) || account !== 'R1' ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isSafeInteger(net) || net < 0 ||
+          !Number.isSafeInteger(original) || original <= 0 || !merchant || !choice ||
+          !['AUTORYZACJA','ZAKSIĘGOWANY','ANULOWANY'].includes(stage) ||
+          (stage === 'ANULOWANY') !== (net === 0)) throw Error('Niespójny rejestr zwrotów na kartę.');
+      seen.add(id);
+      rows.push({id, key:'gmail-alerty24|'+id, date, account, merchant, bank, stage, choice,
+        amountCents:net, original, ledgerRow:index+2, cardCredit:true,
+        decision:choice === creditPending && net > 0 ? null : {description:choice}});
+    }
+    return rows;
+  }
+  const readCardCredits = async () => cardCredits((await queueSheets(
+    encodeURIComponent("'"+creditTab+"'!A2:J")+'?valueRenderOption=UNFORMATTED_VALUE')).values);
+
+  function mergeCardCredits(incomes, credits) {
+    const refs = new Set(credits.flatMap(c => [c.key, 'alerty24-queue|'+c.id, c.bank, c.bank && 'bank-n26|'+c.bank].filter(Boolean)));
+    return [...credits, ...incomes.filter(r => r.account !== 'R1' || !refs.has(r.key))];
+  }
+  const creditQuote = name => "'" + name.replace(/'/g,"''") + "'";
+  const cellRange = (sheetId,row,col) => ({sheetId,startRowIndex:row-1,endRowIndex:row,startColumnIndex:col,endColumnIndex:col+1});
+  async function creditCells(ranges) {
+    const p = new URLSearchParams({fields:'sheets(properties(sheetId,title),data(startRow,startColumn,rowData(values(userEnteredValue,effectiveValue,formattedValue))))'});
+    for (const r of ranges) p.append('ranges',r);
+    return (await portfolioRequest('?'+p)).sheets;
+  }
+  async function creditReplace(range,find,replacement) {
+    const res = await portfolioRequest(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[
+      {findReplace:{range,find,replacement,matchCase:true,includeFormulas:true,matchEntireCell:true}}
+    ]})});
+    return res.replies?.[0]?.findReplace?.occurrencesChanged === 1;
+  }
+  function refundChoice(target) {
+    return target.key+' · '+target.sheet+' → '+target.label;
+  }
+  async function prepareCreditExpense(credit, target) {
+    const parts = /^test-target\|(\d+)\|(\d+)\|(\d{4}-\d{2})$/.exec(target.key);
+    if (!parts || !/^T(?:[4-9]|1[0-5]) /.test(target.sheet) || parts[3] !== target.month)
+      throw Error('Odśwież listę pozycji wydatków.');
+    const number = Number(parts[2]), month = Number(target.month.slice(5));
+    const col = String.fromCharCode(65+month);
+    const tab = creditQuote(target.sheet)+'!';
+    const address = tab+col+number;
+    const [s] = await creditCells([tab+col+'3',tab+'A'+number,address]);
+    const cell = (r,c) => s.data.find(d => (d.startRow||0)===r-1 && (d.startColumn||0)===c)?.rowData?.[0]?.values?.[0];
+    const date = cell(3,month)?.effectiveValue?.numberValue;
+    if (s.properties.sheetId !== Number(parts[1]) || !Number.isFinite(date) ||
+        new Date((date-25569)*86400000).toISOString().slice(0,7) !== target.month ||
+        cell(number,0)?.effectiveValue?.stringValue?.trim() !== target.label.trim())
+      throw Error('Pozycja lub miesiąc wydatku uległy zmianie. Odśwież listę.');
+    const value = cell(number,month);
+    const link = creditQuote(creditTab)+'!';
+    const choice = refundChoice(target).replace(/"/g,'""');
+    // The budget cell follows the bank's net amount, including later partial or full reversals.
+    const term = 'IF(AND('+link+'$A$'+credit.ledgerRow+'="'+credit.id+'";'+link+'$I$'+credit.ledgerRow+'="'+choice+'");'+link+'$D$'+credit.ledgerRow+'/100;0)';
+    const formula = value?.userEnteredValue?.formulaValue;
+    if (formula?.includes(term)) return;
+    if (!Number.isFinite(value?.effectiveValue?.numberValue) || value.effectiveValue.numberValue <= 0)
+      throw Error('W tej pozycji nie ma dodatniego wydatku do pomniejszenia.');
+    const numeric = value.userEnteredValue?.numberValue;
+    if (!formula && !Number.isFinite(numeric)) throw Error('Sprawdź wybraną pozycję wydatku.');
+    const base = formula ? formula.slice(1) : String(numeric).replace('.',',');
+    const expected = '=(' + base + ')-' + term;
+    const range = cellRange(s.properties.sheetId,number,month);
+    const candidates = formula ? [formula] : [...new Set([value.formattedValue,String(numeric).replace('.',','),String(numeric)])];
+    for (const previous of candidates) {
+      if (previous && await creditReplace(range,previous,expected)) break;
+    }
+    const [after] = await creditCells([address]);
+    if (!after.data[0].rowData?.[0]?.values?.[0]?.userEnteredValue?.formulaValue?.includes(term))
+      throw Error('Pozycja wydatku właśnie się zmieniła. Spróbuj ponownie.');
+  }
+  async function saveCardCredit(row,target) {
+    const fresh = (await readCardCredits()).find(c => c.id === row.id);
+    const choice = target ? refundChoice(target) : 'WPŁYW';
+    if (fresh?.choice === choice) return;
+    if (!fresh || fresh.choice !== creditPending || fresh.amountCents !== row.amountCents ||
+        !fresh.amountCents || fresh.ledgerRow !== row.ledgerRow) throw Error('Zwrot uległ zmianie. Odśwież wpływy.');
+    if (target) await prepareCreditExpense(fresh,target);
+    else {
+      const t = "'T2 Bonusy i inne wpływy'!";
+      const m = Number(row.date.slice(5,7)), col = String.fromCharCode(65+m);
+      const [s] = await creditCells([t+col+'3',t+'A1:A',t+col+'1:'+col]);
+      const data = s.data, labels = data[1].rowData || [];
+      const destination = labels.findIndex(r => r.values?.[0]?.effectiveValue?.stringValue === '- Zwroty na kartę ujęte jako wpływ');
+      const serial = data[0].rowData?.[0]?.values?.[0]?.effectiveValue?.numberValue;
+      const f = data[2].rowData?.[destination]?.values?.[0]?.userEnteredValue?.formulaValue || '';
+      if (!Number.isFinite(serial) || new Date((serial-25569)*86400000).toISOString().slice(0,7) !== row.date.slice(0,7) ||
+          !f.includes(creditTab) || !f.includes('"WPŁYW"')) throw Error('Brak pozycji zwrotów we wpływach za ten okres.');
+    }
+    const [ledger] = await creditCells([creditQuote(creditTab)+'!I'+fresh.ledgerRow]);
+    await creditReplace(cellRange(ledger.properties.sheetId,fresh.ledgerRow,8),creditPending,choice);
+    const confirmed = (await readCardCredits()).find(c=>c.id===row.id);
+    if (confirmed?.choice !== choice) throw Error('Inna decyzja została zapisana lub brak potwierdzenia. Sprawdź historię.');
+  }
   function assignmentCommands(rows) {
     const byKey=new Map(), incomeCommands=new Map();
     for(const [kind,,body,result] of rows){
@@ -821,7 +923,7 @@
     return {byKey,incomeCommands};
   }
   async function readPhoneQueue() {
-    const [snapshot, commands, trLedger] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D')),readTradeLedger()]);
+    const [snapshot, commands, trLedger, credits] = await Promise.all([queueSheets(queueRange('1:1')),queueSheets(queueRange('A2:D')),readTradeLedger(),readCardCredits().catch(() => null)]);
     const transfers=tradeLedgerEntries(trLedger.values);
     const [tag, stamp, parts, ...chunks] = snapshot.values[0];
     if (tag !== 'QUEUE_V1' || !Number.isInteger(+parts) || +parts < 1 || chunks.length < +parts)
@@ -829,10 +931,12 @@
     const bytes = Uint8Array.from(atob(chunks.slice(0,+parts).join('')), c => c.charCodeAt(0));
     const data = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
     const {byKey,incomeCommands}=assignmentCommands(commands.values || []);
+    if (!data.income && credits?.length) data.income={rows:[],categories:[]};
+    data.creditReadFailed = !credits;
     if (data.income?.rows) {
       for(const row of data.income.rows) if(identifyTradeTransfer(row,transfers,true)) row.tradeTransfer=true;
       await markSettledRedemptions(data.income.rows);
-      data.income.rows = reconcileIncomeRows(data.income.rows, incomeCommands);
+      data.income.rows = mergeCardCredits(reconcileIncomeRows(data.income.rows, incomeCommands),credits || []);
     }
     const rows = data.rows.filter(r => !r.bridgeArchived);
     await reconcileExpenseRows(rows,transfers);
@@ -1757,8 +1861,46 @@
           list.append(card);
         }
       }
+      function renderCardCredit(card,row) {
+        const bankStatus = {AUTORYZACJA:'Autoryzacja z maila',ZAKSIĘGOWANY:'Zaksięgowano',ANULOWANY:'Anulowano'};
+        card.append(make('small','Zwrot na kartę · '+bankStatus[row.stage]));
+        if (row.decision) {
+          if(row.choice !== creditPending) card.append(make('p',row.choice==='WPŁYW'?'Zapisano jako wpływ':row.choice.split(' · ').slice(1).join(' · ')));
+          return;
+        }
+        const form = make('div'), mode = make('select'), position = make('select'), save = make('button','Zapisz');
+        form.style.cssText='grid-column:1/-1;display:grid;gap:8px;min-width:0';
+        mode.style.maxWidth=position.style.maxWidth='100%';
+        mode.setAttribute('aria-label','Jak rozliczyć zwrot');position.setAttribute('aria-label','Który wydatek pomniejszyć');
+        mode.add(new Option('Jak rozliczyć zwrot?',''));mode.add(new Option('Pomniejsz wydatek','expense'));mode.add(new Option('Zapisz jako wpływ','income'));
+        position.add(new Option('Wybierz pozycję wydatku',''));
+        const targets = new Map((state.data.existingRows||[]).filter(t=>t.month===row.date.slice(0,7)).map(t=>[t.key,t]));
+        const norm = name => String(name).replace(/[^\p{L}\d]+/gu,' ').trim().toLowerCase();
+        const purchases = state.rows.filter(p=>p.accountLabel==='R1' && p.postedEvidence && p.decision?.targetManualKey && norm(p.description)===norm(row.merchant) && p.date<=row.date);
+        const suggestions = new Set(purchases.map(p=>p.decision.targetManualKey));
+        for (const t of [...targets.values()].sort((a,b)=>Number(suggestions.has(b.key))-Number(suggestions.has(a.key)))) {
+          const prefix = suggestions.has(t.key)?'Zakup u tego sprzedawcy · ':'';
+          position.add(new Option(prefix+t.sheet.replace(/^T\d+ /,'')+' → '+t.label,t.key));
+        }
+        const change = () => { position.hidden=mode.value!=='expense';save.disabled=saving||!mode.value||(!position.hidden&&!position.value); };
+        mode.onchange=change;position.onchange=change;change();form.append(mode,position,save);card.append(form);
+        save.onclick=async()=>{
+          if(save.disabled||saving)return;
+          saving=true;save.disabled=true;mode.disabled=true;position.disabled=true;
+          try {
+            await saveCardCredit(row,mode.value==='expense'?targets.get(position.value):null);
+            saving=false;history=true;
+            window.dispatchEvent(new Event('budget-assignment-saved'));
+            await reload('Zwrot zapisany.');
+          } catch(error) {
+            saving=false;mode.disabled=false;position.disabled=false;change();
+            status.textContent=error.message || 'Sprawdź historię przed ponowieniem.';
+          }
+        };
+      }
       function renderIncome() {
         const data=state.data.income;
+        if(state.data.creditReadFailed)list.append(make('p','Nie udało się odczytać zwrotów na kartę. Odśwież listę.'));
         if(!data){pendingTab.textContent='Do przypisania';historyTab.textContent='Zapisane';list.append(make('p','Oczekiwanie na odczyt wpływów. Odśwież po następnym cyklu.'));return;}
         const unreflected=row=>!row.decision && incomeReceiptActive(state.incomeCommands.get(row.key));
         const pending=pendingIncome(state);
@@ -1771,6 +1913,7 @@
           const card=make('article'), command=state.incomeCommands.get(row.key);
           card.className='phone-expense';list.append(card);
           card.append(make('strong',row.merchant),make('b',new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN'}).format(row.amountCents/100)),make('small',row.date+' · '+row.account));
+          if(row.cardCredit){renderCardCredit(card,row);continue;}
           if(row.tradeTransfer){card.append(make('p','Transfer z Trade Republic'));continue;}
           if(row.settledRedemption){card.append(make('p','Wykup obligacji · rozliczono'));continue;}
           if(unreflected(row) || (command && !command.result)){
@@ -1783,7 +1926,7 @@
           const category=make('select'),desc=make('input'),save=make('button','Zapisz przypisanie');
           category.setAttribute('aria-label','Rodzaj wpływu');desc.setAttribute('aria-label','Opis wpływu');desc.placeholder='Czego dotyczy wpływ?';desc.maxLength=200;
           category.add(new Option('Wybierz kategorię',''));
-          for(const name of data.categories)category.add(new Option(name.replace(/^T\d+\s+/,''),name));
+          for(const name of data.categories.filter(name=>!name.endsWith('→ - Zwroty na kartę ujęte jako wpływ')))category.add(new Option(name.replace(/^T\d+\s+/,''),name));
           category.value=row.decision?.sheetName||'';desc.value=row.decision?.description||'';
           const validate=()=>save.disabled=saving||!category.value||!desc.value.trim();
           category.onchange=validate;desc.oninput=validate;validate();form.append(category,desc,save);
@@ -1855,7 +1998,7 @@
     try {
       const snapshot = publishedSnapshot?.pending ? publishedSnapshot : await phoneQueue();
       const {stamp} = snapshot;
-      if(Date.now()-Date.parse(stamp)>20*60000)throw Error();
+      if(snapshot.data.creditReadFailed || Date.now()-Date.parse(stamp)>20*60000)throw Error();
       const count=snapshot.pending.filter(r=>{const j=storedAssignment(r.key);return !j||j.phase==='error';}).length + pendingIncome(snapshot).length;
       badge.textContent = String(count);
       badge.hidden = count === 0;

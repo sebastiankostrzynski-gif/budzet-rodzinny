@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+const app = fs.readFileSync('private-budget.js', 'utf8');
+const ctx = vm.createContext({});
+vm.runInContext(app.slice(app.indexOf('  const creditTab ='),app.indexOf('  function assignmentCommands')),ctx);
+const pending = ['aaaaaaaaaaaaaaaa','2026-12-31','R1',1200,'Test','','AUTORYZACJA','bank-msg','DO PRZYPISANIA',1200];
+const [credit] = ctx.cardCredits([[],pending]);
+assert.equal(credit.ledgerRow,3);
+assert.equal(credit.decision,null);
+const other = [...pending];other[0] = 'bbbbbbbbbbbbbbbb';
+assert.equal(ctx.cardCredits([pending,other]).length,2);
+assert.throws(()=>ctx.cardCredits([pending,pending]));
+const settled = [...pending];settled[5]='account|2027-01-03/1/2';settled[6]='ZAKSIĘGOWANY';settled[8]='WPŁYW';
+const [done] = ctx.cardCredits([settled]);
+assert.ok(done.decision);
+assert.equal(ctx.mergeCardCredits([{key:settled[5],account:'R1'},{key:settled[5],account:'R2'}],[done]).length,2);
+const cancelled = [...settled];cancelled[3]=0;cancelled[6]='ANULOWANY';cancelled[8]='DO PRZYPISANIA';
+assert.ok(ctx.cardCredits([cancelled])[0].decision);
+console.log('PASS: mail authorization, duplicate delivery, independent equal credits, API alias, income decision and cancellation.');
