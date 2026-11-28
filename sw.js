@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'budzet-rodzinny-shell-bank-alert-history-v1';
+const SHELL_CACHE = 'budzet-rodzinny-shell-mobile-refund-picker-v1';
 const RUNTIME_CACHE = 'budzet-rodzinny-runtime-v8';
 
 const APP_SHELL = [

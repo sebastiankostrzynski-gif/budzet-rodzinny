@@ -58,11 +58,31 @@ const BudgetPicker=(()=>{
     const broad=/\b(allegro|amazon|marketplace|paypal|payu|przelewy24|xtb)\b/.test(seller);
     return {recent:top(last).slice(0,3),frequency:freq,suggested:!mixed&&!broad&&match.size===1?top(match).filter(i=>match.get(i)>=2):[]};
   }
+  function refundOptions(targets, payments, credit) {
+    const items = index(targets, credit.date.slice(0,7));
+    const byKey = new Map(items.map(item => [item.key, item]));
+    const sameSeller = new Set();
+    const sellerName = text => fold(text).replace(/[^a-z0-9]+/g,' ').trim();
+    for (const payment of payments) {
+      const item = byKey.get(payment.decision?.targetManualKey);
+      if (!item || payment.accountLabel !== credit.account || payment.currency !== 'PLN' ||
+          !payment.postedEvidence || payment.date > credit.date || !payment.description) continue;
+      const seller = sellerName(payment.description);
+      item.plain += ' ' + seller;
+      item.words.push(...seller.split(' '));
+      if (seller && seller === sellerName(credit.merchant)) sameSeller.add(item);
+    }
+    return {items, hints:{categoriesFirst:true, suggested:sameSeller.size===1 ? [...sameSeller] : []}};
+  }
   function open(items,hints,onSelect,onNew){
-    const dialog=document.createElement('dialog');dialog.className='pick-sheet';dialog.setAttribute('aria-label','Wybierz pozycję');
+    const browse = hints.categoriesFirst;
+    let category = null;
+    const title = browse ? 'Który wydatek pomniejszyć?' : 'Wybierz pozycję';
+    const dialog=document.createElement('dialog');dialog.className='pick-sheet';dialog.setAttribute('aria-label',title);
     const el=(tag,txt)=>Object.assign(document.createElement(tag),{textContent:txt||''});
     const btn=(title,fn)=>{const b=el('button',title);b.type='button';b.onclick=fn;return b;};
-    const header=el('header');header.append(el('h2','Wybierz pozycję'),btn('Zamknij',()=>dialog.close()));
+    const header=el('header'), heading=el('h2',title);
+    const close=btn('Zamknij',()=>dialog.close());header.append(heading,close);
     const input=el('input');input.type='search';input.placeholder='Szukaj kategorii lub pozycji…';input.setAttribute('aria-label',input.placeholder);
     const results=el('div');results.className='pick-results';dialog.append(header,input,results);
     const choose=i=>{dialog.close();onSelect(i);};
@@ -74,10 +94,36 @@ const BudgetPicker=(()=>{
       b.append(el('strong',clean(i.label)),el('small',context.join(' · ')));b.title=i.path;return b;
     }
     function section(title,list){if(!list.length)return;const group=el('section');group.append(el('h3',title));for(const i of list)group.append(option(i));results.append(group);}
-    function paint(){results.replaceChildren();if(input.value.trim()){
-      const matches=search(items,input.value,hints.frequency);section('Wyniki',matches.slice(0,12));
+    const back = btn('‹ Wszystkie kategorie',()=>navigate(null));
+    if(browse)input.before(back);
+    function navigate(sheet){
+      category=sheet;input.value='';paint();results.scrollTop=0;
+      (sheet?back:results.querySelector('button')||close).focus({preventScroll:true});
+    }
+    function paint(){results.replaceChildren();
+      const scope=category ? items.filter(item=>item.sheet===category) : items;
+      if(browse){
+        back.hidden=!category;heading.textContent=category?clean(category):title;
+        input.placeholder=category?'Szukaj w tej kategorii':'Szukaj pozycji lub sklepu';
+        input.setAttribute('aria-label',input.placeholder);
+      }
+      if(input.value.trim()){
+      const matches=search(scope,input.value,hints.frequency);section('Wyniki',matches.slice(0,12));
       if(matches.length>12)results.append(el('p','Doprecyzuj nazwę, aby zawęzić wyniki.'));
       if(!matches.length)results.append(el('p','Brak pasujących pozycji.'));
+    }else if(browse){
+      if(category){
+        for(const name of new Set(scope.map(i=>i.sectionName)))
+          section(clean(name)||'Pozycje',scope.filter(i=>i.sectionName===name));
+      }else{
+        section('Wcześniejszy zakup u tego sprzedawcy',hints.suggested);
+        const group=el('section');group.append(el('h3','Kategorie'));
+        for(const sheet of new Set(items.map(i=>i.sheet))){
+          const button=btn(clean(sheet),()=>navigate(sheet));button.className='pick-category';group.append(button);
+        }
+        if(!items.length)group.append(el('p','Brak pozycji wydatków w tym miesiącu.'));
+        results.append(group);
+      }
     }else{
       section('Ostatnio używane',hints.recent.slice(0,3));
       const all=el('details');all.append(el('summary','Przeglądaj kategorie'));
@@ -93,7 +139,8 @@ const BudgetPicker=(()=>{
       dialog.style.bottom=Math.max(0,window.innerHeight-viewport.offsetTop-viewport.height)+'px';
     }}
     dialog.onclose=()=>{viewport?.removeEventListener('resize',fit);viewport?.removeEventListener('scroll',fit);dialog.remove();};
-    document.body.append(dialog);dialog.showModal();fit();viewport?.addEventListener('resize',fit);viewport?.addEventListener('scroll',fit);input.focus({preventScroll:true});
+    document.body.append(dialog);dialog.showModal();fit();viewport?.addEventListener('resize',fit);viewport?.addEventListener('scroll',fit);
+    (browse?close:input).focus({preventScroll:true});
   }
-  return {index,search,recommendations,open,ikzeOptions};
+  return {index,search,recommendations,open,ikzeOptions,refundOptions};
 })();

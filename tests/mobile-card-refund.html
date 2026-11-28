@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test formularza zwrotu na telefonie</title>
+<link rel="stylesheet" href="../finance-ui.css">
+<script src="../budget-picker.js"></script>
+<body>
+<main id="app"><section class="assignment-wrap"></section></main>
+<output id="result">Test w toku…</output>
+<script>
+(async () => {
+  const result = document.querySelector('#result');
+  function check(condition, message) { if (!condition) throw Error(message); }
+  if (!location.search) {
+    const widths = [320, 375, 402, 430, 768];
+    const reports = new Map();
+    window.addEventListener('message', event => {
+      if (event.origin !== location.origin || !widths.includes(event.data?.width)) return;
+      reports.set(event.data.width, event.data.verdict);
+      result.textContent = widths.map(w => w+' px — '+(reports.get(w)||'…')).join(' | ');
+    });
+    for (const width of widths) {
+      const frame = document.createElement('iframe');
+      frame.title = 'Test '+width+' px';
+      frame.style.cssText = 'width:'+width+'px;height:650px;border:0';
+      frame.src = location.pathname+'?width='+width;
+      document.body.append(frame);
+    }
+    return;
+  }
+  const sources = await Promise.all(['../private-budget.js','../index.html'].map(async path => (await fetch(path)).text()));
+  const [app,shell] = sources;
+  const root = document.querySelector('.assignment-wrap');
+  const make = (tag,text) => Object.assign(document.createElement(tag),{textContent:text || ''});
+  const part = (start,end) => app.slice(app.indexOf(start),app.indexOf(end,app.indexOf(start)));
+  const month = '2026-05';
+  const cases = [
+    {key:'a',month,sheet:'T4 Kategoria A',sectionName:'Zakupy',label:'- Szkło '+('bardzodługa'.repeat(14))},
+    {key:'b',month,sheet:'T5 Kategoria B',sectionName:'Inne',label:'- Parasol'}
+  ];
+  const credit = {key:'sample-refund',cardCredit:true,merchant:'Sklep testowy',date:month+'-16',
+    account:'R1',stage:'AUTORYZACJA',amountCents:1500};
+  const state = {data:{existingRows:cases},rows:[{accountLabel:'R1',currency:'PLN',date:month+'-12',
+    description:'* Sklep testowy *',postedEvidence:{amountCents:3200},decision:{targetManualKey:'a'}}]};
+  const writes = [];
+  function verifyBounds(parent) {
+    const box = parent.getBoundingClientRect();
+    check(box.left >= -1 && box.right <= innerWidth+1, 'Kontener wykracza poza ekran');
+    for (const el of parent.querySelectorAll('button,input,strong,small')) {
+      const rect = el.getBoundingClientRect();
+      if (!rect.width) continue;
+      check(rect.left >= box.left-1 && rect.right <= box.right+1, 'Pole wykracza poza kontener: '+el.tagName);
+      check(el.scrollWidth <= el.clientWidth+1, 'Tekst wykracza poza pole: '+el.tagName);
+    }
+    check(document.documentElement.scrollWidth <= innerWidth+1, 'Poziome przewijanie strony');
+  }
+  function button(label,parent=document) {
+    const found = [...parent.querySelectorAll('button')].find(b => b.textContent === label);
+    check(found, 'Brak przycisku '+label);return found;
+  }
+  try {
+    const parsed = new DOMParser().parseFromString(shell,'text/html');
+    for(const style of parsed.head.querySelectorAll('style')) document.head.prepend(style.cloneNode(true));
+    const css=part("    style.textContent += '.phone-expense","    document.head.append(style);");
+    new Function('style',css)(document.head.appendChild(make('style')));
+    const render = new Function('state','make','root','saveCardCredit',`
+      let saving=false,income=true,history=false;const creditChoices=new Map();
+      const reload=async()=>{},formatPLN=n=>n.toFixed(2).replace('.',',')+' zł';
+      ${part('      function renderCardCredit(', '      function renderIncome()')}
+      return renderCardCredit;
+    `)(state,make,root,async(row,target)=>{writes.push(target?.key||'WPŁYW');});
+    function show() {
+      const card=make('article');card.className='phone-expense';root.replaceChildren(card);
+      card.append(make('strong',credit.merchant),make('b','15,00 zł'),make('small',credit.date+' · R1'));
+      render(card,credit);return card;
+    }
+    let card = show();
+    verifyBounds(card);check(!card.querySelector('select'),'Płaska lista na karcie');
+    button('Pomniejsz wydatek').click();
+    let dialog=document.querySelector('dialog[open]');
+    verifyBounds(dialog);
+    button('Kategoria B',dialog).click();
+    const search=dialog.querySelector('input');
+    search.value='szklo';search.dispatchEvent(new Event('input'));
+    check(!dialog.querySelector('.pick-option'),'Wynik spoza kategorii');
+    button('‹ Wszystkie kategorie',dialog).click();
+    search.value='szklo';search.dispatchEvent(new Event('input'));
+    check(dialog.querySelectorAll('.pick-option').length===1,'Szukaj bez polskich znaków');
+    search.value='testowy';search.dispatchEvent(new Event('input'));
+    dialog.querySelector('.pick-option').click();
+    card = show();
+    verifyBounds(card);check(!writes.length,'Zapis przed potwierdzeniem');
+    button('Pomniejsz o 15,00 zł').click();await Promise.resolve();
+    check(writes.join()==='a','Zapis wybranej pozycji');
+    card = show();button('Pomniejsz wydatek').click();
+    dialog=document.querySelector('dialog[open]');button('Zamknij',dialog).click();
+    button('Zapisz jako wpływ').click();verifyBounds(card);
+    check(writes.length===1,'Zapis przy zmianie trybu');
+    button('Dodaj 15,00 zł do wpływów').click();await Promise.resolve();
+    check(writes.join()==='a,WPŁYW','Zapis wpływu');
+    result.textContent='OK';
+  } catch(error) { result.textContent='Błąd — '+error.message; }
+  window.parent.postMessage({width:Number(new URLSearchParams(location.search).get('width')),verdict:result.textContent},location.origin);
+})();
+</script>
+</html>

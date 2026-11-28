@@ -1616,6 +1616,7 @@
       incomes.onclick=()=>switchMode(true);expenses.onclick=()=>switchMode(false);
       expenses.setAttribute('aria-pressed','true');incomes.setAttribute('aria-pressed','false');
       let state, history=false, saving=false, generation=0;
+      const creditChoices = new Map();
       let focusedKey, focusedIndex=0;
       function focusExpense(rows){
         if(!rows.length){focusedKey=null;focusedIndex=0;return [];}
@@ -1862,35 +1863,59 @@
           if(row.choice !== creditPending) card.append(make('p',row.choice==='WPŁYW'?'Zapisano jako wpływ':row.choice.split(' · ').slice(1).join(' · ')));
           return;
         }
-        const form = make('div'), mode = make('select'), position = make('select'), save = make('button','Zapisz');
-        form.style.cssText='grid-column:1/-1;display:grid;gap:8px;min-width:0';
-        mode.style.maxWidth=position.style.maxWidth='100%';
-        mode.setAttribute('aria-label','Jak rozliczyć zwrot');position.setAttribute('aria-label','Który wydatek pomniejszyć');
-        mode.add(new Option('Jak rozliczyć zwrot?',''));mode.add(new Option('Pomniejsz wydatek','expense'));mode.add(new Option('Zapisz jako wpływ','income'));
-        position.add(new Option('Wybierz pozycję wydatku',''));
-        const targets = new Map((state.data.existingRows||[]).filter(t=>t.month===row.date.slice(0,7)).map(t=>[t.key,t]));
-        const norm = name => String(name).replace(/[^\p{L}\d]+/gu,' ').trim().toLowerCase();
-        const purchases = state.rows.filter(p=>p.accountLabel==='R1' && p.postedEvidence && p.decision?.targetManualKey && norm(p.description)===norm(row.merchant) && p.date<=row.date);
-        const suggestions = new Set(purchases.map(p=>p.decision.targetManualKey));
-        for (const t of [...targets.values()].sort((a,b)=>Number(suggestions.has(b.key))-Number(suggestions.has(a.key)))) {
-          const prefix = suggestions.has(t.key)?'Zakup u tego sprzedawcy · ':'';
-          position.add(new Option(prefix+t.sheet.replace(/^T\d+ /,'')+' → '+t.label,t.key));
+        const form = make('div'), actions = make('div'), detail = make('small');
+        const expense = make('button','Pomniejsz wydatek'), incomeButton = make('button','Zapisz jako wpływ');
+        const save = make('button');
+        form.className = 'credit-form';
+        actions.className = 'credit-actions';
+        actions.setAttribute('role','group');
+        actions.setAttribute('aria-label','Jak rozliczyć zwrot');
+        detail.setAttribute('aria-live','polite');
+        save.className = 'expense-save';
+        for (const button of [expense,incomeButton,save]) button.type = 'button';
+        const amount = formatPLN(row.amountCents/100);
+        const targets = state.data.existingRows || [];
+        let target;
+        function update() {
+          const choice = creditChoices.get(row.key);
+          target = targets.find(t => t.key === choice && t.month === row.date.slice(0,7));
+          const asIncome = choice === 'WPŁYW';
+          expense.setAttribute('aria-pressed',String(!!target));
+          incomeButton.setAttribute('aria-pressed',String(asIncome));
+          expense.disabled = incomeButton.disabled = saving;
+          detail.hidden = !target;
+          detail.textContent = target ? target.sheet.replace(/^T\d+\s+/, '')+' → '+target.label.replace(/^[-\s]+/,'') : '';
+          save.hidden = !target && !asIncome;
+          save.disabled = saving || save.hidden;
+          save.textContent = asIncome ? 'Dodaj '+amount+' do wpływów' : 'Pomniejsz o '+amount;
         }
-        const change = () => { position.hidden=mode.value!=='expense';save.disabled=saving||!mode.value||(!position.hidden&&!position.value); };
-        mode.onchange=change;position.onchange=change;change();form.append(mode,position,save);card.append(form);
-        save.onclick=async()=>{
-          if(save.disabled||saving)return;
-          saving=true;save.disabled=true;mode.disabled=true;position.disabled=true;
+        expense.onclick = () => {
+          const {items,hints} = BudgetPicker.refundOptions(targets,state.rows,row);
+          BudgetPicker.open(items,hints,item=>{
+            creditChoices.set(row.key,item.key);
+            if (card.isConnected) { update(); save.focus({preventScroll:true}); }
+            else if (root.isConnected && income && !history) render();
+          });
+        };
+        incomeButton.onclick = () => { creditChoices.set(row.key,'WPŁYW'); update(); };
+        save.onclick = async () => {
+          if (saving || save.disabled) return;
+          saving = true; update();
           try {
-            await saveCardCredit(row,mode.value==='expense'?targets.get(position.value):null);
+            await saveCardCredit(row,target);
+            creditChoices.delete(row.key);
             saving=false;history=true;
             window.dispatchEvent(new Event('budget-assignment-saved'));
             await reload('Zwrot zapisany.');
           } catch(error) {
-            saving=false;mode.disabled=false;position.disabled=false;change();
+            saving=false;update();
             status.textContent=error.message || 'Sprawdź historię przed ponowieniem.';
           }
         };
+        actions.append(expense,incomeButton);
+        form.append(actions,detail,save);
+        card.append(form);
+        update();
       }
       function renderIncome() {
         const data=state.data.income;
